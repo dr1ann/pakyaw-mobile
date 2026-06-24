@@ -1,0 +1,87 @@
+/**
+ * Phase 8A/8B — Trip lifecycle domain types.
+ *
+ * The trip document status field drives every screen transition.
+ * This module defines the closed status union, the forward-only
+ * transition matrix enforced by trip.service.ts and firestore.rules,
+ * and the TripDoc shape read from Firestore snapshots.
+ */
+
+import type { Timestamp } from 'firebase/firestore';
+
+import type { Place } from '@/features/booking/types';
+
+export type TripStatus =
+  | 'request'
+  | 'accepted'
+  | 'driver_arriving'
+  | 'driver_arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
+/**
+ * Client-side representation of a trips/{tripId} document.
+ * Timestamps may be null when pending server commit (optimistic writes).
+ */
+export type TripDoc = {
+  readonly id: string;
+  readonly mode: 'solo';
+  readonly status: TripStatus;
+  readonly passengerId: string;
+  readonly driverId: string | null;
+  readonly pickup: Place;
+  readonly destination: Place;
+  readonly passengerCount: number;
+  readonly billedSeats: number;
+  readonly geohash: string;
+  readonly requestedAt: Timestamp | null;
+  readonly acceptedAt: Timestamp | null;
+  readonly completedAt: Timestamp | null;
+  readonly cancelledAt: Timestamp | null;
+  readonly cancelledBy: CancelledBy | null;
+  readonly cancelReason: string | null;
+};
+
+/**
+ * Forward-only transition matrix. Each key maps to the set of statuses
+ * it may transition INTO. Terminal states map to empty arrays.
+ *
+ * Note: request → accepted is handled exclusively by Phase 7 acceptTrip()
+ * and is intentionally absent here.
+ */
+export const ALLOWED_TRANSITIONS: Record<
+  Exclude<TripStatus, 'request'>,
+  readonly TripStatus[]
+> = {
+  accepted: ['driver_arriving'],
+  driver_arriving: ['driver_arrived'],
+  driver_arrived: ['in_progress'],
+  in_progress: ['completed'],
+  completed: [],
+  cancelled: [],
+} as const;
+
+/**
+ * Statuses from which a trip may be cancelled.
+ * Terminal states (completed, cancelled) and in_progress are excluded.
+ */
+export const CANCELLABLE_STATUSES: readonly TripStatus[] = [
+  'request',
+  'accepted',
+  'driver_arriving',
+  'driver_arrived',
+] as const;
+
+export type CancelledBy = 'driver' | 'passenger';
+
+/**
+ * Statuses during which the passenger should receive live driver location.
+ * Subscription is inactive during request and terminal states.
+ */
+export const DRIVER_LOCATION_ACTIVE_STATUSES: readonly TripStatus[] = [
+  'accepted',
+  'driver_arriving',
+  'driver_arrived',
+  'in_progress',
+] as const;

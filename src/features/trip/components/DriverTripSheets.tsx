@@ -1,0 +1,206 @@
+/**
+ * Phase 8E — Driver-side trip status sheets.
+ *
+ * These inline components render inside drive.tsx's bottom sheet area when
+ * the driver has an active trip. Each maps to a trip lifecycle status.
+ * Transition buttons will be added in a later phase.
+ */
+
+import { StyleSheet, Text, View } from 'react-native';
+
+import { Button } from '@/components/ui/Button';
+import { StatusPill } from '@/components/ui/StatusPill';
+import { colors, spacing, typography } from '@/constants/theme';
+import { useTripTransition } from '@/features/trip/hooks/useTripActions';
+import { useActiveTripStore } from '@/stores/activeTripStore';
+
+// ── DriverAcceptedSheet ─────────────────────────────────────────────────────
+// Shown when status is 'accepted'. Driver just accepted, about to head out.
+
+export function DriverAcceptedSheet() {
+  const trip = useActiveTripStore((s) => s.trip);
+  const { mutate: transition, isPending } = useTripTransition();
+
+  function handleStartNavigation() {
+    if (trip) {
+      transition({ tripId: trip.id, status: 'driver_arriving' });
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusPill label="Trip accepted" tone="success" dot />
+      <Text style={styles.title}>New trip accepted</Text>
+      <Text style={styles.subtitle}>
+        Head to {trip?.pickup.label ?? 'pickup location'} to pick up your
+        passenger.
+      </Text>
+      <Button
+        label="Start navigation"
+        onPress={handleStartNavigation}
+        loading={isPending}
+        disabled={isPending}
+        testID="driver-start-navigation"
+      />
+    </View>
+  );
+}
+
+export function DriverEnRouteSheet() {
+  const trip = useActiveTripStore((s) => s.trip);
+  const { mutate: transition, isPending } = useTripTransition();
+
+  function handleArrived() {
+    if (trip) {
+      transition({ tripId: trip.id, status: 'driver_arrived' });
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusPill label="En route to pickup" tone="info" dot />
+      <Text style={styles.title}>Head to pickup</Text>
+      <Text style={styles.subtitle}>
+        Heading to {trip?.pickup.label ?? 'pickup location'}
+      </Text>
+      <Button
+        label="Arrived at pickup"
+        onPress={handleArrived}
+        loading={isPending}
+        disabled={isPending}
+        testID="driver-arrived-at-pickup"
+      />
+    </View>
+  );
+}
+
+// ── DriverArrivedSheet ──────────────────────────────────────────────────────
+// Shown when status is 'driver_arrived'. Driver is at the pickup waiting.
+
+export function DriverArrivedSheet() {
+  const trip = useActiveTripStore((s) => s.trip);
+  const { mutate: transition, isPending } = useTripTransition();
+
+  function handleStartTrip() {
+    if (trip) {
+      transition({ tripId: trip.id, status: 'in_progress' });
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusPill label="At pickup" tone="success" dot />
+      <Text style={styles.title}>Waiting for passenger</Text>
+      <Text style={styles.subtitle}>
+        You have arrived at the pickup location.
+      </Text>
+      <Button
+        label="Start trip"
+        onPress={handleStartTrip}
+        loading={isPending}
+        disabled={isPending}
+        testID="driver-start-trip"
+      />
+    </View>
+  );
+}
+
+// ── DriverInTripSheet ───────────────────────────────────────────────────────
+// Shown when status is 'in_progress'. Ride is underway.
+
+export function DriverInTripSheet() {
+  const trip = useActiveTripStore((s) => s.trip);
+  const { mutate: transition, isPending } = useTripTransition();
+
+  function handleEndTrip() {
+    if (trip) {
+      transition({ tripId: trip.id, status: 'completed' });
+    }
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusPill label="In progress" tone="info" dot />
+      <Text style={styles.title}>Ride in progress</Text>
+      <Text style={styles.subtitle}>
+        Heading to {trip?.destination.label ?? 'destination'}
+      </Text>
+      <Button
+        label="End trip"
+        onPress={handleEndTrip}
+        loading={isPending}
+        disabled={isPending}
+        testID="driver-end-trip"
+      />
+    </View>
+  );
+}
+
+// ── DriverCompletedSheet ────────────────────────────────────────────────────
+// Shown when status is 'completed'.
+
+type DriverCompletedSheetProps = {
+  onDismiss: () => void;
+};
+
+export function DriverCompletedSheet({ onDismiss }: DriverCompletedSheetProps) {
+  return (
+    <View style={styles.container}>
+      <StatusPill label="Completed" tone="success" dot />
+      <Text style={styles.title}>Trip completed</Text>
+      <Text style={styles.subtitle}>
+        Great job! The ride has been completed successfully.
+      </Text>
+      <Button label="Done" onPress={onDismiss} />
+    </View>
+  );
+}
+
+// ── DriverCancelledSheet ────────────────────────────────────────────────────
+// Shown when status is 'cancelled'.
+
+type DriverCancelledSheetProps = {
+  onDismiss: () => void;
+};
+
+export function DriverCancelledSheet({ onDismiss }: DriverCancelledSheetProps) {
+  const trip = useActiveTripStore((s) => s.trip);
+  const cancelledBy = trip?.cancelledBy ?? 'unknown';
+  const reason = trip?.cancelReason ?? 'No reason provided.';
+
+  return (
+    <View style={styles.container}>
+      <StatusPill label="Cancelled" tone="danger" dot />
+      <Text style={styles.title}>Trip cancelled</Text>
+      <Text style={styles.subtitle}>
+        This trip was cancelled by the {cancelledBy}.
+      </Text>
+      {reason ? <Text style={styles.reason}>{reason}</Text> : null}
+      <Button label="Done" onPress={onDismiss} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[6],
+    gap: spacing[3],
+  },
+  title: {
+    fontSize: typography.size.h3,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  subtitle: {
+    fontSize: typography.size.body,
+    color: colors.ink[500],
+    lineHeight: typography.lineHeight.body,
+  },
+  reason: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[400],
+    fontStyle: 'italic',
+  },
+});
