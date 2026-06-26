@@ -29,6 +29,7 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   'clock.fill': { ios: 'clock.fill', android: 'history', web: 'history' },
   person: { ios: 'person', android: 'person', web: 'person' },
   'person.fill': { ios: 'person.fill', android: 'person', web: 'person' },
+  'location.fill': { ios: 'location.fill', android: 'my_location', web: 'my_location' },
 };
 
 export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProps) {

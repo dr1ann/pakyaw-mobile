@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { LatLng } from '@/lib/geo';
+import { MIN_ROUTE_DISTANCE_METERS, MAX_ROUTE_DISTANCE_METERS } from '@/lib/serviceArea';
 
 export const latLngSchema: z.ZodType<LatLng> = z
   .object({
@@ -40,7 +41,7 @@ export const createTripSchema = z
     destination: placeSchema,
     passengerCount: z.number().int().min(1).max(6),
     route: z.object({
-      distanceMeters: z.number().int().positive().max(60_000),
+      distanceMeters: z.number().int().min(MIN_ROUTE_DISTANCE_METERS).max(MAX_ROUTE_DISTANCE_METERS),
       durationSeconds: z.number().int().positive().max(3 * 3600),
       polyline: z.string().min(1).max(8192),
     }),

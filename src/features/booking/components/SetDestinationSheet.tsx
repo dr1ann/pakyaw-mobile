@@ -10,11 +10,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { SymbolIcon } from '@/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import type { Place } from '@/features/booking/types';
 import { useOrmocPlacesAutocomplete } from '@/features/maps/hooks/useOrmocPlacesAutocomplete';
-import { getPlaceDetails } from '@/features/maps/services/placesService';
+import { getPlaceDetails, reverseGeocode } from '@/features/maps/services/placesService';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { logger } from '@/lib/logger';
 
@@ -80,6 +81,60 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
   
   const { data: predictions = [], isLoading } = useOrmocPlacesAutocomplete(query);
   const [resolvingPlace, setResolvingPlace] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  async function handleUseCurrentLocation() {
+    setDetectingLocation(true);
+    try {
+      logger.info('[SetDestinationSheet] Checking location permission status...');
+      const currentPerm = await Location.getForegroundPermissionsAsync();
+      
+      const canPrompt = currentPerm.status === 'undetermined' || currentPerm.canAskAgain;
+
+      if (canPrompt) {
+        logger.info('[SetDestinationSheet] Requesting location permission...');
+        const requestPerm = await Location.requestForegroundPermissionsAsync();
+        if (requestPerm.status !== 'granted') {
+          logger.warn('[SetDestinationSheet] Location permission denied by user prompt');
+          return;
+        }
+      } else {
+        logger.warn('[SetDestinationSheet] Location permission permanently denied, showing settings alert');
+        Alert.alert(
+          'Location Permission',
+          'Location permission is required to use your current location. Please enable it in your device settings.'
+        );
+        return;
+      }
+
+      logger.info('[SetDestinationSheet] Getting current position...');
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      logger.info('[SetDestinationSheet] Reverse-geocoding current position...', loc.coords);
+      const place = await reverseGeocode(loc.coords.latitude, loc.coords.longitude);
+      
+      if (place && place.coords && isInServiceArea(place.coords)) {
+        logger.info('[SetDestinationSheet] Selected current location:', place);
+        onSelect(place);
+      } else {
+        logger.warn('[SetDestinationSheet] Current location outside service area', place);
+        Alert.alert(
+          'Service Area',
+          'Service is currently available only within Ormoc City.'
+        );
+      }
+    } catch (err) {
+      logger.error('[SetDestinationSheet] Failed to resolve current location', err);
+      Alert.alert(
+        'Location Error',
+        'Could not resolve your current location. Please try again or search for a location.'
+      );
+    } finally {
+      setDetectingLocation(false);
+    }
+  }
 
   async function handleSelectPrediction(placeId: string, label: string) {
     setResolvingPlace(true);
@@ -190,6 +245,28 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
         >
+          {mode === 'pickup' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionHeader}>Current Location</Text>
+              <Pressable
+                onPress={handleUseCurrentLocation}
+                disabled={detectingLocation}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              >
+                <View style={styles.iconContainer}>
+                  <SymbolIcon name="location.fill" size={20} tintColor={colors.blue.primary} />
+                </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.rowLabel}>Use Current Location</Text>
+                  <Text style={styles.rowSublabel}>Detect via GPS</Text>
+                </View>
+                {detectingLocation && (
+                  <ActivityIndicator size="small" color={colors.blue.primary} style={styles.loader} />
+                )}
+              </Pressable>
+            </View>
+          )}
+
           {validSavedPlaces.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>Saved Places</Text>
@@ -299,7 +376,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing[3],
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.border.subtle,
   },
   rowPressed: {
     opacity: 0.7,

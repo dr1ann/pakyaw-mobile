@@ -42,6 +42,18 @@ Three apps:
 ### 1.4 Booking a ride (core flow)
 **Screens:** `ride_page.png` → `ride_page(searched a place to go).png` (+ variants) → `ride_page(confirmed_searching_for_available_riders).png` → `ride_page(rider_accepted_passenger).png` → `ride_page(arriving_at_destination).png`
 
+> **Phase 12 — pickup / destination / minimum-trip-distance.** In the Phase 12 implementation the passenger:
+> 1. Sets **pickup** via one of three entry points: (a) **"Use Current Location"** (GPS — top row of the pickup sheet), (b) search, or (c) manual map-pin (crosshair or drag). The resolved pickup must fall inside the Ormoc service area; out-of-area picks are rejected with "Service is currently available only within Ormoc City."
+> 2. Sets **destination** via search or manual map-pin (crosshair or drag), same service-area gate.
+> 3. The **Directions API** computes the route as soon as both endpoints exist; polyline, distance, and ETA render.
+> 4. **Minimum trip distance check** — if `route.distanceMeters < 50`:
+>    - the booking sheet shows the inline message **"Pickup and destination are too close."**,
+>    - the destination row is visually marked invalid,
+>    - the Confirm button is disabled,
+>    - **no Firestore write is attempted**.
+>    - The check uses the routed distance, **not** lat/lng equality. The user can adjust either endpoint; once the routed distance is ≥ 50 m the warning clears and Confirm re-enables.
+> 5. Else: continue with the normal booking flow described below.
+
 1. **Home / Ride (`ride_page.png`):** map with nearby driver pins; greeting "Where to, James?"; search field ("Schools · malls · barangays · landmarks") + VOICE; supply stats ("14 drivers within 1km", "AVG PICKUP 3 min"); bottom tab bar (Ride / Activity / Wallet / Account); map overlay controls (insights, layers, locate, etc.).
 2. **Destination selected (`ride_page(searched a place to go).png`):** a fare sheet expands:
    - Trip header: From / To, distance · time · traffic ("3.4 km · 8 min · Light").

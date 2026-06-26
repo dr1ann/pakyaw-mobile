@@ -22,10 +22,12 @@
 4. **Passenger trip ETA + distance** (display-only trip context).
 5. **Driver-to-pickup ETA + distance** during the `accepted` → `driver_arrived` lifecycle.
 6. Three-layer geographic restriction to Ormoc City (UI prevention, service-layer assertion, Firestore rules on coordinates) — applies to manual pin placement as well as search-selected places.
-7. Passenger `BookingSheet` redesign matching Figma — including the **fare container as placeholder only** (no computation).
-8. Driver `IncomingRequestCard` enhancement showing **pickup, destination, ETA, and distance** (no fare).
-9. Removal of all **Shared / carpool ride UI** from the booking flow.
-10. Removal of the **privilege-discount UI** from the booking flow.
+7. **Minimum trip distance restriction (50 m).** A booking is invalid when the routed distance between pickup and destination is **< 50 meters**. Enforced in the same three layers as the Ormoc service-area rule (UI, booking service, Firestore rules). See §1.5.
+8. Passenger `BookingSheet` redesign matching Figma — including the **fare container as placeholder only** (no computation).
+9. Driver `IncomingRequestCard` enhancement showing **pickup, destination, ETA, and distance** (no fare).
+10. Removal of all **Shared / carpool ride UI** from the booking flow.
+11. Removal of the **privilege-discount UI** from the booking flow.
+12. **"Use Current Location"** entry point on the Set Pickup sheet (mirrors the destination sheet's "Drop pin on map" affordance for the pickup endpoint via GPS).
 
 ### Out of scope (deferred)
 - **All fare/pricing computation** (FR-1.2.x). Tariff loading, zonal lookups, billed-seat math, surcharges, platform/convenience fees, fare breakdown values, "driver receives" math, and any related Firestore rule invariants. See §11.
@@ -86,6 +88,86 @@ The `ServiceArea` shape is generic; adding a city later is a new constant + regi
 
 ---
 
+## 1.5 Minimum Trip Distance — 50 m
+
+### 1.5.1 Rule
+
+A booking is **invalid** when the routed distance between pickup and destination is less than **50 meters**:
+
+```
+route.distanceMeters < MIN_ROUTE_DISTANCE_METERS  →  booking invalid
+where MIN_ROUTE_DISTANCE_METERS = 50
+```
+
+The full route bound enforced by the system becomes:
+
+```
+MIN_ROUTE_DISTANCE_METERS  <=  route.distanceMeters  <=  MAX_ROUTE_DISTANCE_METERS
+50                         <=  route.distanceMeters  <=  60_000
+```
+
+### 1.5.2 Why route distance, not coordinate equality
+
+The validation **must** be based on the **Directions API** route distance, not on direct latitude/longitude comparison. Reasons:
+
+- **Geocoding noise.** Reverse geocoding and Places autocomplete snap user taps to nearby POIs, so two "different" places (e.g., two adjacent shop entrances) may resolve to coordinates only a few centimeters apart, yet sit on opposite sides of a one-way street and require a real trip. Conversely, the same plaza tapped twice can produce slightly different lat/lng pairs that an equality check would falsely allow.
+- **Road graph reality.** Two coordinates 20 m apart as the crow flies can be 400 m apart along the road graph (median, divider, one-way). Coordinate equality cannot model this; the Directions API already does.
+- **Single source of truth.** `route.distanceMeters` is the same value the UI shows the user ("0.04 km · 1 min"), the booking service validates, and the Firestore rule asserts. There is exactly one number to gate against, and it is the same one the user sees.
+
+Coordinate equality is therefore **explicitly rejected** as a validation strategy. The system does not compare `pickup.coords` against `destination.coords`; it consults `route.distanceMeters` returned by `useRouteQuery`.
+
+### 1.5.3 Why 50 meters
+
+- **Accidental same-location bookings.** Phones routinely produce GPS fixes with 10–30 m of uncertainty in dense urban Ormoc. A passenger who taps "Use current location" for pickup and then taps the very same building for destination should be blocked, not dispatched. 50 m sits safely above typical urban GPS noise so two genuinely-distinct addresses do not trip the gate.
+- **Below the shortest plausible tricycle trip.** Ormoc tricycle trips at the lower bound are intra-barangay hops (e.g., one end of a market to another), which the Directions API routes at **≥ 100 m**. A 50 m floor leaves comfortable headroom: any real ride clears it, and any "tap-tap-on-the-same-spot" misclick is caught.
+- **Round, defensible, configurable.** 50 m is a single constant (`MIN_ROUTE_DISTANCE_METERS`) in `src/lib/serviceArea/ormoc.ts` (or a sibling `routeBounds.ts`) — easy to tune from operations data without a code restructure.
+
+### 1.5.4 Three-layer validation (mirrors §1.2)
+
+This validation is a **business rule**, enforced consistently across the same three layers already used for the Ormoc service-area restriction.
+
+| Layer | Mechanism | Failure UX |
+|---|---|---|
+| **L1 — UI** | Immediately after `useRouteQuery` resolves, the booking sheet inspects `route.distanceMeters`. If `< 50`, the destination row is marked invalid, the Confirm button is disabled, and an inline message appears: **"Pickup and destination are too close."** | Confirm disabled; destination row carries an "invalid" visual treatment (red accent / warning icon). Reverse geocoding and route refetch still happen on subsequent edits — only the Confirm path is gated. |
+| **L2 — Booking Service** | `bookingService.createTrip()` re-validates `route.distanceMeters >= 50` against the current draft **before** any Firestore write. Throws a dedicated `MinTripDistanceError` (domain error). | Booking sheet surfaces the same copy: "Pickup and destination are too close." No Firestore write is attempted. This is the race-protection layer (an in-flight route refetch cannot sneak a sub-50 m trip past the UI gate). |
+| **L3 — Firestore Rules** | The `create` rule asserts `request.resource.data.route.distanceMeters >= 50` **and** `<= 60_000`. This rule is the backstop against a malicious or out-of-date client. | Write rejected with permission-denied → UI surfaces "Could not request ride. Please try again." |
+
+L3 is the only layer an attacker cannot bypass; L1/L2 are UX and race protection.
+
+### 1.5.5 Too-close side effects
+
+When the route resolves and `route.distanceMeters < 50`:
+
+- The route polyline, ETA, and distance **continue to render** so the user understands *why* the booking is blocked (they see "0.03 km · 1 min" and the inline message together).
+- The Confirm button is disabled.
+- `bookingDraftStore.route` is **not** cleared (unlike the out-of-area case in §1.2.1) — the user needs the value rendered to understand the gate. Clearing it would hide the cause.
+- `bookingService.createTrip` rejects with `MinTripDistanceError` at submission time even if the client believed the distance was valid (race protection between UI state and submit).
+
+### 1.5.6 Helper / error type
+
+```ts
+// src/lib/serviceArea/index.ts (or src/lib/routeBounds.ts — co-located with MIN/MAX)
+export const MIN_ROUTE_DISTANCE_METERS = 50;
+export const MAX_ROUTE_DISTANCE_METERS = 60_000;
+
+export function isRouteDistanceTooShort(meters: number): boolean {
+  return meters < MIN_ROUTE_DISTANCE_METERS;
+}
+
+export class MinTripDistanceError extends Error {
+  readonly distanceMeters: number;
+  constructor(distanceMeters: number) {
+    super('Pickup and destination are too close.');
+    this.name = 'MinTripDistanceError';
+    this.distanceMeters = distanceMeters;
+  }
+}
+```
+
+The error message matches the L1 UI copy verbatim so the surfaced text is identical regardless of which layer caught the violation.
+
+---
+
 ## 2. Firestore Schema Changes (this spec only — `database_schema.md` not edited)
 
 Phase 12 introduces **no monetary fields**. The only additions are coordinate fields, the routed polyline (display context), and live driver-to-pickup tracking.
@@ -117,7 +199,7 @@ interface TripDoc {
 
 ### 2.2 Security rules — `firestore.rules`
 
-Phase 12 rules enforce **service area + ownership only**. There are no fare invariants to enforce because no fare is written.
+Phase 12 rules enforce **ownership + service area + minimum trip distance**. There are no fare invariants to enforce because no fare is written. The service-area bounds (§1.2 / L3) and the route-distance bounds (§1.5 / L3) are the two booking invariants the L3 layer backstops.
 
 ```
 allow create: if
@@ -135,8 +217,11 @@ allow create: if
   && request.resource.data.destination.coords.lat  <= 11.11
   && request.resource.data.destination.coords.lng  >= 124.49
   && request.resource.data.destination.coords.lng  <= 124.72
-  // Distance plausibility (display-only field, sanity bound)
-  && request.resource.data.route.distanceMeters > 0
+  // Distance bounds — minimum-trip floor (50 m) + maximum sanity bound (60 km).
+  // The 50 m floor is the L3 backstop for the Minimum Trip Distance rule (§1.5)
+  // so a malicious client cannot bypass the UI/service-layer checks by writing
+  // a near-zero-distance trip (pickup ≈ destination).
+  && request.resource.data.route.distanceMeters >= 50
   && request.resource.data.route.distanceMeters <= 60000;
 ```
 
@@ -228,7 +313,7 @@ interface ActiveTripState {
 Sourced from `trip.driverToPickup` (driver-written) — not recomputed on the passenger client.
 
 ### 4.3 TanStack Query — new queries
-- `useRouteQuery({ pickup, destination })` — Directions; display-only distance/duration/polyline. `staleTime` 5 min, retries 2. **Keyed on `(pickup.coords, destination.coords)`** and must re-fetch whenever either changes — including drag-driven changes. The query is **disabled** while either endpoint is null or fails `isInServiceArea`. On re-fetch, the prior `route` value is invalidated in `bookingDraftStore` (`setRoute(null)`) before the new value is written, so polyline/ETA/distance never display against a mismatched endpoint pair.
+- `useRouteQuery({ pickup, destination })` — Directions; display-only distance/duration/polyline. `staleTime` 5 min, retries 2. **Keyed on `(pickup.coords, destination.coords)`** and must re-fetch whenever either changes — including drag-driven changes. The query is **disabled** while either endpoint is null or fails `isInServiceArea`. On re-fetch, the prior `route` value is invalidated in `bookingDraftStore` (`setRoute(null)`) before the new value is written, so polyline/ETA/distance never display against a mismatched endpoint pair. Once the route resolves, `route.distanceMeters` is the single value consulted for the **minimum-trip-distance gate** (§1.5) — the booking sheet derives the too-close state from it; the store value is **not** cleared when the distance is sub-50 m, because the UI must keep rendering it to explain why Confirm is disabled.
 - `useOrmocPlacesAutocomplete(query)` — Places, debounced, `staleTime` 30 s.
 - `useDriverToPickupETA(tripId)` — Distance Matrix, `refetchInterval: 30s`, enabled only while status ∈ {accepted, driver_arriving}.
 
@@ -251,6 +336,13 @@ Full-bleed `LiveMap` centered on current location (fallback `ORMOC_CENTER`); flo
   3. Sets `destination` via `setDestination(place, 'manual-pin')` and advances to the booking sheet.
 - A **Cancel** affordance during pin placement returns the user to the Set Destination sheet (`cancelDestinationPick()`).
 
+> **Pickup mode — "Use Current Location" row.** When the sheet is opened in `mode === 'pickup'`, it renders a leading **"Use Current Location"** section above Saved/Recent/Suggested (icon `location.fill`, sublabel "Detect via GPS"). Tapping it:
+> 1. Checks/asks foreground location permission via `expo-location` (`getForegroundPermissionsAsync` → `requestForegroundPermissionsAsync`; if permanently denied, alert directing the user to device settings).
+> 2. Reads the position (`getCurrentPositionAsync`, balanced accuracy) and `reverseGeocode`s it to a `Place`.
+> 3. If the resolved place is inside the Ormoc service area, selects it as pickup with `source: 'current-location'`; otherwise alerts **"Service is currently available only within Ormoc City."**
+>
+> The row shows an inline spinner while detecting and is disabled during detection. This is the GPS-backed sibling of the "Drop pin on map" affordance and is the implementation of the "Use current location" entry point referenced in §0.1a and §5.3.
+
 ### 5.3 Booking sheet — `BookingSheet.tsx` (redesign, Pakyaw-only)
 Matches Figma. **No Share tab** (Shared ride UI is removed per requirements). **No privilege-discount toggle or "20% off" copy.**
 
@@ -258,7 +350,8 @@ Matches Figma. **No Share tab** (Shared ride UI is removed per requirements). **
 - **Route summary card**: pickup green dot + destination amber dot, addresses, **distance + ETA chip** ("3.4 km · 8 min"). Each row carries a small **"Adjust"** affordance. Tapping "Adjust" on either row opens a short action menu offering **"Drag pin on map"** (focuses the map and hints to drag the corresponding marker — also available by long-pressing the marker directly) and **"Drop pin on map"** (enters the crosshair flow for that endpoint via `beginPickupPick()` or `beginDestinationPick()`). For pickup, the menu also offers **"Use current location"** which resets pickup via `setPickup(currentLocationPlace, 'current-location')`.
 - **Seat stepper**: `passengerCount` 1..6 (display + storage only — does not drive any pricing math in this phase).
 - **Fare container**: the Figma fare container is **retained visually** but renders **placeholder content only**. Acceptable placeholder copy: "Fare shown at confirmation" or a skeleton row. There is **no** computed total, no breakdown rows, no "₱" amount, no "Driver receives" line, and **no Confirm-button price**.
-- **Confirm button**: "Request Pakyaw" (no embedded price). Disabled while pickup or destination are missing, while either is outside the service area, while the route is still loading, while either pick mode is `'picking'`, or while a service-area assertion fails.
+- **Too-close warning**: when `route.distanceMeters < 50` (§1.5), the route summary card renders the destination row in its invalid treatment and shows the inline message **"Pickup and destination are too close."** directly beneath the route chip. The distance/ETA chip still renders the (sub-50 m) value so the cause is visible.
+- **Confirm button**: "Request Pakyaw" (no embedded price). Disabled while pickup or destination are missing, while either is outside the service area, **while `route.distanceMeters < 50` (minimum trip distance, §1.5)**, while the route is still loading, while either pick mode is `'picking'`, or while a service-area assertion fails.
 
 Passenger sees pickup, destination, route polyline, ETA, and distance before confirming. Fare display is deferred.
 
@@ -309,7 +402,7 @@ The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline
 | File | Responsibility |
 |---|---|
 | `src/lib/serviceArea/ormoc.ts` | Ormoc bounds + bias center |
-| `src/lib/serviceArea/index.ts` | `isInServiceArea`, `assertInServiceArea`, `ServiceAreaError` |
+| `src/lib/serviceArea/index.ts` | `isInServiceArea`, `assertInServiceArea`, `ServiceAreaError`; **`MIN_ROUTE_DISTANCE_METERS` (50), `MAX_ROUTE_DISTANCE_METERS` (60 000), `isRouteDistanceTooShort()`, `MinTripDistanceError`** (§1.5) |
 | `src/lib/maps/decodePolyline.ts` | Encoded polyline → `LatLng[]` |
 | `src/features/maps/services/routingService.ts` | `getRoute()` → distance/duration/polyline |
 | `src/features/maps/services/placesService.ts` | Autocomplete + details, Ormoc-biased; **adds `reverseGeocode(coords)` returning a `Place` with `source: 'manual-pin'` — must throw `ServiceAreaError` before any network call if `coords` fail `isInServiceArea`** |
@@ -317,8 +410,8 @@ The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline
 | `src/features/maps/hooks/useOrmocPlacesAutocomplete.ts` | Query wrapper |
 | `src/features/maps/hooks/useRouteQuery.ts` | Query wrapper; disabled while either endpoint is null or out of service area |
 | `src/features/maps/hooks/useDriverToPickupETA.ts` | Query wrapper |
-| `src/features/booking/services/booking.service.ts` | Service-area assertion before `createTrip` — re-runs at submit time against current store coordinates so an in-flight route fetch cannot race past a now-invalid endpoint |
-| `src/features/booking/components/SetDestinationSheet.tsx` | New — search rows + "Drop pin on map" entry into manual placement |
+| `src/features/booking/services/booking.service.ts` | Service-area assertion **and minimum-trip-distance assertion (`route.distanceMeters >= 50`, throws `MinTripDistanceError`)** before `createTrip` — both re-run at submit time against current store coordinates/route so an in-flight route fetch cannot race past a now-invalid endpoint or a sub-50 m route |
+| `src/features/booking/components/SetDestinationSheet.tsx` | Search rows + "Drop pin on map" entry into manual placement; **in `mode === 'pickup'`, a "Use Current Location" row (GPS → `reverseGeocode` → service-area check → `setPickup(place, 'current-location')`)** |
 | `src/features/booking/components/PinPlacementOverlay.tsx` | **New** — generic crosshair overlay + tinted CTA used during `pickupPickMode === 'picking'` **or** `destinationPickMode === 'picking'`; takes `target: 'pickup' \| 'destination'` to choose the color and CTA copy |
 | `src/features/booking/components/BookingSheet.tsx` | Redesign — Pakyaw-only, fare container placeholder, "Adjust" affordance on pickup/destination rows (drag / drop-pin / use-current-location actions) |
 | `src/features/matching/types.ts` | Add `route` to `IncomingRequest` |
@@ -334,12 +427,17 @@ The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline
 
 ### 9.1 `createTripSchema`
 ```ts
+const MIN_ROUTE_DISTANCE_METERS = 50;   // minimum trip distance (§1.5)
+const MAX_ROUTE_DISTANCE_METERS = 60_000;
+
 const createTripSchema = z.object({
   pickup: placeSchema,
   destination: placeSchema,
   passengerCount: z.number().int().min(1).max(6),
   route: z.object({
-    distanceMeters: z.number().int().positive().max(60_000),
+    // Minimum 50 m enforces the minimum-trip-distance rule at the boundary
+    // (§1.5); the same numeric bound is mirrored in firestore.rules (L3).
+    distanceMeters: z.number().int().min(MIN_ROUTE_DISTANCE_METERS).max(MAX_ROUTE_DISTANCE_METERS),
     durationSeconds: z.number().int().positive().max(3 * 3600),
     polyline: z.string().min(1).max(8192),
   }),
@@ -347,6 +445,8 @@ const createTripSchema = z.object({
 });
 ```
 No `fare`, no `options`, no `tariffVersion` — these arrive with pricing.
+
+The `route.distanceMeters` lower bound makes the Zod layer a fourth backstop behind the booking service (L2): a payload whose route is shorter than 50 m fails schema validation before `createTrip` ever reaches Firestore. `createTrip` throws the dedicated `MinTripDistanceError` (§1.5 / L2) rather than a generic Zod error so the UI can show the correct copy.
 
 `placeSchema` carries a `source: 'current-location' | 'search' | 'manual-pin'` discriminator so the wire payload preserves selection provenance for analytics. `source` is informational only — it does not gate any server-side check (the L3 rule still enforces bounds on `pickup.geo` and `destination.geo` regardless of source).
 
@@ -363,19 +463,21 @@ Each sub-phase ends with green `expo lint` and the relevant Vitest suite.
 1. `src/lib/serviceArea/ormoc.ts` + helpers + tests.
 2. `src/lib/maps/decodePolyline.ts` + fixture tests.
 3. `createTripSchema`, `routeResponseSchema` Zod definitions.
+4. `MIN_ROUTE_DISTANCE_METERS`/`MAX_ROUTE_DISTANCE_METERS`, `isRouteDistanceTooShort`, `MinTripDistanceError` + unit tests (§1.5).
 
 ### Phase 12B — Services + queries
 1. `routingService`, `placesService`, `distanceMatrixService`.
 2. Query hooks (`useRouteQuery`, `useOrmocPlacesAutocomplete`, `useDriverToPickupETA`).
 3. `bookingDraftStore` additions (route only).
 4. Service-area assertion in `booking.service.createTrip`.
+5. Minimum-trip-distance assertion (`route.distanceMeters >= 50` → `MinTripDistanceError`) in `booking.service.createTrip`, re-run at submit time (§1.5 / L2).
 
 ### Phase 12C — Schema + rules
 1. Extend `TripDoc` type + Zod schema for `route`, `driverToPickup`, `serviceAreaId`.
-2. Update `firestore.rules` per §2.2 (service-area bounds, distance sanity, driver-only `driverToPickup` writes).
+2. Update `firestore.rules` per §2.2 (service-area bounds, **minimum 50 m + maximum 60 km route-distance bounds**, driver-only `driverToPickup` writes).
 
 ### Phase 12D — Passenger UI
-1. `SetDestinationSheet` (Saved/Recent/Suggested) plus **"Drop pin on map"** entry into manual destination placement.
+1. `SetDestinationSheet` (Saved/Recent/Suggested) plus **"Drop pin on map"** entry into manual destination placement, and a **"Use Current Location"** row in `mode === 'pickup'` (GPS → reverse-geocode → service-area check → `setPickup(place, 'current-location')`).
 2. `BookingSheet` redesign — Figma alignment, fare container **placeholder only**, no Share tab, no discount toggle.
 3. Pickup-pin drag + reverse-geocode.
 4. **Manual pin placement (both endpoints):** `PinPlacementOverlay` component, `beginPickupPick`/`cancelPickupPick` and `beginDestinationPick`/`cancelDestinationPick` flows, reverse-geocode on confirm, service-area gate on the CTA. Only one endpoint may be in `'picking'` mode at a time.
@@ -398,7 +500,7 @@ Each sub-phase ends with green `expo lint` and the relevant Vitest suite.
 2. Remove the privilege-discount toggle and "20% off" copy from the booking flow. `riderType` retained on `users/{uid}` for future use.
 
 ### Phase 12H — Verification
-1. End-to-end manual test: search pickup + destination in Ormoc → routed polyline renders → ETA + distance display → out-of-area pickup blocked at L1/L2/L3 → driver card shows pickup/destination/ETA/distance → live driver-to-pickup ETA updates.
+1. End-to-end manual test: search pickup + destination in Ormoc → routed polyline renders → ETA + distance display → out-of-area pickup blocked at L1/L2/L3 → **too-close pickup/destination (< 50 m) blocked at L1/L2/L3** → driver card shows pickup/destination/ETA/distance → live driver-to-pickup ETA updates.
 2. `expo lint`, `vitest run`. The existing `scripts/check-no-money.js` continues to pass unchanged — Phase 12 introduces no monetary fields.
 
 #### Acceptance criteria — manual map-based selection
@@ -409,8 +511,21 @@ Each sub-phase ends with green `expo lint` and the relevant Vitest suite.
 - **AC-MP-4:** Dragging either marker updates the stored endpoint, refreshes the displayed address via reverse geocoding, and triggers a route recalculation that updates polyline, ETA, and distance together.
 - **AC-MP-5:** Dragging either marker outside Ormoc bounds reverts the marker to its prior position and shows the exact toast **"Service is currently available only within Ormoc City."**
 - **AC-MP-6:** Reverse geocoding and route generation are **not** invoked for out-of-area coordinates (verified by spying on `reverseGeocode` and `useRouteQuery` in the manual test).
-- **AC-MP-7:** The Confirm button is disabled whenever pickup or destination is missing, outside service area, or while a route fetch is in flight.
+- **AC-MP-7:** The Confirm button is disabled whenever pickup or destination is missing, outside service area, **while the routed distance is < 50 m**, or while a route fetch is in flight.
 - **AC-MP-8:** A direct Firestore `create` attempt with either endpoint outside the Ormoc bounds is rejected by `firestore.rules` (L3 backstop verified independently of the client UI).
+
+#### Acceptance criteria — minimum trip distance (§1.5)
+
+- **AC-MD-1:** When the resolved `route.distanceMeters < 50`, the booking sheet shows the inline message **"Pickup and destination are too close."** and disables Confirm (L1).
+- **AC-MD-2:** The route polyline / distance / ETA continue to render in the too-close state so the cause is visible; `bookingDraftStore.route` is **not** cleared.
+- **AC-MD-3:** `bookingService.createTrip` throws `MinTripDistanceError` and performs **no** Firestore write when `route.distanceMeters < 50`, even if the UI gate was bypassed (L2 race protection) — verified by a unit test.
+- **AC-MD-4:** A direct Firestore `create` with `route.distanceMeters < 50` is rejected by `firestore.rules` (L3 backstop), verified independently of the client UI.
+- **AC-MD-5:** The validation uses `route.distanceMeters` only; no test exercises or depends on latitude/longitude equality between pickup and destination.
+
+#### Acceptance criteria — use current location (pickup)
+
+- **AC-CL-1:** In the pickup sheet, "Use Current Location" requests foreground location permission when needed and resolves the device position to a reverse-geocoded `Place` set with `source: 'current-location'`.
+- **AC-CL-2:** A current location outside the Ormoc service area is rejected with the alert **"Service is currently available only within Ormoc City."** and is **not** set as pickup.
 
 ---
 
@@ -459,6 +574,8 @@ No schema migration to add a second city — new constants + rules update only.
 5. **Pricing prerequisites** (tariff validation + survey work) tracked separately — see §11. Phase 12 ships independently of their outcome.
 6. **OQ-MP-1 (resolved):** Crosshair-style placement is offered for **both** pickup and destination. Pickup retains current-location as default and gains the crosshair flow via the booking sheet's "Adjust → Drop pin on map" action; the destination crosshair flow is entered from the Set Destination sheet.
 7. **OQ-MP-2:** Confirm the 500 ms reverse-geocode debounce is acceptable for the destination marker as well (matches the pickup-drag debounce in §3.3 and §7.3).
+8. **OQ-MD-1:** Confirm the **50 m** minimum-trip-distance floor with operations. The rationale (typical urban GPS uncertainty 10–30 m, shortest plausible tricycle trip ≥ 100 m) is in §1.5.3. If the floor is later tuned, the change is a single constant edit in `src/lib/serviceArea/` plus a matching numeric update in `firestore.rules`. No schema migration is needed.
+9. **OQ-CL-1:** Confirm whether a permanently-denied location permission should surface a one-shot deep-link to the OS settings screen (currently the implementation shows a plain alert and lets the user open settings manually).
 
 ---
 

@@ -110,7 +110,7 @@ const queryKeys = {
 | Nearby driver count | `nearbyCount(geohash)` | 15–30 s, `refetchInterval` | coarse supply stat (FR-1.3.2) **[ASSUMPTION]** |
 
 **Mutations** (Query `useMutation`) for one-shot writes:
-- `useCreateBooking` → `booking.service.createTrip` → on success: clear `bookingDraftStore`, start active-trip listener.
+- `useCreateBooking` → `booking.service.createTrip` → on success: clear `bookingDraftStore`, start active-trip listener. The mutation re-asserts the booking invariants at submit (service-area + **`route.distanceMeters >= 50`**, phase12_spec.md §1.5) — a sub-50 m route or out-of-area endpoint rejects with `MinTripDistanceError` / `ServiceAreaError` and **no Firestore write is attempted**.
 - `useAcceptTrip` → `matching.service.acceptTrip` (transaction) → success or `TripAlreadyTakenError`.
 - `useTripTransition` → `trip.service.transition(tripId, next)` → advances status.
 - `useCancelTrip` → `trip.service.cancel(tripId, by, reason)`. Lifecycle-dependent: a `request` cancel **deletes** the trip document (abandoned request); an `accepted`/`driver_arriving`/`driver_arrived` cancel writes `status = 'cancelled'`.
@@ -219,10 +219,11 @@ Mutations that end a trip — completion, post-acceptance cancellation (`cancell
 ## 8. Data flow by scenario
 
 **Passenger books a Solo ride:**
-1. Destination → `bookingDraftStore.setDestination`; stepper → `setPassengerCount` (recomputes `billedSeats`).
-2. Confirm → `useCreateBooking` mutation → `createTrip` writes `trips/{id}` (`status:'request'`).
-3. `bookingDraftStore.reset()`; `activeTripStore` starts listening to the new trip.
-4. Sheet content now driven by `trip.status` (`request` → "Finding your ride…").
+1. Pickup → `bookingDraftStore.setPickup(place, source)` where `source` is `'current-location'` (GPS via the pickup sheet's "Use Current Location" row), `'search'`, or `'manual-pin'`. Destination → `setDestination`; stepper → `setPassengerCount` (recomputes `billedSeats`). Whenever pickup or destination changes, the route is invalidated and `useRouteQuery` refetches.
+2. Once the route resolves, the booking sheet inspects `route.distanceMeters`. If `< 50` (minimum-trip-distance rule, phase12_spec.md §1.5), Confirm stays disabled and the inline message **"Pickup and destination are too close."** appears.
+3. Confirm → `useCreateBooking` mutation → `createTrip` re-asserts service-area + min-distance; if either fails the mutation rejects (`ServiceAreaError` / `MinTripDistanceError`) **before** writing. On success, `trips/{id}` is created with `status: 'request'`.
+4. `bookingDraftStore.reset()`; `activeTripStore` starts listening to the new trip.
+5. Sheet content now driven by `trip.status` (`request` → "Finding your ride…").
 
 **Driver accepts:**
 1. `availabilityStore.incomingRequests` (listener) renders cards.

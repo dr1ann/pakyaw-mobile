@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isInServiceArea, assertInServiceArea, ServiceAreaError } from './index';
+import { isInServiceArea, assertInServiceArea, ServiceAreaError, isRouteDistanceTooShort, TripDistanceTooShortError, MinTripDistanceError } from './index';
 
 describe('serviceArea', () => {
   describe('isInServiceArea', () => {
@@ -61,6 +61,36 @@ describe('serviceArea', () => {
       };
       
       expect(() => assertInServiceArea(nullPlace)).toThrow(ServiceAreaError);
+    });
+  });
+
+  describe('isRouteDistanceTooShort', () => {
+    it('returns true when distance is less than 50 meters', () => {
+      expect(isRouteDistanceTooShort(0)).toBe(true);
+      expect(isRouteDistanceTooShort(25)).toBe(true);
+      expect(isRouteDistanceTooShort(49)).toBe(true);
+    });
+
+    it('returns false when distance is 50 meters or greater', () => {
+      expect(isRouteDistanceTooShort(50)).toBe(false);
+      expect(isRouteDistanceTooShort(51)).toBe(false);
+      expect(isRouteDistanceTooShort(100)).toBe(false);
+    });
+  });
+
+  describe('TripDistanceTooShortError & MinTripDistanceError', () => {
+    it('constructs correct error objects with the friendly error message', () => {
+      const err = new TripDistanceTooShortError(25);
+      expect(err).toBeInstanceOf(TripDistanceTooShortError);
+      expect(err.message).toBe('Pickup and destination are too close.');
+      expect(err.name).toBe('TripDistanceTooShortError');
+      expect(err.distanceMeters).toBe(25);
+
+      const minErr = new MinTripDistanceError(49);
+      expect(minErr).toBeInstanceOf(MinTripDistanceError);
+      expect(minErr.message).toBe('Pickup and destination are too close.');
+      expect(minErr.name).toBe('MinTripDistanceError');
+      expect(minErr.distanceMeters).toBe(49);
     });
   });
 });

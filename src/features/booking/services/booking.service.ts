@@ -25,7 +25,7 @@ import { createTripSchema } from '@/features/booking/validation/bookingSchema';
 import { geohashOf } from '@/lib/geo';
 import { logger } from '@/lib/logger';
 import { clamp } from '@/lib/seatModel';
-import { assertInServiceArea } from '@/lib/serviceArea';
+import { assertInServiceArea, TripDistanceTooShortError } from '@/lib/serviceArea';
 import { firestore } from '@/services/firebase/firebase';
 
 /**
@@ -53,6 +53,7 @@ function translateWriteError(err: unknown): BookingOfflineError | BookingWriteEr
  * @param passengerId - Firebase Auth uid of the requesting passenger.
  * @returns The auto-generated tripId.
  * @throws ServiceAreaError if pickup or destination are outside the service area.
+ * @throws TripDistanceTooShortError if the route distance is too short.
  * @throws BookingOfflineError on connectivity failures.
  * @throws BookingWriteError on any other write failure.
  */
@@ -63,6 +64,11 @@ export async function createTrip(
   // Assert service area boundaries - throws ServiceAreaError if outside
   assertInServiceArea(input.pickup);
   assertInServiceArea(input.destination);
+
+  // Validate route distance
+  if (input.route.distanceMeters < 50) {
+    throw new TripDistanceTooShortError(input.route.distanceMeters);
+  }
 
   // Validate full payload at the service boundary before any network call.
   const validated = createTripSchema.parse({

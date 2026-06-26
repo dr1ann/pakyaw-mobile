@@ -163,7 +163,7 @@ service cloud.firestore {
         && request.resource.data.destination.coords.lng >= 124.49
         && request.resource.data.destination.coords.lng <= 124.72
         // Distance plausibility (sanity bound)
-        && request.resource.data.route.distanceMeters > 0
+        && request.resource.data.route.distanceMeters >= 50
         && request.resource.data.route.distanceMeters <= 60000;
 
       allow update: if isSignedIn() && (

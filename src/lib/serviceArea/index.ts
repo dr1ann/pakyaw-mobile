@@ -15,6 +15,37 @@ export class ServiceAreaError extends Error {
   }
 }
 
+export const MIN_ROUTE_DISTANCE_METERS = 50;
+export const MAX_ROUTE_DISTANCE_METERS = 60_000;
+
+export function isRouteDistanceTooShort(meters: number): boolean {
+  return meters < MIN_ROUTE_DISTANCE_METERS;
+}
+
+export class TripDistanceTooShortError extends Error {
+  readonly distanceMeters: number;
+
+  constructor(distanceMeters: number) {
+    super('Pickup and destination are too close.');
+    this.name = 'TripDistanceTooShortError';
+    this.distanceMeters = distanceMeters;
+    
+    Object.setPrototypeOf(this, TripDistanceTooShortError.prototype);
+  }
+}
+
+export class MinTripDistanceError extends Error {
+  readonly distanceMeters: number;
+
+  constructor(distanceMeters: number) {
+    super('Pickup and destination are too close.');
+    this.name = 'MinTripDistanceError';
+    this.distanceMeters = distanceMeters;
+    
+    Object.setPrototypeOf(this, MinTripDistanceError.prototype);
+  }
+}
+
 export function isInServiceArea(
   coords: LatLng | { readonly latitude: number; readonly longitude: number } | null
 ): boolean {

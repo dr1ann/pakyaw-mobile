@@ -63,6 +63,23 @@ Interactive behavior, states, transitions, and validation rules inferred from th
 - Typing/selecting a destination expands the **fare bottom sheet**. **VOICE** triggers speech-to-text search **[ASSUMPTION]**.
 - Home shows live supply ("14 drivers within 1km", "AVG PICKUP 3 min") — **[ASSUMPTION]** refreshes periodically.
 
+### 3.1.1 Set Pickup — "Use Current Location" (Phase 12)
+- When the pickup sheet (`SetDestinationSheet` rendered in `mode === 'pickup'`) opens, a leading **"Use Current Location"** row appears above Saved / Recent / Suggested. Icon: `location.fill`; sublabel: "Detect via GPS".
+- Tap behavior:
+  1. Checks foreground location permission. If undetermined or askable, requests it; if permanently denied, alerts the user to enable it in device settings.
+  2. Resolves the device position via `expo-location` (`getCurrentPositionAsync`, balanced accuracy), then reverse-geocodes it to a `Place`.
+  3. If the resolved place is **inside Ormoc**, sets it as pickup with `source: 'current-location'`. Otherwise alerts: **"Service is currently available only within Ormoc City."** and does not set pickup.
+- During detection the row shows an inline spinner and is disabled to prevent double-trigger; on failure (no GPS fix, network error) it alerts: "Could not resolve your current location. Please try again or search for a location."
+
+### 3.1.2 Minimum trip distance — "Too close" gating (Phase 12)
+- As soon as the route resolves with `route.distanceMeters < 50`, the booking sheet:
+  1. Renders the destination row in its invalid treatment (red accent / warning icon).
+  2. Shows the inline message **"Pickup and destination are too close."** directly beneath the route distance/ETA chip.
+  3. Disables the Confirm button.
+- The polyline, distance, and ETA **continue to render** in the too-close state so the user understands the cause — the sub-50 m value is what the message is referring to.
+- The check is always against the **routed distance** returned by the Directions API; the UI does **not** compare latitude/longitude between pickup and destination (which would falsely allow same-place bookings that snap to slightly different coordinates, and falsely reject genuinely different addresses metres apart in GPS).
+- Adjusting either endpoint (drag, drop-pin, search, or "Use current location") refetches the route; once the new distance ≥ 50 m the warning clears and Confirm re-enables.
+
 ### 3.2 Fare sheet — mode toggle
 - **"Pakyaw (Solo)" ↔ "Share Route"** segmented toggle swaps the pricing model and the options shown:
   - **Solo:** passenger-boarding stepper, Special trip, Lots of luggage, Privilege discount; breakdown shows base buyout × seats + surcharge + ₱15 convenience fee.
@@ -168,6 +185,7 @@ Interactive behavior, states, transitions, and validation rules inferred from th
 
 - **Inline field validation** implied (password "At least 6 characters"; phone format "+63 917…"; plate/OR/CR matched to documents).
 - **Disabled-until-valid** CTAs are the primary validation feedback shown.
+- **Booking-flow business-rule validation (Phase 12)** is layered across UI / booking service / Firestore rules and currently covers two rules: **(a) Ormoc service area** (every endpoint must fall inside the bounds) and **(b) minimum trip distance** (`route.distanceMeters >= 50`). The UI surfaces the rule with an inline message and a disabled Confirm; the booking service re-asserts at submit (race protection); the Firestore create rule is the backstop a malicious client cannot bypass. The minimum-distance check is on the Directions-API routed distance, never on lat/lng equality. See [phase12_spec.md §1.5](./phase12_spec.md#15-minimum-trip-distance--50-m).
 - **[GAP]** Explicit error messages, toasts, network-failure, retry, and offline behaviors are not depicted — define before build.
 
 ---

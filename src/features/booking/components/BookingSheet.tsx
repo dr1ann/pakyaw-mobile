@@ -55,6 +55,8 @@ export function BookingSheet({
     mutate(payload);
   }
 
+  const isRouteTooShort = !!draft.route && draft.route.distanceMeters < 50;
+
   // Formatting distance & duration
   const distanceKm = draft.route
     ? (draft.route.distanceMeters / 1000).toFixed(1)
@@ -63,7 +65,7 @@ export function BookingSheet({
     ? Math.round(draft.route.durationSeconds / 60)
     : 0;
 
-  const hasValidRoute = !!draft.route;
+  const hasValidRoute = !!draft.route && !isRouteTooShort;
 
   return (
     <View style={styles.container} testID="booking-sheet">
@@ -75,7 +77,7 @@ export function BookingSheet({
           accessibilityLabel="Go back"
           testID="booking-back-button"
         >
-          <SymbolIcon name="chevron.left" size={20} tintColor={colors.ink[800]} />
+          <SymbolIcon name="chevron.left" size={20} tintColor={colors.ink[700]} />
         </Pressable>
 
         <View style={styles.routeDetails}>
@@ -97,17 +99,36 @@ export function BookingSheet({
 
           <Pressable
             onPress={onSearchDestination}
-            style={({ pressed }) => [styles.routeRow, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.routeRow,
+              pressed && styles.buttonPressed,
+            ]}
             accessibilityLabel="Change destination location"
           >
-            <View style={[styles.dot, styles.dotDestination]} />
+            <View style={[
+              styles.dot,
+              styles.dotDestination,
+              isRouteTooShort && styles.dotDestinationInvalid,
+            ]} />
             <View style={styles.placeText}>
               <Text style={styles.placePrefix}>To</Text>
-              <Text style={styles.placeName} numberOfLines={1}>
+              <Text style={[
+                styles.placeName,
+                isRouteTooShort && styles.placeNameInvalid,
+              ]} numberOfLines={1}>
                 {draft.destination?.label || 'Select Destination'}
               </Text>
             </View>
+            {isRouteTooShort && (
+              <SymbolIcon name="exclamationmark.triangle.fill" size={16} tintColor={colors.danger} />
+            )}
           </Pressable>
+
+          {isRouteTooShort && (
+            <View style={styles.errorRow}>
+              <Text style={styles.errorText}>Pickup and destination are too close.</Text>
+            </View>
+          )}
         </View>
 
         {onToggleMinimize && (
@@ -120,7 +141,7 @@ export function BookingSheet({
             <SymbolIcon
               name={isMinimized ? 'chevron.up' : 'chevron.down'}
               size={20}
-              tintColor={colors.ink[800]}
+              tintColor={colors.ink[700]}
             />
           </Pressable>
         )}
@@ -320,7 +341,7 @@ const styles = StyleSheet.create({
   routeLine: {
     width: 1.5,
     height: 16,
-    backgroundColor: colors.border,
+    backgroundColor: colors.border.subtle,
     marginLeft: 13, // align with dots
     marginVertical: -2,
   },
@@ -335,6 +356,9 @@ const styles = StyleSheet.create({
   dotDestination: {
     backgroundColor: colors.amber.primary,
   },
+  dotDestinationInvalid: {
+    backgroundColor: colors.danger,
+  },
   placeText: {
     flex: 1,
   },
@@ -348,6 +372,22 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     fontWeight: typography.weight.semibold,
     color: colors.ink[900],
+  },
+  placeNameInvalid: {
+    color: colors.danger,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing[2],
+    paddingTop: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  errorText: {
+    fontSize: typography.size.bodySmall,
+    color: colors.danger,
+    fontWeight: typography.weight.semibold,
   },
   pillsRow: {
     flexDirection: 'row',
@@ -373,7 +413,7 @@ const styles = StyleSheet.create({
   pillValue: {
     fontSize: typography.size.bodySmall,
     fontWeight: typography.weight.bold,
-    color: colors.ink[800],
+    color: colors.ink[700],
   },
   trafficValueRow: {
     flexDirection: 'row',
@@ -444,7 +484,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 4,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border.subtle,
   },
   stepperButton: {
     width: 32,
@@ -463,7 +503,7 @@ const styles = StyleSheet.create({
   stepperButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: colors.ink[800],
+    color: colors.ink[700],
   },
   stepperValue: {
     width: 36,
@@ -474,7 +514,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.border.subtle,
   },
   detailsContainer: {
     gap: spacing[2],
@@ -499,7 +539,7 @@ const styles = StyleSheet.create({
   placeholderText: {
     flex: 1,
     fontSize: typography.size.bodySmall,
-    color: colors.ink[600],
+    color: colors.ink[500],
     lineHeight: 16,
   },
   skeletonContainer: {
@@ -514,7 +554,7 @@ const styles = StyleSheet.create({
   },
   skeletonPill: {
     height: 12,
-    backgroundColor: colors.border,
+    backgroundColor: colors.border.subtle,
     borderRadius: radius.sm,
     opacity: 0.5,
   },
@@ -526,7 +566,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[5],
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.border.subtle,
   },
   pickupLeft: {
     flexDirection: 'row',
@@ -565,7 +605,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[4],
     backgroundColor: colors.surface.card,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.border.subtle,
     gap: spacing[3],
   },
   cashCard: {
@@ -581,7 +621,7 @@ const styles = StyleSheet.create({
   cashText: {
     fontSize: typography.size.body,
     fontWeight: typography.weight.semibold,
-    color: colors.ink[800],
+    color: colors.ink[700],
   },
   buttonWrapper: {
     flex: 1,

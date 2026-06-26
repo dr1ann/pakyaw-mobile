@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bookingSheetCardMinimized: {
-    height: 133,
+    height: 180,
   },
   fullscreenSearch: {
     flex: 1,

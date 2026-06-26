@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTrip } from './booking.service';
-import { ServiceAreaError } from '@/lib/serviceArea';
+import { ServiceAreaError, TripDistanceTooShortError } from '@/lib/serviceArea';
 
 // ─── Mock Firestore ──────────────────────────────────────────────────────────
 const mockAddDoc = vi.fn();
@@ -121,5 +121,65 @@ describe('booking.service — createTrip()', () => {
     // Note: Null coords in pickup will be caught by assertInServiceArea first, throwing ServiceAreaError
     await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(ServiceAreaError);
     expect(mockAddDoc).not.toHaveBeenCalled();
+  });
+
+  describe('minimum trip distance validation', () => {
+    const baseInput = {
+      pickup: {
+        label: 'Ormoc Superdome',
+        address: 'Ormoc, Leyte',
+        coords: { lat: 11.0050, lng: 124.6075 },
+      },
+      destination: {
+        label: 'Brgy Cogon',
+        address: 'Cogon, Ormoc',
+        coords: { lat: 11.0100, lng: 124.6150 },
+      },
+      passengerCount: 3,
+    };
+
+    const testDistance = async (distanceMeters: number, shouldThrow: boolean) => {
+      const input = {
+        ...baseInput,
+        route: {
+          distanceMeters,
+          durationSeconds: 480,
+          polyline: 'abcdef_encoded_polyline',
+        },
+      };
+
+      if (shouldThrow) {
+        await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(TripDistanceTooShortError);
+        expect(mockAddDoc).not.toHaveBeenCalled();
+      } else {
+        const tripId = await createTrip(input, 'passenger-uid-123');
+        expect(tripId).toBe('mock-trip-id-123');
+        expect(mockAddDoc).toHaveBeenCalled();
+      }
+    };
+
+    it('throws TripDistanceTooShortError if route distance is 0 m', async () => {
+      await testDistance(0, true);
+    });
+
+    it('throws TripDistanceTooShortError if route distance is 25 m', async () => {
+      await testDistance(25, true);
+    });
+
+    it('throws TripDistanceTooShortError if route distance is 49 m', async () => {
+      await testDistance(49, true);
+    });
+
+    it('succeeds if route distance is 50 m', async () => {
+      await testDistance(50, false);
+    });
+
+    it('succeeds if route distance is 51 m', async () => {
+      await testDistance(51, false);
+    });
+
+    it('succeeds with a valid longer route (> 50 m)', async () => {
+      await testDistance(150, false);
+    });
   });
 });

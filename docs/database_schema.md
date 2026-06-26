@@ -157,6 +157,12 @@ interface TripDoc {
   destination: { geo: GeoPoint; address: string; barangay: string | null };
   // barangay is stored for future zonal pricing; NOT priced in MVP.
 
+  // Phase 12 — routed trip context (display-only; NOT priced).
+  // route.distanceMeters is the canonical trip-length value enforced by the
+  // minimum-trip-distance rule (>= 50, phase12_spec.md §1.5) and the maximum
+  // sanity bound (<= 60_000). It is never derived from lat/lng equality.
+  // route?: { distanceMeters: number; durationSeconds: number; polyline: string; fetchedAt: Timestamp };
+
   // SEAT MODEL (FR-1.2.5 — IN SCOPE; the fare built on it is DEFERRED)
   passengerCount: number;      // 1..6, what the passenger entered
   billedSeats: number;         // clamp(passengerCount, 4, 6) — see §6. Seat count, NOT money.
@@ -259,7 +265,7 @@ Rules mirror the architecture's invariants server-side. Sketch of intent:
 - **`users/{uid}`**: readable by the owner; writable by the owner for profile fields; `role` not client-mutable after creation (or set only at creation). Drivers' public card fields readable by a matched passenger.
 - **`drivers/{uid}`**: a driver writes only their **own** doc (availability, location, preflight). A passenger may **read** the `location`/card fields of the driver on their **active trip** only.
 - **`trips/{tripId}`**:
-  - Create: only an authenticated passenger, with `passengerId == auth.uid`, `status == 'request'`, `driverId == null`, `mode == 'solo'`, and `billedSeats == clamp(passengerCount,4,6)` (rule re-derives it).
+  - Create: only an authenticated passenger, with `passengerId == auth.uid`, `status == 'request'`, `driverId == null`, `mode == 'solo'`, and `billedSeats == clamp(passengerCount,4,6)` (rule re-derives it). Phase 12 additionally asserts that `pickup`/`destination` coords fall inside the Ormoc service area and that **`50 <= route.distanceMeters <= 60_000`** — the lower bound is the minimum-trip-distance backstop (phase12_spec.md §1.5); the upper bound is a sanity cap. See [phase12_spec.md §2.2](./phase12_spec.md#22-security-rules--firestorerules) for the exact rule text.
   - Accept (`request → accepted`): only a driver, only when `driverId == null && status == 'request'`, setting `driverId == auth.uid`. Enforces the **accept race** invariant (architecture.md §7.3) so a trip can't be stolen.
   - Forward transitions: driver may advance `accepted → … → completed`; only along the legal chain; no skipping. Passenger may also transition from `in_progress` to `completed` via the End Trip action.
   - Cancel (after acceptance): the passenger or the assigned driver may set `status = 'cancelled'` from `accepted`, `driver_arriving`, or `driver_arrived`; sets `cancelledBy` to their role. The document is retained for history. No fee fields (deferred).

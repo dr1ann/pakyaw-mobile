@@ -127,7 +127,7 @@ Both `ride` and `drive` are full-bleed Google Maps screens with a bottom sheet w
 |---|---|---|
 | `auth` | Passenger email+password sign-up, profile capture (incl. unverified phone number), rider-type field (stored, not priced); driver sign-in (phone + PIN) | Phone verification / SMS OTP (deferred to Phase 3.5b), driver *application/approval*, fleet auth, password reset (open item), 2FA, biometric unlock |
 | `driver-availability` | Online/offline, pre-flight checklist, foreground+background location publishing | QR vehicle pairing, heat/demand map, shift analytics |
-| `booking` | Destination select, Solo seat stepper (4-seat floor), pickup point, confirm | Share mode, fare math, surcharges, discounts, payment method, promos |
+| `booking` | Destination select, Solo seat stepper (4-seat floor), pickup point, confirm; **service-area + minimum-trip-distance gating (layered UI / service / Firestore rules — see phase12_spec.md §1.2, §1.5)** | Share mode, fare math, surcharges, discounts, payment method, promos |
 | `matching` | Solo dispatch, driver incoming-request accept/decline | Share corridor heuristic, occupancy lock, QR street-hail |
 | `trip` | Full lifecycle + live tracking + cancel + end | SOS backend, fee governance, ratings/receipt (open item), anti-leakage |
 | `trip-history` | Passenger list + read-only detail | Receipts, monthly Spent/Saved/Distance, insights, wallet |
@@ -172,6 +172,20 @@ request ─▶ accepted ─▶ driver_arriving ─▶ driver_arrived ─▶ in_p
 - The free-cancel **countdown** (FR-1.4.4) is a UI affordance over the `request`/`accepted` window; the *fee* it gates is out of scope.
 
 The enum is a closed TypeScript union (`trip/types.ts`) so every consumer (`switch`) is exhaustively checked. Adding a state later is a deliberate, type-checked change — not an open string.
+
+### 5.1 Booking validation — layered business rules
+
+Two booking invariants are enforced **identically and consistently across three layers** (UI · booking service · Firestore rules), defined in detail in [phase12_spec.md](./phase12_spec.md) §1.2 (Ormoc service-area restriction) and §1.5 (minimum trip distance). Both follow the same pattern:
+
+| Layer | Mechanism | Purpose |
+|---|---|---|
+| **L1 — UI** | Inline message, invalid-state visuals, **disabled Confirm** | Stop the user before they submit. UX only. |
+| **L2 — Booking service** | `bookingService.createTrip` re-asserts the invariant against the current draft and throws a typed domain error (`ServiceAreaError`, `MinTripDistanceError`) **before** any Firestore write | Race protection — guards against in-flight route refetches or stale UI state at submit. |
+| **L3 — Firestore rules** | Numeric bounds in `firestore.rules` (`pickup`/`destination` coords inside Ormoc; `50 <= route.distanceMeters <= 60_000`) | Backstop a malicious or out-of-date client cannot bypass. |
+
+L3 is the only layer an attacker cannot bypass; L1/L2 exist for fast user feedback and to keep bad payloads off the wire. This **same** pattern is the template for any future business invariant added to the booking flow (e.g., per-driver-radius caps, vehicle-type gating) — UI surfaces it, the service re-asserts it, and the rule is the final word.
+
+For the minimum-trip-distance rule specifically: validation is **always** on `route.distanceMeters` returned by the Directions API, never on latitude/longitude equality between pickup and destination. The rationale (GPS jitter, POI snapping, road-graph mismatch) and the choice of 50 m are documented in [phase12_spec.md §1.5](./phase12_spec.md#15-minimum-trip-distance--50-m).
 
 ---
 
@@ -286,7 +300,7 @@ Target (NFR-5): ~100 drivers × ~10 rides/day ≈ **30k bookings/month**, single
 
 A single, layered strategy:
 
-1. **Typed errors at the service edge.** Services translate Firebase errors into a small domain error set (`AuthError`, `TripAlreadyTakenError`, `PermissionError`, `NetworkError`, `LocationPermissionError`). Raw `FirebaseError` codes never reach UI.
+1. **Typed errors at the service edge.** Services translate Firebase errors into a small domain error set (`AuthError`, `TripAlreadyTakenError`, `PermissionError`, `NetworkError`, `LocationPermissionError`, **`ServiceAreaError`**, **`MinTripDistanceError`**). Raw `FirebaseError` codes never reach UI.
 2. **TanStack Query** owns ret/retry + error/loading for request-style reads (history, profile): bounded retries with backoff, `isError` surfaced to screens.
 3. **Real-time listeners** carry an `onError` that sets a connection flag in the relevant store; screens show a non-blocking "reconnecting" affordance and Firestore's offline cache continues serving last value.
 4. **Mutations** (create booking, accept, transition, cancel) are awaited with explicit success/failure UI; the accept race surfaces `TripAlreadyTakenError` as a benign "ride was taken" dismissal, not an error toast.
