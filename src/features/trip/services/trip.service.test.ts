@@ -14,6 +14,7 @@ let mockTripData: Record<string, unknown> | null = null;
 let mockDriverData: Record<string, unknown> | null = null;
 const mockTxGet = vi.fn();
 const mockTxUpdate = vi.fn();
+const mockTxDelete = vi.fn();
 
 vi.mock('firebase/firestore', () => {
   return {
@@ -24,6 +25,7 @@ vi.mock('firebase/firestore', () => {
       const tx = {
         get: mockTxGet,
         update: mockTxUpdate,
+        delete: mockTxDelete,
       };
       await fn(tx);
     }),
@@ -223,23 +225,17 @@ describe('trip.service — cancel()', () => {
     await expect(cancel('trip-1', 'passenger', 'no show')).resolves.toBeUndefined();
   });
 
-  it('cancels from "request" status with null driverId', async () => {
+  it('deletes the trip document on cancel from "request" status (pre-acceptance abandonment)', async () => {
     setupMocks({ status: 'request', driverId: null });
     await expect(cancel('trip-1', 'passenger', 'no longer need')).resolves.toBeUndefined();
 
-    expect(mockTxUpdate).toHaveBeenCalledWith(
+    // Abandoned request: the document is deleted outright.
+    expect(mockTxDelete).toHaveBeenCalledWith(
       expect.objectContaining({ collection: 'trips' }),
-      expect.objectContaining({
-        status: 'cancelled',
-        cancelledBy: 'passenger',
-        cancelReason: 'no longer need',
-      }),
     );
 
-    const driverUpdates = mockTxUpdate.mock.calls.filter(
-      (call) => call[0].collection === 'drivers',
-    );
-    expect(driverUpdates).toHaveLength(0);
+    // No 'cancelled' status is written and no driver doc is touched.
+    expect(mockTxUpdate).not.toHaveBeenCalled();
   });
 
   it('rejects cancel from "in_progress"', async () => {

@@ -329,7 +329,11 @@ The following requirements were realized in Phase 11:
   - In-trip: connecting pickup to destination.
 - **FR-1.11.4 (Interactive Operational Flow)**: Added state-driven buttons to eliminate manual Firestore editing:
   - Driver: "Start navigation" -> "Arrived at pickup" -> "Start trip" -> "End trip".
-  - Passenger: "Cancel ride" (pre-in_progress) and "End trip" (during in_progress).
+  - Passenger: "Cancel request"/"Cancel ride" (pre-`in_progress` only) and "End trip" (during `in_progress`).
   - Terminal States: "Done" clears `activeTripStore` and resets availability / screen layouts.
-- **FR-1.11.5 (Secure Release Transaction)**: Passenger-initiated completions and cancellations atomically clear the driver's active trip and reset availability to `'online'` (including incrementing `tripCount` by 1 upon completion).
+- **FR-1.11.5 (Secure Release Transaction)**: Passenger-initiated completions and post-acceptance cancellations atomically clear the driver's active trip and reset availability to `'online'` (including incrementing `tripCount` by 1 upon completion).
+- **FR-1.11.6 (Cancellation Lifecycle)**: Cancellation behaviour depends on the lifecycle stage and runs in a single Firestore transaction:
+  - **Before driver acceptance (`request`):** the passenger cancelling **permanently deletes** the trip document — an abandoned booking request. No `cancelled` status is written, no trip history is created, and driver listeners receive a Firestore document-removal event.
+  - **After driver acceptance (`accepted` / `driver_arriving` / `driver_arrived`):** cancellation no longer deletes the document; the status becomes `cancelled`, the trip remains in history, and driver availability is restored. All cleanup remains transactional.
+  - **During the ride (`in_progress`):** cancellation is not allowed; only trip completion is supported (either the passenger or the driver may complete the trip).
 - **Zero-Money Verification**: Re-asserted that no fare computation, payment, rating, or shared-ride elements are present in the map, sheets, or transaction logic.

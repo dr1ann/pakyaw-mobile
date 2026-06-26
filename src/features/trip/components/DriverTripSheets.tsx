@@ -56,6 +56,14 @@ export function DriverEnRouteSheet() {
     }
   }
 
+  const driverToPickup = trip?.driverToPickup ?? null;
+  const etaMinutes = driverToPickup
+    ? Math.round(driverToPickup.etaSeconds / 60)
+    : null;
+  const distanceKm = driverToPickup
+    ? (driverToPickup.distanceMeters / 1000).toFixed(1)
+    : null;
+
   return (
     <View style={styles.container}>
       <StatusPill label="En route to pickup" tone="info" dot />
@@ -63,6 +71,20 @@ export function DriverEnRouteSheet() {
       <Text style={styles.subtitle}>
         Heading to {trip?.pickup.label ?? 'pickup location'}
       </Text>
+
+      {driverToPickup != null && (
+        <View style={styles.etaCard}>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>DISTANCE TO PICKUP</Text>
+            <Text style={styles.etaValue}>{distanceKm} km</Text>
+          </View>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>ETA</Text>
+            <Text style={styles.etaValue}>{etaMinutes} min</Text>
+          </View>
+        </View>
+      )}
+
       <Button
         label="Arrived at pickup"
         onPress={handleArrived}
@@ -118,6 +140,13 @@ export function DriverInTripSheet() {
     }
   }
 
+  const routeDistanceKm = trip?.route
+    ? (trip.route.distanceMeters / 1000).toFixed(1)
+    : null;
+  const routeDurationMin = trip?.route
+    ? Math.round(trip.route.durationSeconds / 60)
+    : null;
+
   return (
     <View style={styles.container}>
       <StatusPill label="In progress" tone="info" dot />
@@ -125,6 +154,20 @@ export function DriverInTripSheet() {
       <Text style={styles.subtitle}>
         Heading to {trip?.destination.label ?? 'destination'}
       </Text>
+
+      {trip?.route != null && (
+        <View style={styles.etaCard}>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>TRIP DISTANCE</Text>
+            <Text style={styles.etaValue}>{routeDistanceKm} km</Text>
+          </View>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>ESTIMATED TIME</Text>
+            <Text style={styles.etaValue}>{routeDurationMin} min</Text>
+          </View>
+        </View>
+      )}
+
       <Button
         label="End trip"
         onPress={handleEndTrip}
@@ -202,5 +245,29 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     color: colors.ink[400],
     fontStyle: 'italic',
+  },
+  etaCard: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: 10,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    gap: spacing[2],
+    marginVertical: spacing[2],
+  },
+  etaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  etaLabel: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[400],
+    letterSpacing: typography.letterSpacing.label,
+  },
+  etaValue: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[900],
+    fontWeight: typography.weight.bold,
   },
 });

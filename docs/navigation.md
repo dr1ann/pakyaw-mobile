@@ -118,13 +118,17 @@ The live ride is **not** a sequence of routes. On both `ride.tsx` and `drive.tsx
 ```
 no active trip            → BookingSheet (destination, seat stepper, pickup, Confirm)
 trip.status:
-  'request'               → SearchingSheet ("Finding your ride…" + free-cancel countdown)
+  'request'               → SearchingSheet ("Finding your ride…" + free-cancel countdown).
+                            "Cancel request" DELETES the trip doc → listener sees the doc
+                            removed → activeTripStore clears → returns to booking flow.
+                            (No CancelledSheet — an abandoned request shows no terminal screen.)
   'accepted'              → DriverMatchedSheet (driver card)
   'driver_arriving'       → EnRouteSheet (ETA + stepper: En route) + live driver marker
   'driver_arrived'        → ArrivedSheet ("Your driver is here")
   'in_progress'           → InTripSheet (live map, Share/SOS/End trip controls)
   'completed'             → CompletedSheet (summary, no fare) → then clears → Ride home
   'cancelled'             → CancelledSheet → clears → Ride home
+                            (Only reached for cancellations AFTER acceptance.)
 ```
 
 ### 5.2 Driver `drive.tsx`
@@ -181,7 +185,7 @@ Guards never read live trip state; in-screen sheets never call `router` for stat
 
 The navigation flows were completed in Phase 11 to support interactive, state-driven transitions using action buttons:
 - **Interactive State Transitions**:
-  - **Passenger Ride Screen (`ride.tsx`)**: Renders `LiveMap` full-screen. Under the hood, the bottom sheet automatically swaps components as the Firestore `trip.status` changes. Added "Cancel ride" buttons to `SearchingSheet`, `DriverMatchedSheet`, `EnRouteSheet`, and `ArrivedSheet` which transition the state to `cancelled`, and an "End trip" button to `InTripSheet` which transitions the state to `completed`.
+  - **Passenger Ride Screen (`ride.tsx`)**: Renders `LiveMap` full-screen. Under the hood, the bottom sheet automatically swaps components as the Firestore `trip.status` changes. `SearchingSheet` (status `request`) shows a **"Cancel request"** button that **deletes** the trip document (abandoned request) — the listener observes the removal and the screen reverts to the booking flow with no terminal sheet. `DriverMatchedSheet`, `EnRouteSheet`, and `ArrivedSheet` show **"Cancel ride"** buttons that set the state to `cancelled` (document retained). `InTripSheet` shows an **"End trip"** button that transitions the state to `completed`; `in_progress` cannot be cancelled.
   - **Driver Drive Screen (`drive.tsx`)**: Renders `LiveMap` with their own live position. The driver sheet displays primary operational buttons:
     - `"Start navigation"` (on `DriverAcceptedSheet` / status `accepted`) -> transitions to `driver_arriving`.
     - `"Arrived at pickup"` (on `DriverEnRouteSheet` / status `driver_arriving`) -> transitions to `driver_arrived`.

@@ -18,6 +18,11 @@ export type IncomingRequest = {
   readonly destination: Place;
   readonly passengerCount: number;
   readonly billedSeats: number;
+  readonly route?: {
+    readonly distanceMeters: number;
+    readonly durationSeconds: number;
+    readonly polyline: string;
+  } | null;
 };
 
 /**

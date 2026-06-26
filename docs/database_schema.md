@@ -189,6 +189,8 @@ The live screen and the history card render party info constantly. Embedding a s
 ### 4.2 Trip history
 There is **no separate history collection**. History is a **query** over `trips` where `passengerId == uid` and `status in ('completed','cancelled')`, ordered by `requestedAt desc`. This keeps one write-path and one source of truth (FR-1.5.4 list + read-only detail). Receipts/monthly aggregates are deferred.
 
+> Only trips cancelled **after** a driver accepted carry `status = 'cancelled'` and therefore appear in history. A `request` cancelled **before** acceptance is deleted outright (abandoned request) — it never carries a `cancelled` status and never appears in history.
+
 ---
 
 ## 5. Geo / nearby-driver query (FR-1.3.2)
@@ -260,7 +262,9 @@ Rules mirror the architecture's invariants server-side. Sketch of intent:
   - Create: only an authenticated passenger, with `passengerId == auth.uid`, `status == 'request'`, `driverId == null`, `mode == 'solo'`, and `billedSeats == clamp(passengerCount,4,6)` (rule re-derives it).
   - Accept (`request → accepted`): only a driver, only when `driverId == null && status == 'request'`, setting `driverId == auth.uid`. Enforces the **accept race** invariant (architecture.md §7.3) so a trip can't be stolen.
   - Forward transitions: driver may advance `accepted → … → completed`; only along the legal chain; no skipping. Passenger may also transition from `in_progress` to `completed` via the End Trip action.
-  - Cancel: passenger or driver may set `cancelled` from allowed states; sets `cancelledBy` to their role. No fee fields (deferred).
+  - Cancel (after acceptance): the passenger or the assigned driver may set `status = 'cancelled'` from `accepted`, `driver_arriving`, or `driver_arrived`; sets `cancelledBy` to their role. The document is retained for history. No fee fields (deferred).
+  - Delete (before acceptance): the owning passenger may **delete** their own trip while it is still an open `request` with `driverId == null` — an abandoned booking request. This is the **only** permitted delete; no `cancelled` status is written and nothing enters history. After acceptance a trip is never deleted, only cancelled.
+  - `in_progress` cannot be cancelled — only completed.
   - Read: only the trip's `passengerId` or its `driverId`.
 - **No collection** exposes a money field, so no rule needs to protect one.
 

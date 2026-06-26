@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import { subscribe } from '@/features/trip/services/trip.service';
 import { logger } from '@/lib/logger';
 import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useBookingDraftStore } from '@/stores/bookingDraftStore';
 import { useSessionStore } from '@/stores/sessionStore';
 
 let activeTripId: string | null = null;
@@ -51,6 +52,8 @@ export function useActiveTrip(): void {
         (trip) => {
           if (trip) {
             setTrip(trip);
+            // Reset the booking draft store since the active trip has successfully loaded!
+            useBookingDraftStore.getState().reset();
           } else {
             logger.warn('[trip] active trip document disappeared', { tripId });
             clearTrip();

@@ -113,7 +113,7 @@ const queryKeys = {
 - `useCreateBooking` → `booking.service.createTrip` → on success: clear `bookingDraftStore`, start active-trip listener.
 - `useAcceptTrip` → `matching.service.acceptTrip` (transaction) → success or `TripAlreadyTakenError`.
 - `useTripTransition` → `trip.service.transition(tripId, next)` → advances status.
-- `useCancelTrip` → `trip.service.cancel(tripId, by)`.
+- `useCancelTrip` → `trip.service.cancel(tripId, by, reason)`. Lifecycle-dependent: a `request` cancel **deletes** the trip document (abandoned request); an `accepted`/`driver_arriving`/`driver_arrived` cancel writes `status = 'cancelled'`.
 
 Mutations **invalidate** the relevant query (`history(uid)`) on settle so history reflects the finished trip. Live state (active trip) is **not** invalidated — the listener already pushed the change.
 
@@ -212,7 +212,7 @@ To maintain visibility of all critical markers (pickup, destination, driver, and
 - **Visual Margins:** The camera auto-fitting behavior uses a bottom edge padding inset of `320px` to clear floating bottom sheets and action cards, ensuring markers are never hidden behind UI cards.
 
 ### 7.4 Dynamic Query Invalidations
-Mutations that transition the trip to terminal states (`completed` or `cancelled`) trigger a cache invalidation on the TanStack Query client. Specifically, invalidating `history(uid)` forces a background refetch of the trip history list, keeping the history tab synchronized.
+Mutations that end a trip — completion, post-acceptance cancellation (`cancelled`), or pre-acceptance deletion of a `request` — trigger a cache invalidation on the TanStack Query client. Specifically, invalidating `history(uid)` forces a background refetch of the trip history list, keeping the history tab synchronized. (A deleted `request` simply never appears in that list.)
 
 ---
 
@@ -232,7 +232,10 @@ Mutations that transition the trip to terminal states (`completed` or `cancelled
 **Lifecycle to completion:**
 - Each driver action → `useTripTransition` advances status; passenger sees it via the listener. On `completed`: `activeTripStore` cleared after showing result, `drivers/{uid}` reset to `online`, `tripCount++`, `history(uid)` invalidated.
 
-**Cancellation:** `useCancelTrip` sets `cancelled` + `cancelledBy`; same teardown. No fee (deferred).
+**Cancellation:**
+- **Before acceptance (`request`):** `useCancelTrip` deletes the trip document. The active-trip listener fires with a non-existent document → `activeTripStore` clears → the passenger returns to the booking flow. No `cancelled` state, no history entry, no fee.
+- **After acceptance (`accepted`/`driver_arriving`/`driver_arrived`):** `useCancelTrip` sets `cancelled` + `cancelledBy`; same driver teardown as completion (minus `tripCount`). No fee (deferred).
+- `history(uid)` is invalidated on settle in both cases; only the retained (post-acceptance) cancellation actually surfaces in history.
 
 ---
 

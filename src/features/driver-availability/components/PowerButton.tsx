@@ -10,6 +10,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { SymbolIcon } from '../../../components/ui/SymbolIcon';
 
 type PowerButtonProps = {
   /** Current availability state — determines colour, label, and loading text. */
@@ -46,7 +47,7 @@ export function PowerButton({
         {loading ? (
           <ActivityIndicator color={colors.white} size="small" />
         ) : (
-          <Text style={styles.powerIconText}>⏻</Text>
+          <SymbolIcon name="power" size={18} tintColor={colors.white} />
         )}
         <Text style={styles.label}>
           {loading
@@ -92,10 +93,5 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodyMd,
     fontWeight: typography.weight.bold,
     letterSpacing: 0.2,
-  },
-  powerIconText: {
-    color: colors.white,
-    fontSize: 18,
-    lineHeight: 20,
   },
 });

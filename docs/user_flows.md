@@ -55,12 +55,15 @@ Three apps:
    - `(1)` scrolled view exposing platform convenience fee (₱15), total (₱87.60), and vehicle options (Tricycle 4 MIN ₱88, Motorcycle/Multicab "Coming soon").
    - `(share route selected)` switches to Share: shows "Split Pakyaw buyout · 1/1 share", "Carpool fills at 4 seats · ₱0.00", per-passenger total, "Min 3 seats before dispatch."
    - `(all-checked)` Solo with Special trip + Lots of luggage + Privilege all on → "Heavy luggage · full-vehicle buyout (6 seats)."
-4. **Confirm Solo (Searching Stage):** The map renders the pickup and destination points. The bottom card displays "Finding your ride… Reserving the whole vehicle." The passenger has a **"Cancel request"** button to abort.
+4. **Confirm Solo (Searching Stage):** The map renders the pickup and destination points. The bottom card displays "Finding your ride… Reserving the whole vehicle." The passenger has a **"Cancel request"** button. Because no driver has accepted yet, tapping it **deletes the trip document outright** (an abandoned booking request) — no `cancelled` status is written and nothing is kept in history.
 5. **Driver Matched (Accepted Stage):** The map renders the live driver marker at their starting position. The passenger card displays the "Driver matched" pill and "Your driver is on the way", and has a **"Cancel ride"** button.
 6. **En Route / Arriving Stage:** As the driver approaches, the map updates their marker live. The passenger card shows "Driver en route" or "Driver has arrived" status, along with a **"Cancel ride"** button.
-7. **In-Trip Stage:** Once the ride starts, the passenger card updates to "Trip in progress." The map displays a route polyline towards the destination. The card does not render any action buttons.
-8. **Completion / Cancellation Teardown:** Tapping "Cancel request" or "Cancel ride" fires a secure Firestore transaction that updates the trip status, resets the driver's availability and active trip details, and clears the passenger's local active state.
-9. **Post-Trip Terminal Screen:** Once completed or cancelled, the passenger sees a terminal summary screen and can tap "Done" to dismiss it and return to the main Ride screen.
+7. **In-Trip Stage:** Once the ride starts (`in_progress`), the passenger card updates to "Trip in progress." The map displays a route polyline towards the destination. **Cancellation is no longer available** — only trip completion (either the passenger or the driver may complete the trip per the current implementation).
+8. **Completion / Cancellation Teardown (lifecycle-dependent, single Firestore transaction):**
+   - **Cancel before acceptance (`request`):** the trip document is **deleted**. The passenger's active state clears and the UI returns to the booking flow. No driver is involved.
+   - **Cancel after acceptance (`accepted`/`driver_arriving`/`driver_arrived`):** the trip status becomes `cancelled` (document retained), the assigned driver's availability and active-trip details are reset, and the passenger's local active state clears.
+   - **Completion (`in_progress` → `completed`):** status set to `completed`, driver reset, `tripCount` incremented.
+9. **Post-Trip Terminal Screen:** After **completion** or a **post-acceptance cancellation**, the passenger sees a terminal summary screen and can tap "Done" to dismiss it and return to the main Ride screen. An **abandoned `request`** shows no terminal screen — the deleted document simply returns the passenger to the booking flow.
 - **[GAP]** Post-trip rating/receipt screen not in Figma (referenced by notifications "Tap to rate" and activity "View receipt").
 
 ### 1.5 Share-mode wait & fallback (Blueprint logic)

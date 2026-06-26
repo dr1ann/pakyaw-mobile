@@ -471,11 +471,22 @@ The `trips/{tripId}.status` enum is the single source of truth; both apps subscr
 
 ### 5.4 Cancel trip
 - **Route:** `trips/{tripId}/cancel`
-- **Method:** `UPDATE`
+- **Method:** `UPDATE` (after acceptance) **or** `DELETE` (before acceptance)
 - **Request body:**
 ```
 { "cancelReason": "string" }
 ```
+
+Cancellation behaviour is **lifecycle-dependent** (single `trip.service.cancel(tripId, by, reason)` entry point; the transaction branches on current status):
+
+**Case A — before acceptance (status `request`): document DELETED.**
+- The passenger's own `request` (with `driverId == null`) is **permanently deleted** (`tx.delete`). This is an *abandoned booking request*.
+- **No `cancelled` status is written, no `cancelReason`/`cancelledAt` is persisted, and nothing enters trip history.**
+- Driver listeners subscribed to open requests receive a Firestore **document-removal** event.
+- No driver doc is touched (none is assigned).
+- **Response:** the document no longer exists; the passenger's local active-trip state clears and the UI returns to the booking flow.
+
+**Case B — after acceptance (status `accepted` / `driver_arriving` / `driver_arrived`): status set to `cancelled`.**
 - **Response body:**
 ```
 {
@@ -486,17 +497,20 @@ The `trips/{tripId}.status` enum is the single source of truth; both apps subscr
   "cancelledAt": "ISO-8601"
 }
 ```
+- The document is **retained** and appears in history.
+- When a driver is assigned: `drivers/{driverId}.activeTripId` is cleared to `null` and `drivers/{driverId}.availability` is reset to `online` (database schema §3), in the same transaction.
+
 - **Validation rules (§5 cancel matrix):**
-  - Allowed from any pre-`in_progress` state and from `in_progress` per the cancel matrix; not allowed from `completed`/`cancelled`.
-  - Records `cancelledBy` (resolved from caller's role) and `cancelReason`.
-  - When cancelled with a driver assigned: `drivers/{driverId}.activeTripId` is cleared to `null` and `drivers/{driverId}.availability` is reset to `online` (database schema §3).
+  - Cancellable from `request`, `accepted`, `driver_arriving`, `driver_arrived` only. **Not allowed** from `in_progress` (only completion) or from terminal `completed`/`cancelled`.
+  - `request` → delete (Case A); `accepted`/`driver_arriving`/`driver_arrived` → `cancelled` write (Case B).
+  - Records `cancelledBy` (resolved from caller's role) and `cancelReason` in Case B only.
   - **No money:** fee/penalty governance is deferred — the MVP records only the *fact* of cancellation (§5). The free-cancel countdown is a UI affordance; the fee it gates is out of scope.
 - **Error responses:**
-  - `ValidationError` — cancel attempted from a non-cancellable state.
-  - `PermissionError` — caller not party to the trip.
+  - `CancelNotAllowedError` (`ValidationError`) — cancel attempted from a non-cancellable state (`in_progress`/terminal).
+  - `PermissionError` — caller not party to the trip (and, for delete, not the owning passenger of an open `request`).
   - `NotFoundError` — trip missing.
   - `NetworkError` — offline.
-- **Authentication:** session; caller must be the trip's `passengerId` or `driverId`.
+- **Authentication:** session; for Case B the caller must be the trip's `passengerId` or `driverId`; for Case A (delete) only the owning `passengerId` of an unassigned `request`.
 
 ---
 
@@ -531,6 +545,7 @@ Passenger list + read-only detail. Source: architecture §3.1, §4, §11.
 ```
 - **Validation rules:**
   - `passengerId` — must equal the caller's uid.
+  - Only `completed` and `cancelled` trips appear. Trips abandoned at the `request` stage are deleted (§5.4 Case A) and so never appear in history.
   - Ordered by recency (timestamps, §5). **No receipts, no monthly Spent/Saved/Distance, no fare/insights** (§4) — none are present.
 - **Error responses:**
   - `PermissionError` — requesting another passenger's history.

@@ -3,6 +3,7 @@ import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'reac
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { colors, shadow } from '@/constants/theme';
+import { decodePolyline } from '@/lib/maps/decodePolyline';
 import { logger } from '@/lib/logger';
 
 export type LiveMapProps = {
@@ -12,6 +13,12 @@ export type LiveMapProps = {
   readonly showDestination?: boolean;
   readonly ownLocation?: { latitude: number; longitude: number } | null;
   readonly style?: StyleProp<ViewStyle>;
+  readonly onPickupDragEnd?: (coords: { readonly latitude: number; readonly longitude: number }) => void;
+  readonly onDestinationDragEnd?: (coords: { readonly latitude: number; readonly longitude: number }) => void;
+  readonly routePolyline?: string | null;
+  readonly bottomPadding?: number;
+  readonly pickupKey?: string | number;
+  readonly destinationKey?: string | number;
 };
 
 const ORMOC_CENTER = {
@@ -28,6 +35,12 @@ export function LiveMap({
   showDestination = true,
   ownLocation,
   style,
+  onPickupDragEnd,
+  routePolyline,
+  bottomPadding,
+  onDestinationDragEnd,
+  pickupKey,
+  destinationKey,
 }: LiveMapProps) {
   const mapRef = useRef<MapView>(null);
 
@@ -120,7 +133,7 @@ export function LiveMap({
             edgePadding: {
               top: 120,
               right: 80,
-              bottom: 320, // generous bottom padding to keep markers above bottom sheets
+              bottom: bottomPadding ?? 320, // generous bottom padding to keep markers above bottom sheets
               left: 80,
             },
             animated: true,
@@ -132,7 +145,7 @@ export function LiveMap({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [markersSignature]);
+  }, [markersSignature, bottomPadding]);
 
   // Determine polyline coordinates:
   // - If driver location is active and trip hasn't started, draw from driver to pickup
@@ -149,6 +162,23 @@ export function LiveMap({
     }
     return [];
   }, [driverLocation, pickupLocation, destinationLocation, showDestination]);
+
+  // Decode the route polyline if present
+  const decodedRouteCoords = React.useMemo(() => {
+    if (!routePolyline) return null;
+    try {
+      const decoded = decodePolyline(routePolyline);
+      if (decoded.length > 0) {
+        return decoded.map((c) => ({
+          latitude: c.lat,
+          longitude: c.lng,
+        }));
+      }
+    } catch (err) {
+      logger.error('[LiveMap] Failed to decode routePolyline', { err, routePolyline });
+    }
+    return null;
+  }, [routePolyline]);
 
   const initialRegion = activeCoords.length > 0
     ? {
@@ -188,13 +218,22 @@ export function LiveMap({
           });
         }}
       >
-        {polylineCoords.length > 1 && (
+        {decodedRouteCoords != null ? (
           <Polyline
-            coordinates={polylineCoords}
+            coordinates={decodedRouteCoords}
             strokeWidth={4}
             strokeColor={colors.blue.primary}
             lineDashPattern={[0]}
           />
+        ) : (
+          polylineCoords.length > 1 && (
+            <Polyline
+              coordinates={polylineCoords}
+              strokeWidth={4}
+              strokeColor={colors.blue.primary}
+              lineDashPattern={[6, 6]}
+            />
+          )
         )}
 
         {ownLocation && (
@@ -223,10 +262,17 @@ export function LiveMap({
 
         {pickupLocation && (
           <Marker
+            key={pickupKey != null ? `pickup-${pickupKey}` : 'pickup-default'}
             coordinate={pickupLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             title="Pickup"
             testID="pickup-marker"
+            draggable={!!onPickupDragEnd}
+            onDragEnd={(e) => {
+              if (onPickupDragEnd) {
+                onPickupDragEnd(e.nativeEvent.coordinate);
+              }
+            }}
           >
             <View style={[styles.markerRing, styles.pickupRing, shadow.card]}>
               <View style={[styles.markerDot, styles.pickupDot]} />
@@ -236,10 +282,17 @@ export function LiveMap({
 
         {showDestination && destinationLocation && (
           <Marker
+            key={destinationKey != null ? `destination-${destinationKey}` : 'destination-default'}
             coordinate={destinationLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             title="Destination"
             testID="destination-marker"
+            draggable={!!onDestinationDragEnd}
+            onDragEnd={(e) => {
+              if (onDestinationDragEnd) {
+                onDestinationDragEnd(e.nativeEvent.coordinate);
+              }
+            }}
           >
             <View style={[styles.markerRing, styles.destinationRing, shadow.card]}>
               <View style={[styles.markerDot, styles.destinationDot]} />

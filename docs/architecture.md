@@ -143,7 +143,10 @@ The trip document's `status` is the backbone of the whole product. One enum, one
 ```
 request ─▶ accepted ─▶ driver_arriving ─▶ driver_arrived ─▶ in_progress ─▶ completed
    │           │              │                  │
-   └───────────┴──────────────┴──────────────────┴───────────────────────▶ cancelled
+   │           └──────────────┴──────────────────┴───────────────────────▶ cancelled
+   │
+   └─▶ (cancelled before any driver accepts ⇒ the trip document is DELETED —
+        an abandoned request: no `cancelled` status, nothing enters history)
 ```
 
 | Status | Meaning | Set by | Passenger sees | Driver sees |
@@ -154,13 +157,18 @@ request ─▶ accepted ─▶ driver_arriving ─▶ driver_arrived ─▶ in_p
 | `driver_arrived` | Driver at pickup | driver | "Your driver is here" | "Start trip" + (deferred) no-show timer |
 | `in_progress` | Passenger on board, moving | driver (start) | live trip + End trip | live trip |
 | `completed` | Trip finished | driver (or passenger End) | summary (no fare) → history | back to online |
-| `cancelled` | Aborted | passenger or driver | cancel result | request removed |
+| `cancelled` | Aborted **after** a driver accepted | passenger or driver | cancel result | trip removed from active |
+
+> A `request` cancelled **before** acceptance never reaches the `cancelled` row — its document is deleted outright (see the transition rules below).
 
 **Transition rules (enforced in `trip.service.ts` + mirrored in Firestore security rules):**
-- Only forward transitions along the chain are allowed; no skipping (except → `cancelled`, allowed from any pre-`in_progress`/`in_progress` state per the cancel matrix).
+- Only forward transitions along the chain are allowed; no skipping.
 - `request → accepted` is a **guarded write**: the accept must win a race (see §7.3). Once `driverId` is set, other accepts are rejected.
 - Each transition stamps a timestamp (`requestedAt`, `acceptedAt`, …) for history and ordering.
-- `cancelled` records `cancelledBy` (`passenger`|`driver`) and a `cancelReason`. **Fee/penalty governance is deferred** — the MVP records the fact of cancellation only, no money.
+- **Cancellation is lifecycle-dependent:**
+  - **Before acceptance (`request`):** the passenger cancelling deletes the trip document entirely (`tx.delete`). No `cancelled` status is written, nothing enters history, and driver listeners receive a Firestore **document-removal** event. This is an *abandoned booking request*.
+  - **After acceptance (`accepted` / `driver_arriving` / `driver_arrived`):** the document is **retained**, `status` becomes `cancelled` (recording `cancelledBy` and `cancelReason`), the trip stays in history, and the assigned driver's availability is restored (`activeTripId → null`, `availability → 'online'`) in the same transaction. **Fee/penalty governance is deferred** — the MVP records the fact of cancellation only, no money.
+  - **During the ride (`in_progress`):** cancellation is **not allowed** — only completion. Either the passenger (End trip) or the driver may complete the trip.
 - The free-cancel **countdown** (FR-1.4.4) is a UI affordance over the `request`/`accepted` window; the *fee* it gates is out of scope.
 
 The enum is a closed TypeScript union (`trip/types.ts`) so every consumer (`switch`) is exhaustively checked. Adding a state later is a deliberate, type-checked change — not an open string.

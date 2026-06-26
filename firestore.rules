@@ -7,7 +7,10 @@ rules_version = '2';
 //
 //   accepted → driver_arriving → driver_arrived → in_progress → completed
 //
-// Cancel is allowed from accepted, driver_arriving, driver_arrived.
+// Cancel is allowed from accepted, driver_arriving, driver_arrived and writes
+// status='cancelled' (the document is retained). A pre-acceptance 'request' is
+// NOT cancelled by status write — the passenger DELETES it (abandoned request),
+// see the trips delete rule below.
 // Terminal states (completed, cancelled) reject all further writes.
 // request → accepted remains Phase 7 only (its rule is preserved below).
 
@@ -146,8 +149,22 @@ service cloud.firestore {
       // Passenger creates their own trip request.
       allow create: if isSignedIn()
         && request.resource.data.passengerId == request.auth.uid
+        && request.resource.data.mode == 'solo'
         && request.resource.data.status == 'request'
-        && request.resource.data.driverId == null;
+        && request.resource.data.driverId == null
+        && request.resource.data.serviceAreaId == 'ormoc'
+        // Service area (Ormoc bounds) on coords.lat/lng
+        && request.resource.data.pickup.coords.lat >= 10.9
+        && request.resource.data.pickup.coords.lat <= 11.11
+        && request.resource.data.pickup.coords.lng >= 124.49
+        && request.resource.data.pickup.coords.lng <= 124.72
+        && request.resource.data.destination.coords.lat >= 10.9
+        && request.resource.data.destination.coords.lat <= 11.11
+        && request.resource.data.destination.coords.lng >= 124.49
+        && request.resource.data.destination.coords.lng <= 124.72
+        // Distance plausibility (sanity bound)
+        && request.resource.data.route.distanceMeters > 0
+        && request.resource.data.route.distanceMeters <= 60000;
 
       allow update: if isSignedIn() && (
         // ── Phase 7: accept (request → accepted) ──────────────────────────
@@ -166,11 +183,37 @@ service cloud.firestore {
           && request.resource.data.passengerCount == resource.data.passengerCount
           && request.resource.data.billedSeats == resource.data.billedSeats
           && request.resource.data.geohash == resource.data.geohash
+          && request.resource.data.route == resource.data.route
+          && request.resource.data.serviceAreaId == resource.data.serviceAreaId
+          && request.resource.data.driverToPickup == resource.data.driverToPickup
           && request.resource.data.keys().hasOnly([
                'passengerId', 'pickup', 'destination', 'passengerCount',
                'billedSeats', 'geohash', 'status', 'driverId', 'acceptedAt',
-               'requestedAt', 'mode'
+               'requestedAt', 'mode', 'route', 'serviceAreaId', 'driverToPickup'
              ])
+        )
+        ||
+        // ── Phase 12: driverToPickup live updates ─────────────────────────
+        // Only the assigned driver may update driverToPickup, and only while
+        // status is accepted, driver_arriving, or driver_arrived.
+        (
+          isDriver()
+          && resource.data.driverId == request.auth.uid
+          && resource.data.status in ['accepted', 'driver_arriving']
+          && request.resource.data.driverToPickup != null
+          // Enforce all other fields are unchanged
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.driverId == resource.data.driverId
+          && request.resource.data.passengerId == resource.data.passengerId
+          && request.resource.data.pickup == resource.data.pickup
+          && request.resource.data.destination == resource.data.destination
+          && request.resource.data.passengerCount == resource.data.passengerCount
+          && request.resource.data.billedSeats == resource.data.billedSeats
+          && request.resource.data.geohash == resource.data.geohash
+          && request.resource.data.requestedAt == resource.data.requestedAt
+          && request.resource.data.mode == resource.data.mode
+          && request.resource.data.route == resource.data.route
+          && request.resource.data.serviceAreaId == resource.data.serviceAreaId
         )
         ||
         // ── Phase 8A: accepted → driver_arriving ──────────────────────────
@@ -232,10 +275,11 @@ service cloud.firestore {
         )
         ||
         // ── Phase 8A: cancel (by passenger) ───────────────────────────────
-        // Only from request, accepted, driver_arriving, driver_arrived.
+        // Only from accepted, driver_arriving, driver_arrived. A 'request' is
+        // not cancelled via status write — it is deleted (see delete rule).
         (
           request.auth.uid == resource.data.passengerId
-          && resource.data.status in ['request', 'accepted', 'driver_arriving', 'driver_arrived']
+          && resource.data.status in ['accepted', 'driver_arriving', 'driver_arrived']
           && request.resource.data.status == 'cancelled'
           && request.resource.data.cancelledAt == request.time
           && request.resource.data.cancelledBy == 'passenger'
@@ -245,7 +289,14 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if false;
+      // Pre-acceptance abandonment: the owning passenger may delete their own
+      // trip while it is still an open 'request' with no driver assigned. This
+      // is the only delete permitted; after acceptance a trip is cancelled via
+      // a status write and retained for history.
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.passengerId
+        && resource.data.status == 'request'
+        && resource.data.driverId == null;
     }
 
     // Default deny for everything else until later phases extend.

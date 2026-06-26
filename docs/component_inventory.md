@@ -249,10 +249,10 @@ The component inventory has been updated with the following additions:
   - **`DriverEnRouteSheet`**: Added "Arrived at pickup" primary button.
   - **`DriverArrivedSheet`**: Added "Start trip" primary button.
   - **`DriverInTripSheet`**: Added "End trip" primary button.
-  - **`SearchingSheet`**: Added "Cancel request" destructive button.
-  - **`DriverMatchedSheet`**: Added "Cancel ride" destructive button.
-  - **`EnRouteSheet`**: Added "Cancel ride" destructive button.
-  - **`ArrivedSheet`**: Added "Cancel ride" destructive button.
+  - **`SearchingSheet`**: Added "Cancel request" destructive button. Pre-acceptance, so it **deletes** the trip document (abandoned request) — no `cancelled` status, no history entry.
+  - **`DriverMatchedSheet`**: Added "Cancel ride" destructive button (writes `status = 'cancelled'`).
+  - **`EnRouteSheet`**: Added "Cancel ride" destructive button (writes `status = 'cancelled'`).
+  - **`ArrivedSheet`**: Added "Cancel ride" destructive button (writes `status = 'cancelled'`).
   - **`InTripSheet`**: Added "End trip" primary button.
 - **Floating Bottom Sheet Containers**: Embedded floating sheet containers with rounded top corners (`radius/lg`) and shadow elevations (`shadow/float`) in both `ride.tsx` and `drive.tsx` to host the status sheets.
 - **Exclusions**: Re-asserted that no fare, payment, or rating components are present in these sheets.

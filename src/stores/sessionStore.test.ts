@@ -14,8 +14,8 @@ beforeEach(() => {
 });
 
 describe('sessionStore', () => {
-  it('defaults to unauthenticated with no uid or role', () => {
-    expect(initial.status).toBe('unauthenticated');
+  it('defaults to loading with no uid or role', () => {
+    expect(initial.status).toBe('loading');
     expect(initial.uid).toBeNull();
     expect(initial.role).toBeNull();
     expect(initial.onboardingSeen).toBe(false);

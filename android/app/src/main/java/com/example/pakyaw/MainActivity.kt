@@ -11,9 +11,6 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 import expo.modules.ReactActivityDelegateWrapper
 
-import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.MapsInitializer.Renderer
-
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
@@ -23,12 +20,6 @@ class MainActivity : ReactActivity() {
     // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
-
-    // Force the LEGACY Maps renderer — the LATEST renderer fails silently on
-    // x86_64 emulators and renders blank tiles. LEGACY is stable on both
-    // emulators and real devices.
-    // MapsInitializer.initialize(applicationContext, Renderer.LEGACY, null)
-
     super.onCreate(null)
   }
 

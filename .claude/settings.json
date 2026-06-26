@@ -1,4 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "PowerShell(npx expo lint --file \"src/app/\\(passenger\\)/ride.tsx\" 2>&1)",
+      "PowerShell(npx eslint \"src/app/\\(passenger\\)/ride.tsx\" 2>&1)",
+      "PowerShell(npx eslint \"src/app/\\(passenger\\)/ride.tsx\" \"src/features/booking/components/BookingSheet.tsx\" 2>&1)",
+      "PowerShell(npx tsc --noEmit)"
+    ]
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   }

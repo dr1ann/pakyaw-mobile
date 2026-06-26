@@ -41,6 +41,20 @@ export type TripDoc = {
   readonly cancelledAt: Timestamp | null;
   readonly cancelledBy: CancelledBy | null;
   readonly cancelReason: string | null;
+
+  // Phase 12 - route, driverToPickup, and serviceAreaId (optional for backward compatibility)
+  readonly route?: {
+    readonly distanceMeters: number;
+    readonly durationSeconds: number;
+    readonly polyline: string;
+    readonly fetchedAt: Timestamp | null;
+  } | null;
+  readonly driverToPickup?: {
+    readonly distanceMeters: number;
+    readonly etaSeconds: number;
+    readonly updatedAt: Timestamp | null;
+  } | null;
+  readonly serviceAreaId?: 'ormoc' | null;
 };
 
 /**
@@ -63,8 +77,14 @@ export const ALLOWED_TRANSITIONS: Record<
 } as const;
 
 /**
- * Statuses from which a trip may be cancelled.
+ * Statuses from which a passenger may initiate a cancellation.
  * Terminal states (completed, cancelled) and in_progress are excluded.
+ *
+ * Cancellation is lifecycle-dependent (see trip.service.cancel):
+ * - 'request' (pre-acceptance): the trip document is DELETED — no 'cancelled'
+ *   status is written and no history is kept (abandoned booking request).
+ * - 'accepted' | 'driver_arriving' | 'driver_arrived' (post-acceptance): the
+ *   document is retained and its status moves to 'cancelled'.
  */
 export const CANCELLABLE_STATUSES: readonly TripStatus[] = [
   'request',

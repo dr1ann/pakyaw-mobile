@@ -28,6 +28,11 @@ export type CreateBookingInput = {
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
+  readonly route: {
+    readonly distanceMeters: number;
+    readonly durationSeconds: number;
+    readonly polyline: string;
+  };
 };
 
 /**
@@ -46,4 +51,11 @@ export type TripCreateData = {
   readonly status: 'request';
   readonly geohash: string;
   readonly requestedAt: FieldValue;
+  readonly route: {
+    readonly distanceMeters: number;
+    readonly durationSeconds: number;
+    readonly polyline: string;
+  };
+  readonly serviceAreaId: 'ormoc';
+  readonly driverToPickup: null;
 };

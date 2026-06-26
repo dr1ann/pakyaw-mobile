@@ -35,14 +35,27 @@ export function EnRouteSheet() {
       <Text style={styles.subtitle}>
         Your driver is on the way to your pickup location.
       </Text>
-      {driverLocation != null && (
-        <View style={styles.coordsCard}>
-          <Text style={styles.coordsLabel}>DRIVER LOCATION</Text>
-          <Text style={styles.coordsValue}>
-            {driverLocation.latitude.toFixed(6)},{' '}
-            {driverLocation.longitude.toFixed(6)}
-          </Text>
+      {trip?.driverToPickup != null ? (
+        <View style={styles.etaCard}>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>DISTANCE TO YOU</Text>
+            <Text style={styles.etaValue}>
+              {(trip.driverToPickup.distanceMeters / 1000).toFixed(1)} km
+            </Text>
+          </View>
+          <View style={styles.etaRow}>
+            <Text style={styles.etaLabel}>ETA</Text>
+            <Text style={styles.etaValue}>
+              {Math.round(trip.driverToPickup.etaSeconds / 60)} min
+            </Text>
+          </View>
         </View>
+      ) : (
+        driverLocation != null && (
+          <View style={styles.etaCard}>
+            <Text style={styles.calculatingText}>Calculating ETA...</Text>
+          </View>
+        )
       )}
       <Button
         label="Cancel ride"
@@ -73,22 +86,33 @@ const styles = StyleSheet.create({
     color: colors.ink[500],
     lineHeight: typography.lineHeight.body,
   },
-  coordsCard: {
+  etaCard: {
     backgroundColor: colors.surface.muted,
     borderRadius: 10,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
+    gap: spacing[2],
   },
-  coordsLabel: {
+  etaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  etaLabel: {
     fontSize: typography.size.label,
     fontWeight: typography.weight.semibold,
     color: colors.ink[400],
     letterSpacing: typography.letterSpacing.label,
-    marginBottom: 2,
   },
-  coordsValue: {
+  etaValue: {
     fontSize: typography.size.bodySmall,
-    color: colors.ink[700],
+    color: colors.ink[900],
+    fontWeight: typography.weight.bold,
+  },
+  calculatingText: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
     fontWeight: typography.weight.medium,
+    textAlign: 'center',
   },
 });

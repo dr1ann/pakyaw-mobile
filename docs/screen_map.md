@@ -117,8 +117,8 @@ Maps every Figma file in `docs/figma/` to its screen name, role, flow position, 
 The following screen flows were fully realized and integrated in Phase 11:
 - **`(passenger)/ride.tsx`**: Replaced static placeholder maps with a fully interactive `LiveMap` background. The screen hosts:
   - `BookingSheet`: Draft pickup & destination markers.
-  - `SearchingSheet`: Added a "Cancel request" button.
-  - `DriverMatchedSheet`, `EnRouteSheet`, `ArrivedSheet`: Added "Cancel ride" buttons and real-time driver tracking.
+  - `SearchingSheet`: Added a "Cancel request" button. Because no driver has accepted yet, it **deletes** the trip document (abandoned request) rather than writing a `cancelled` status; the screen then reverts to the booking flow with no terminal sheet.
+  - `DriverMatchedSheet`, `EnRouteSheet`, `ArrivedSheet`: Added "Cancel ride" buttons (write `status = 'cancelled'`, document retained) and real-time driver tracking.
   - `InTripSheet`: Added "End trip" button.
 - **`(driver)/drive.tsx`**: Replaced static placeholder maps with a fully interactive `LiveMap` background showing the driver's own location. The screen hosts:
   - `DriverAcceptedSheet`: Added "Start navigation" button.

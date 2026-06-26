@@ -47,6 +47,7 @@ function mapDocToIncomingRequest(
   const destination = data.destination;
   const passengerCount = data.passengerCount;
   const billedSeats = data.billedSeats;
+  const route = data.route;
 
   if (
     typeof passengerId !== 'string' ||
@@ -66,6 +67,7 @@ function mapDocToIncomingRequest(
     destination,
     passengerCount,
     billedSeats,
+    route,
   };
 }
 

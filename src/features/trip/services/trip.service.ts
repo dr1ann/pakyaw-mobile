@@ -3,7 +3,15 @@
  *
  * - subscribe: real-time listener on a single trip document, mapped to TripDoc.
  * - transition: forward-only status change within a Firestore transaction.
- * - cancel: move trip to 'cancelled' with metadata, reset driver state.
+ * - cancel: lifecycle-dependent cancellation within a Firestore transaction.
+ *     - Before driver acceptance (status 'request'): the document is permanently
+ *       DELETED. No 'cancelled' status is written, no history is kept — this is
+ *       an abandoned booking request. Driver listeners observe a Firestore
+ *       document-removal event.
+ *     - After driver acceptance (status 'accepted' | 'driver_arriving' |
+ *       'driver_arrived'): the document is retained, status moves to 'cancelled'
+ *       with metadata, and driver availability is restored.
+ *     - During the ride (status 'in_progress') and terminal states: rejected.
  *
  * The request → accepted transition belongs exclusively to Phase 7
  * acceptTrip() and is intentionally rejected here.
@@ -56,6 +64,22 @@ function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
     cancelledAt: (data.cancelledAt as Timestamp) ?? null,
     cancelledBy: (data.cancelledBy as CancelledBy) ?? null,
     cancelReason: (data.cancelReason as string) ?? null,
+    route: data.route
+      ? {
+          distanceMeters: data.route.distanceMeters as number,
+          durationSeconds: data.route.durationSeconds as number,
+          polyline: data.route.polyline as string,
+          fetchedAt: (data.route.fetchedAt as Timestamp) ?? null,
+        }
+      : null,
+    driverToPickup: data.driverToPickup
+      ? {
+          distanceMeters: data.driverToPickup.distanceMeters as number,
+          etaSeconds: data.driverToPickup.etaSeconds as number,
+          updatedAt: (data.driverToPickup.updatedAt as Timestamp) ?? null,
+        }
+      : null,
+    serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
   };
 }
 
@@ -76,6 +100,16 @@ export function subscribe(
       }
     },
     (err) => {
+      // A passenger-initiated 'request' cancel deletes the trip document
+      // (see cancel() below). Firestore re-evaluates the listener's read
+      // rule against the now-missing doc and returns 'permission-denied'
+      // because resource.data is null. Treat that as a normal teardown —
+      // the doc is simply gone — not an error condition.
+      if (err.code === 'permission-denied') {
+        logger.info('[trip] subscription ended (doc removed)', { tripId });
+        onSnap(undefined);
+        return;
+      }
       logger.error('[trip] subscribe failed', { err, tripId });
       onErr(err);
     },
@@ -168,6 +202,17 @@ export async function cancel(
         throw new CancelNotAllowedError(current);
       }
 
+      // Before driver acceptance: a 'request' cancellation is an abandoned
+      // booking. Delete the document outright — no 'cancelled' status is
+      // written, no trip history is kept, and there is no driver to restore.
+      // Driver listeners observe a Firestore document-removal event.
+      if (current === 'request') {
+        tx.delete(tripRef);
+        return;
+      }
+
+      // After acceptance: retain the document, mark it cancelled, and restore
+      // the assigned driver's availability.
       const driverId = (trip.driverId as string) || null;
 
       tx.update(tripRef, {
@@ -186,7 +231,7 @@ export async function cancel(
       }
     });
 
-    logger.info('[trip] cancelled', { tripId, by, reason });
+    logger.info('[trip] cancel processed', { tripId, by, reason });
   } catch (err) {
     if (
       err instanceof CancelNotAllowedError ||

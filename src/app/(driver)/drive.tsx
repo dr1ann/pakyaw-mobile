@@ -49,6 +49,7 @@ import type { TripStatus } from '@/features/trip/types';
 import { logger } from '@/lib/logger';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
+import { useDriverToPickupETA } from '@/features/maps/hooks/useDriverToPickupETA';
 
 export default function DriveScreen() {
   const availability = useAvailabilityStore((s) => s.availability);
@@ -67,6 +68,9 @@ export default function DriveScreen() {
 
   // Phase 8E: subscribe to active trip document.
   useActiveTrip();
+
+  // Phase 12E: subscribe to Distance Matrix updates and publish to Firestore
+  useDriverToPickupETA(trip?.id ?? null);
 
   // Availability mutations.
   const goOnlineMutation = useGoOnlineMutation();
@@ -134,6 +138,7 @@ export default function DriveScreen() {
             : null
         }
         showDestination={trip?.status === 'in_progress' || trip?.status === 'completed'}
+        routePolyline={trip?.route?.polyline ?? null}
       />
 
       {/* ── Incoming request overlay (Phase 7) ────────────────────────────

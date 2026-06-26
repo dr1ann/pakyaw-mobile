@@ -90,11 +90,13 @@ Interactive behavior, states, transitions, and validation rules inferred from th
 5. **Camera Auto-Fitting & Insets:** The map camera dynamically centers and fits all active coordinates via `fitToCoordinates`. To prevent the floating bottom sheets and status cards from obscuring markers, a bottom margin inset of `320px` is applied to the camera bounds.
 6. **Passenger Action Sheets & Manual Transitions:** 
    - During `searching`, `accepted`, `driver_arriving`, or `driver_arrived` states, a floating status card is rendered. The passenger can tap a **"Cancel Request"** or **"Cancel Ride"** button to abort.
-   - During `in_progress` (in-trip) state, the card renders the "Ride in progress" status without any action buttons.
-   - Tapping cancellation buttons triggers an atomic Firestore transaction that transitions the trip status to `cancelled`, resets the matched driver's availability back to `online`, and clears the driver's `activeTripId`.
+   - During `in_progress` (in-trip) state, the card renders the "Ride in progress" status without any action buttons. **Cancellation is not available once the trip is `in_progress`** — only completion (by passenger or driver).
+   - Tapping a cancellation button triggers an atomic Firestore transaction whose effect depends on the lifecycle stage:
+     - **`request` (pre-acceptance):** the trip document is **deleted** (abandoned request). No `cancelled` status is written, nothing enters history, and the passenger returns to the booking flow. No driver is involved.
+     - **`accepted` / `driver_arriving` / `driver_arrived` (post-acceptance):** the trip status is set to `cancelled` (document retained), the matched driver's availability is reset to `online`, and the driver's `activeTripId` is cleared.
    - Buttons dynamically show loading indicators and disable themselves during transitions to prevent double-triggering.
 
-- **Cancel behavior:** Passenger can cancel their request or matched ride at any time before the trip starts.
+- **Cancel behavior:** The passenger can cancel any time **before the trip starts** — a pre-acceptance `request` cancel deletes the booking, while a post-acceptance cancel marks it `cancelled`. Once `in_progress`, cancellation is disabled and only completion remains.
 - **Share path:** enters batching epoch; if not filled in 3 min → fallback prompt (keep waiting / upgrade to Solo). **[GAP]** prompt screen not shown.
 
 ### 3.7 SOS
@@ -156,7 +158,8 @@ Interactive behavior, states, transitions, and validation rules inferred from th
 | Occupancy collapse | post-match, pre-dispatch | Remaining riders: keep waiting / upgrade Solo / cancel free |
 | Surge conditions | rain/typhoon/fiesta/rush/holiday | Cancellation penalty +₱5–₱10, max ₱30 |
 
-- Passenger cancellation in the ride UI is supported during searching (`request`) and matched (`accepted`, `driver_arriving`, `driver_arrived`) states.
+- Passenger cancellation in the ride UI is supported during searching (`request`) and matched (`accepted`, `driver_arriving`, `driver_arrived`) states. A `request` cancel **deletes** the trip (abandoned request); a matched-state cancel writes `status = 'cancelled'`. `in_progress` cannot be cancelled.
+- **Note:** The fee/timing/governance table above is **deferred Blueprint context**, not implemented behavior. The MVP records only the *fact* of a (post-acceptance) cancellation — no fees, strikes, timers, or surge penalties exist in code.
 - **[GAP]** Fee-confirmation dialogs and no-show timer UI are not in Figma.
 
 ---

@@ -10,11 +10,15 @@
  *           remains claimable by other drivers.
  */
 
+import { useState } from 'react';
 import {
   ActivityIndicator,
+  LayoutAnimation,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
 
@@ -23,17 +27,32 @@ import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
 import type { IncomingRequest } from '@/features/matching/types';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { SymbolIcon } from '../../../components/ui/SymbolIcon';
 
 type IncomingRequestCardProps = {
   request: IncomingRequest;
 };
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const driverUid = useSessionStore((s) => s.uid);
   const acceptMutation = useAcceptTrip();
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const isPending = acceptMutation.isPending;
   const disabled = isPending || driverUid == null;
+
+  const tripDistanceKm = request.route
+    ? (request.route.distanceMeters / 1000).toFixed(1)
+    : null;
+  const tripDurationMin = request.route
+    ? Math.round(request.route.durationSeconds / 60)
+    : null;
+  const distanceText = tripDistanceKm !== null ? `${tripDistanceKm} km trip` : '—';
+  const durationText = tripDurationMin !== null ? `~${tripDurationMin} min trip` : '—';
 
   function handleAccept() {
     if (driverUid == null) return;
@@ -45,49 +64,82 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
   }
 
+  function handleToggleMinimize() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsMinimized((m) => !m);
+  }
+
   return (
     <View style={[styles.card, shadow.float]} testID="incoming-request-card">
       <View style={styles.headerRow}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>NEW REQUEST</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>NEW REQUEST</Text>
+          </View>
+          <Text style={styles.seats}>
+            {request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
+            {isMinimized && tripDistanceKm && ` · ${tripDistanceKm} km`}
+          </Text>
         </View>
-        <Text style={styles.seats}>
-          {request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
-          {request.billedSeats !== request.passengerCount
-            ? ` · ${request.billedSeats} seats billed`
-            : null}
-        </Text>
+
+        <Pressable
+          onPress={handleToggleMinimize}
+          style={({ pressed }) => [styles.minimizeButton, pressed && styles.buttonPressed]}
+          accessibilityLabel={isMinimized ? "Expand request" : "Collapse request"}
+        >
+          <SymbolIcon
+            name={isMinimized ? 'chevron.down' : 'chevron.up'}
+            size={18}
+            tintColor={colors.ink[500]}
+          />
+        </Pressable>
       </View>
 
-      <View style={styles.placeRow}>
-        <View style={[styles.dot, styles.dotPickup]} />
-        <View style={styles.placeText}>
-          <Text style={styles.placeLabel}>PICKUP</Text>
-          <Text style={styles.placeValue} numberOfLines={1}>
-            {request.pickup.label}
-          </Text>
-          {request.pickup.address ? (
-            <Text style={styles.placeAddress} numberOfLines={1}>
-              {request.pickup.address}
-            </Text>
-          ) : null}
-        </View>
-      </View>
+      {!isMinimized && (
+        <>
+          <View style={styles.placeRow}>
+            <View style={[styles.dot, styles.dotPickup]} />
+            <View style={styles.placeText}>
+              <Text style={styles.placeLabel}>PICKUP</Text>
+              <Text style={styles.placeValue} numberOfLines={1}>
+                {request.pickup.label}
+              </Text>
+              {request.pickup.address ? (
+                <Text style={styles.placeAddress} numberOfLines={1}>
+                  {request.pickup.address}
+                </Text>
+              ) : null}
+            </View>
+          </View>
 
-      <View style={styles.placeRow}>
-        <View style={[styles.dot, styles.dotDestination]} />
-        <View style={styles.placeText}>
-          <Text style={styles.placeLabel}>DESTINATION</Text>
-          <Text style={styles.placeValue} numberOfLines={1}>
-            {request.destination.label}
-          </Text>
-          {request.destination.address ? (
-            <Text style={styles.placeAddress} numberOfLines={1}>
-              {request.destination.address}
-            </Text>
-          ) : null}
-        </View>
-      </View>
+          <View style={styles.placeRow}>
+            <View style={[styles.dot, styles.dotDestination]} />
+            <View style={styles.placeText}>
+              <Text style={styles.placeLabel}>DESTINATION</Text>
+              <Text style={styles.placeValue} numberOfLines={1}>
+                {request.destination.label}
+              </Text>
+              {request.destination.address ? (
+                <Text style={styles.placeAddress} numberOfLines={1}>
+                  {request.destination.address}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Trip Info Rows */}
+          <View style={styles.infoContainer}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Trip distance</Text>
+              <Text style={styles.infoValue}>{distanceText}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Trip duration</Text>
+              <Text style={styles.infoValue}>{durationText}</Text>
+            </View>
+          </View>
+        </>
+      )}
 
       <View style={styles.actionsRow}>
         <Pressable
@@ -142,6 +194,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  minimizeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonPressed: {
+    opacity: 0.7,
   },
   badge: {
     backgroundColor: colors.blue.tint,
@@ -230,5 +298,26 @@ const styles = StyleSheet.create({
   },
   actionDisabled: {
     opacity: 0.6,
+  },
+  infoContainer: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    gap: spacing[2],
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    fontWeight: typography.weight.medium,
+  },
+  infoValue: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[900],
+    fontWeight: typography.weight.bold,
   },
 });
