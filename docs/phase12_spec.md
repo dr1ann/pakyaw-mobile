@@ -377,8 +377,12 @@ Replace raw lat/lng with a phase chip (Heading to pickup / Arriving / At pickup 
 
 ## 7. Map Behavior
 
-### 7.1 Routed polyline
-`LiveMap` gains `readonly routePolyline?: string | null`. When present, decode (Google polyline algorithm) and render via `<Polyline>`; keep the straight-line fallback with `lineDashPattern={[6,6]}` to make routing degradation visible.
+> **Navigation Experience (cross-reference).** All **navigation-oriented** map behavior — the driver's heading-up, ~45° tilted, driver-following Navigation Mode camera; the turn-by-turn maneuver banner and trip-stats bar; the driver-published canonical Driver→Pickup route (`trip.driverRoute`) that the passenger renders exactly via Firestore (no passenger routing); the retirement of the Distance Matrix call; and the camera/heading/maneuver ephemeral state — is specified separately and authoritatively in **[phase12_navigation_spec.md](./phase12_navigation_spec.md)**. This section (§7) covers only the Phase 12 booking-flow map behavior; defer to the navigation spec for anything in the live navigation experience.
+
+### 7.1 Routed polylines
+- **Passenger Route Polyline:** `LiveMap` accepts `readonly routePolyline?: string | null`. When present, decodes it and renders the passenger booking route in **Blue** (`colors.blue.primary`); falls back to a dashed blue straight line (`pickup` -> `destination`) if `showDestination` is true.
+- **Driver Navigation Polyline:** `LiveMap` accepts `readonly driverRoutePolyline?: string | null` and `readonly showDriverRoute?: boolean`. When both are active, decodes it and renders the driver navigation route in **Violet** (`colors.violet.primary`); falls back to a dashed violet straight line (`driver` -> `pickup`) if `showDriverRoute` is true and `showDestination` is false.
+- Both polylines are decoded using the Google polyline algorithm.
 
 ### 7.2 Camera
 Unchanged from Phase 11 — fit active markers + 320 px bottom inset.
@@ -391,9 +395,19 @@ Unchanged from Phase 11 — fit active markers + 320 px bottom inset.
   2. If the new position is **inside** bounds: update the corresponding endpoint in `bookingDraftStore` (preserving the existing `source` value), invalidate `route` via `setRoute(null)`, debounce reverse geocoding by 500 ms to refresh the address label, and trigger `useRouteQuery` to re-fetch.
 - **Manual pin placement (crosshair flow — available for both pickup and destination):** while `pickupPickMode === 'picking'` or `destinationPickMode === 'picking'`, the map shows a centered crosshair tinted to match the active endpoint (green for pickup, amber for destination). A sticky CTA reads **"Set pickup here"** or **"Set destination here"** accordingly, and is enabled only while the crosshair sits inside the Ormoc bounds. Tapping confirms the placement (see §5.2 for destination, §5.3 for pickup). A **Cancel** affordance returns to the prior sheet.
 - **Drag is clamped** at the Ormoc bounds where the underlying map library supports it; where clamp is unavailable, the revert-on-drop behavior in step 1 is the authoritative enforcement.
+- **Marker Key Re-mounting Fix:** Custom markers in `react-native-maps` often disappear or fail to render when their draggability changes (e.g., transitioning from booking/draggable to active-trip/non-draggable). To prevent this native rendering bug, the React `key` of both the pickup and destination markers is dynamically set to include their draggable status (e.g., `key={pickupKey != null ? \`pickup-\${pickupKey}-\${!!onPickupDragEnd}\` : 'pickup-default'}`), forcing a complete native re-mount when transitioning lifecycle states.
 
-### 7.4 Route polyline updates
-The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline`. Because both markers' drag-end paths and both crosshair confirm paths invalidate `route` before the refetch resolves, the polyline disappears briefly during recomputation; once `useRouteQuery` settles, the **polyline, ETA, and distance update together**. This is the single recomputation path for both pickup and destination changes — there is no separate code path for search-driven vs. drag-driven vs. manual-pin-driven endpoint changes.
+### 7.4 Route polyline updates, location tracking, and throttling
+- **Driver → Pickup Polyline (Violet):** The navigation route from the driver's live position to the passenger's pickup location is rendered on the map in **Violet** (`colors.violet.primary`, `#7B61FF`) with a stroke width of 4px. If the Directions API route is loading or fails, the map falls back to a dashed violet straight line connecting the driver's live coordinates directly to the pickup coordinates.
+- **Pickup → Destination Polyline (Blue):** The passenger booking route from the pickup location to the final destination is rendered in **Blue** (`colors.blue.primary`, `#2F80ED`) with a stroke width of 4px. It falls back to a dashed blue straight line when the route is not yet resolved.
+- **Route Lifecycle & Cleanup:** The Driver → Pickup navigation route is active only during the `accepted` and `driver_arriving` statuses of the trip. The moment the driver transitions the trip status to `driver_arrived` (or subsequent statuses like `in_progress`, `completed`, or `cancelled`), both the routed violet polyline and its dashed fallback line are instantly cleaned up and removed from the map. This declutters the screen so the driver can focus on the active ride towards the destination.
+- **Realtime Firestore Location Updates:** The driver's device publishes its live coordinates at high frequency (every 4–5 seconds or 25 meters moved) to `drivers/{uid}.location` via `watchPositionAsync` in the `useLocationPublisher` hook. The passenger's client subscribes to this document in real-time, allowing them to animate the driver's vehicle marker smoothly on their own map.
+- **Separation between Telemetry and Routing Requests:** There is a strict separation between real-time location updates (telemetry) and Google Directions API requests. Real-time location tracking uses cheap, high-frequency Firestore writes and reads to update coordinate markers. In contrast, Google Directions API requests (which carry financial and performance costs) are run entirely client-side and are strictly throttled.
+- **No Firestore Persistence for Driver → Pickup Route:** Unlike the passenger's booking route (which is saved in the trip document's `route` field), the Driver → Pickup route is never written to Firestore. It exists purely as local client-side state managed by the `useDriverRouteQuery` React Query hook, avoiding database writes, schema clutter, or unnecessary document updates.
+- **Polling and Throttling Strategy:** To prevent spamming the Google Directions API with requests during rapid GPS drift or continuous movement, the driver's client implements a dual throttling strategy for the `useDriverRouteQuery` hook:
+  1. **Distance Threshold:** A new Directions API request is only triggered if the driver has moved $\ge 50$ meters from the coordinates of the last successful routing query.
+  2. **Time Threshold:** A new Directions API request is only triggered if at least 25 seconds have elapsed since the last successful routing query.
+  Both conditions must be evaluated locally using the haversine formula before any new API request is dispatched, ensuring extremely efficient API utilization.
 
 ---
 
@@ -409,6 +423,7 @@ The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline
 | `src/features/maps/services/distanceMatrixService.ts` | `getDriverToPickup()` |
 | `src/features/maps/hooks/useOrmocPlacesAutocomplete.ts` | Query wrapper |
 | `src/features/maps/hooks/useRouteQuery.ts` | Query wrapper; disabled while either endpoint is null or out of service area |
+| `src/features/maps/hooks/useDriverRouteQuery.ts` | **New** — React Query wrapper for driver-to-pickup navigation polyline; implements 50m and 25s client-side throttling to minimize Google Directions API requests; returns `undefined` immediately when disabled for instant cleanup |
 | `src/features/maps/hooks/useDriverToPickupETA.ts` | Query wrapper |
 | `src/features/booking/services/booking.service.ts` | Service-area assertion **and minimum-trip-distance assertion (`route.distanceMeters >= 50`, throws `MinTripDistanceError`)** before `createTrip` — both re-run at submit time against current store coordinates/route so an in-flight route fetch cannot race past a now-invalid endpoint or a sub-50 m route |
 | `src/features/booking/components/SetDestinationSheet.tsx` | Search rows + "Drop pin on map" entry into manual placement; **in `mode === 'pickup'`, a "Use Current Location" row (GPS → `reverseGeocode` → service-area check → `setPickup(place, 'current-location')`)** |
@@ -416,7 +431,7 @@ The polyline rendered by `LiveMap` is bound to `bookingDraftStore.route.polyline
 | `src/features/booking/components/BookingSheet.tsx` | Redesign — Pakyaw-only, fare container placeholder, "Adjust" affordance on pickup/destination rows (drag / drop-pin / use-current-location actions) |
 | `src/features/matching/types.ts` | Add `route` to `IncomingRequest` |
 | `src/features/matching/components/IncomingRequestCard.tsx` | Add pickup/destination/ETA/distance rows |
-| `src/features/trip/components/LiveMap.tsx` | Accept `routePolyline`, `pickup`, `destination`, `onPickupDragEnd`, `onDestinationDragEnd`, `crosshair?: boolean`; render both draggable markers |
+| `src/features/trip/components/LiveMap.tsx` | Accept `routePolyline`, `driverRoutePolyline`, `showDriverRoute`, `pickup`, `destination`, `onPickupDragEnd`, `onDestinationDragEnd`, `crosshair?: boolean`; render both draggable markers with key-driven re-mounting; render independent passenger (blue) and driver (violet) polylines/fallbacks |
 | `src/features/trip/components/EnRouteSheet.tsx` | Replace lat/lng with ETA + distance |
 
 > No `computeFare`, no `tariffService`, no `barangayAliases`, no `FareBreakdown` component, no `useActiveTariff` — those land in the future pricing phase.

@@ -102,7 +102,6 @@ export async function createTrip(
     requestedAt: serverTimestamp(),
     route: validated.route,
     serviceAreaId: 'ormoc',
-    driverToPickup: null,
   };
 
   try {

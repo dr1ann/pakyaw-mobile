@@ -72,13 +72,6 @@ function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
           fetchedAt: (data.route.fetchedAt as Timestamp) ?? null,
         }
       : null,
-    driverToPickup: data.driverToPickup
-      ? {
-          distanceMeters: data.driverToPickup.distanceMeters as number,
-          etaSeconds: data.driverToPickup.etaSeconds as number,
-          updatedAt: (data.driverToPickup.updatedAt as Timestamp) ?? null,
-        }
-      : null,
     serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
   };
 }

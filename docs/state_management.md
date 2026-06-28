@@ -12,7 +12,7 @@ Before adding state, classify it. The category determines where it lives.
 
 | Category | Owner | Examples |
 |---|---|---|
-| **Request/response server state** (fetch, cache, revalidate) | **TanStack Query** | trip history list, trip detail (terminal), user profile, saved places, nearby-driver count |
+| **Request/response server state** (fetch, cache, revalidate) | **TanStack Query** | trip history list, trip detail (terminal), user profile, saved places, nearby-driver count, driver-to-pickup local navigation route |
 | **Real-time server state** (live, push via `onSnapshot`) | **Zustand** (fed by listeners) | active trip + status, assigned driver location, driver's own availability, incoming requests |
 | **Ephemeral client state** (UI, in-flight input) | **Zustand** (or local `useState`) | booking draft (destination, passenger count), session/role, sheet expansion, map camera |
 | **Form state** | **React Hook Form + Zod** | sign-up steps, sign-in, booking form |
@@ -108,6 +108,7 @@ const queryKeys = {
 | Trip detail (completed/cancelled) | `tripDetail(id)` | ∞ (immutable) | a terminal trip never changes |
 | Saved places | `savedPlaces(uid)` | 5 min | onboarding/account |
 | Nearby driver count | `nearbyCount(geohash)` | 15–30 s, `refetchInterval` | coarse supply stat (FR-1.3.2) **[ASSUMPTION]** |
+| Driver-to-pickup route | `driverRoute(...)` | 20 s | local, client-throttled Directions API query; active during `accepted`/`driver_arriving` |
 
 **Mutations** (Query `useMutation`) for one-shot writes:
 - `useCreateBooking` → `booking.service.createTrip` → on success: clear `bookingDraftStore`, start active-trip listener. The mutation re-asserts the booking invariants at submit (service-area + **`route.distanceMeters >= 50`**, phase12_spec.md §1.5) — a sub-50 m route or out-of-area endpoint rejects with `MinTripDistanceError` / `ServiceAreaError` and **no Firestore write is attempted**.
@@ -213,6 +214,18 @@ To maintain visibility of all critical markers (pickup, destination, driver, and
 
 ### 7.4 Dynamic Query Invalidations
 Mutations that end a trip — completion, post-acceptance cancellation (`cancelled`), or pre-acceptance deletion of a `request` — trigger a cache invalidation on the TanStack Query client. Specifically, invalidating `history(uid)` forces a background refetch of the trip history list, keeping the history tab synchronized. (A deleted `request` simply never appears in that list.)
+
+### 7.5 Driver Navigation Polyline, Telemetry & Throttling
+- **Driver → Pickup Polyline (Violet):** During the `accepted` and `driver_arriving` trip statuses, the driver's app fetches the route locally using the custom `useDriverRouteQuery` TanStack Query hook. The route is rendered on the map in solid **Violet** (`colors.violet.primary`, `#7B61FF`) with a stroke width of 4px. If the query is loading or fails, the map falls back to a dashed violet straight line.
+- **Pickup → Destination Polyline (Blue):** The passenger's booking route from the pickup location to the final destination is rendered in solid **Blue** (`colors.blue.primary`, `#2F80ED`) with a stroke width of 4px. It falls back to a dashed blue straight line when unresolved, and is visible during passenger booking and active passenger/driver rides.
+- **Driver → Pickup Route persistence (Phase 12 → Navigation Experience):** Phase 12 kept the Driver→Pickup route as local UI state, never persisted. The **Navigation Experience phase supersedes this**: the driver publishes the canonical route (polyline + distance + duration) to `trips/{tripId}.driverRoute` on each throttled refresh, and the passenger reads it from the trip listener to render the exact road route — **no passenger routing call, and the Distance Matrix call is retired**. `driverRoute` is a field separate from the booking `route` and never overwrites it. Navigation camera/heading/maneuver state remains ephemeral client state on `activeTripStore` (never persisted). See **[phase12_navigation_spec.md](./phase12_navigation_spec.md)** §6 / §10 / "Booking Route vs Driver Route".
+- **Decoupled Telemetry (Firestore) & Routing (Google Directions):** Real-time driver tracking (telemetry) and route polyline calculation are completely decoupled:
+  - **Realtime Firestore Location Updates:** The driver publishes coordinates at high frequency via `watchPositionAsync` in `useLocationPublisher` to the `drivers/{uid}.location` document. The passenger's client subscribes to this document via `onSnapshot` to animate the driver's marker smoothly in real-time.
+  - **Throttled Directions API Requests:** In contrast to the high-frequency location stream, the driver's route polyline is fetched sparingly using a client-side time-and-distance throttle ($\ge 50$ meters moved or 25 seconds elapsed since the last query) to minimize Google Directions API requests.
+- **Polling and Throttling Strategy:** The `useDriverRouteQuery` hook enforces a dual-gating strategy to avoid spamming the Google Directions API:
+  1. **Distance-based:** A new Directions API request is only triggered if the driver has moved $\ge 50$ meters from the coordinates of the last successful routing query (calculated using the haversine formula).
+  2. **Time-based:** A new Directions API request is only triggered if at least 25 seconds have elapsed since the last successful routing query.
+- **Route Lifecycle & Cleanup:** The Driver → Pickup route is active only during `accepted` and `driver_arriving` trip statuses. Upon transitioning to `driver_arrived` or subsequent statuses (e.g., `in_progress`, `completed`, or `cancelled`), the `showDriverRoute` prop evaluates to `false`, causing **both the routed violet polyline and the straight dashed fallback line to disappear instantly** from the map, ensuring a clean and decluttered interface for the driver during the active ride.
 
 ---
 

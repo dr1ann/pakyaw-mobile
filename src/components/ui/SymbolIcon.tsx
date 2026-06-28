@@ -30,6 +30,17 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   person: { ios: 'person', android: 'person', web: 'person' },
   'person.fill': { ios: 'person.fill', android: 'person', web: 'person' },
   'location.fill': { ios: 'location.fill', android: 'my_location', web: 'my_location' },
+  'arrow.turn.up.left': { ios: 'arrow.turn.up.left', android: 'turn_left', web: 'turn_left' },
+  'arrow.turn.up.right': { ios: 'arrow.turn.up.right', android: 'turn_right', web: 'turn_right' },
+  'arrow.up.left': { ios: 'arrow.up.left', android: 'north_west', web: 'north_west' },
+  'arrow.up.right': { ios: 'arrow.up.right', android: 'north_east', web: 'north_east' },
+  'arrow.up': { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' },
+  'arrow.uturn.left': { ios: 'arrow.uturn.left', android: 'uturn_left', web: 'uturn_left' },
+  'arrow.uturn.right': { ios: 'arrow.uturn.right', android: 'uturn_right', web: 'uturn_right' },
+  'arrow.triangle.2.circlepath': { ios: 'arrow.triangle.2.circlepath', android: 'cached', web: 'cached' },
+  ferry: { ios: 'ferry', android: 'directions_boat', web: 'directions_boat' },
+  navigation: { ios: 'navigation', android: 'navigation', web: 'navigation' },
+  mappin: { ios: 'mappin', android: 'place', web: 'place' },
 };
 
 export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProps) {

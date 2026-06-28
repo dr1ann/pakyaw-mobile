@@ -15,7 +15,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,6 +28,8 @@ import { HomeSheet } from '@/features/booking/components/HomeSheet';
 import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
+import { getDistanceToStepEnd } from '@/lib/geoProjection';
+import { decodePolyline } from '@/lib/maps/decodePolyline';
 import { reverseGeocode } from '@/features/maps/services/placesService';
 import { ArrivedSheet } from '@/features/trip/components/ArrivedSheet';
 import { CancelledSheet } from '@/features/trip/components/CancelledSheet';
@@ -67,6 +69,8 @@ export default function RideScreen() {
   // Subscribe to trip doc + driver location
   useActiveTrip();
   useDriverLocation();
+
+
 
   // Query route polyline and info when pickup and destination are available
   const { data: routeData } = useRouteQuery({
@@ -206,6 +210,40 @@ export default function RideScreen() {
   const status = trip?.status ?? (tripId ? 'request' : null);
   const isSheetSelfContained = status === null || status === 'request';
 
+  // Decode passenger route polyline for progress stats calculation
+  const decodedRouteCoords = useMemo(() => {
+    if (trip?.route?.polyline) {
+      return decodePolyline(trip.route.polyline);
+    }
+    return null;
+  }, [trip?.route?.polyline]);
+
+  // Passenger client-side projected stats to destination during active ride
+  const progressStats = useMemo(() => {
+    if (
+      status !== 'in_progress' ||
+      !driverLocation ||
+      !decodedRouteCoords ||
+      decodedRouteCoords.length === 0 ||
+      !trip?.route
+    ) {
+      return { remainingDistanceMeters: null, etaSeconds: null };
+    }
+
+    const driverPos = { lat: driverLocation.latitude, lng: driverLocation.longitude };
+    const remainingDistanceMeters = getDistanceToStepEnd(driverPos, { polyline: decodedRouteCoords });
+
+    const totalDistance = trip.route.distanceMeters;
+    const totalDuration = trip.route.durationSeconds;
+
+    const etaSeconds = totalDistance > 0 ? totalDuration * (remainingDistanceMeters / totalDistance) : 0;
+
+    return {
+      remainingDistanceMeters,
+      etaSeconds,
+    };
+  }, [status, driverLocation, decodedRouteCoords, trip?.route]);
+
   // Extract coordinates for LiveMap, checking both active trip and booking draft
   const pickupLocation = trip?.pickup?.coords
     ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
@@ -232,6 +270,8 @@ export default function RideScreen() {
         pickupKey={pickupDragKey}
         destinationKey={destinationDragKey}
         routePolyline={trip?.route?.polyline ?? draft.route?.polyline ?? null}
+        driverRoutePolyline={trip?.driverRoute?.polyline ?? null}
+        showDriverRoute={trip?.status === 'accepted' || trip?.status === 'driver_arriving'}
         bottomPadding={isMinimized ? 160 : 320}
       />
 
@@ -296,11 +336,21 @@ export default function RideScreen() {
       ) : (
         // Active Trip Sheets (Status-driven)
         isSheetSelfContained ? (
-          <TripSheet status={status} onDismiss={handleDismissTerminal} />
+          <TripSheet
+            status={status}
+            onDismiss={handleDismissTerminal}
+            remainingDistanceMeters={progressStats.remainingDistanceMeters}
+            etaSeconds={progressStats.etaSeconds}
+          />
         ) : (
           <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
             <View style={[styles.sheetCard, shadow.float]}>
-              <TripSheet status={status} onDismiss={handleDismissTerminal} />
+              <TripSheet
+                status={status}
+                onDismiss={handleDismissTerminal}
+                remainingDistanceMeters={progressStats.remainingDistanceMeters}
+                etaSeconds={progressStats.etaSeconds}
+              />
             </View>
           </SafeAreaView>
         )
@@ -312,9 +362,16 @@ export default function RideScreen() {
 type TripSheetProps = {
   status: TripStatus | null;
   onDismiss: () => void;
+  remainingDistanceMeters: number | null;
+  etaSeconds: number | null;
 };
 
-function TripSheet({ status, onDismiss }: TripSheetProps) {
+function TripSheet({
+  status,
+  onDismiss,
+  remainingDistanceMeters,
+  etaSeconds,
+}: TripSheetProps) {
   switch (status) {
     case 'request':
       return <SearchingSheet />;
@@ -325,7 +382,12 @@ function TripSheet({ status, onDismiss }: TripSheetProps) {
     case 'driver_arrived':
       return <ArrivedSheet />;
     case 'in_progress':
-      return <InTripSheet />;
+      return (
+        <InTripSheet
+          remainingDistanceMeters={remainingDistanceMeters}
+          etaSeconds={etaSeconds}
+        />
+      );
     case 'completed':
       return <CompletedSheet onDismiss={onDismiss} />;
     case 'cancelled':

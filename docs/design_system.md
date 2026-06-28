@@ -194,4 +194,57 @@ The design system has been extended in Phase 11 with concrete visual tokens for 
 
 ---
 
+## 10. Phase 12 Navigation Experience — Map & Banner Tokens
+
+Visual + camera tokens for the Navigation Experience phase (full behavioral spec in **[phase12_navigation_spec.md](./phase12_navigation_spec.md)** §3 / §7). All tokens reuse existing palette/spacing primitives — no new color families are introduced.
+
+### 10.1 Maneuver banner (driver-only)
+Top-pinned banner that surfaces the next maneuver while the driver is in `to_pickup` or `to_destination` navigation phase.
+
+| Slot | Token |
+|---|---|
+| Surface | `ink/900` (`#0E1726`) |
+| Maneuver icon | `surface/card` (`#FFFFFF`), Lucide stroke `2px` |
+| Road / step text | `surface/card` (`#FFFFFF`), `Body` weight Medium |
+| Distance-to-maneuver | `surface/card` (`#FFFFFF`), `H3` weight SemiBold |
+| Container radius | `radius/lg` (20 px) |
+| Elevation | `shadow/float` |
+| Padding | `16 px` vertical, `20 px` horizontal |
+| Top inset | safe-area top + `12 px` |
+
+### 10.2 Trip-stats row (driver-only)
+Three-up row directly under the banner showing live trip metrics. Uses existing type scale — no new sizes introduced.
+
+| Slot | Heading token | Value token |
+|---|---|---|
+| ETA | `Label / Eyebrow` · `ink/500` | `H3` SemiBold · `ink/900` |
+| DISTANCE | `Label / Eyebrow` · `ink/500` | `H3` SemiBold · `ink/900` |
+| ARRIVAL | `Label / Eyebrow` · `ink/500` | `H3` SemiBold · `ink/900` |
+
+Layout: `flex-row`, equal `flex-1` cells, `12 px` vertical padding, `1 px` divider in `border/subtle` between cells.
+
+### 10.3 Navigation camera constants
+Authoritative numeric tokens for `mapRef.animateCamera` in driver Navigation Mode. Overview mode reverts to the existing top-down camera (no tilt).
+
+| Token | Value | Notes |
+|---|---|---|
+| `NAV_PITCH` | `45°` | Heading-up follow tilt (resolved from OQ-NAV-1) |
+| `NAV_ZOOM` | `17.5` | Driver-centered street-level zoom |
+| `NAV_CAMERA_ANIM_MS` | `600 ms` | `animateCamera` duration during follow updates |
+| `NAV_RECENTER_IDLE_MS` | `8000 ms` | Idle delay after manual pan before auto-recenter offer |
+| `NAV_PITCH_OVERVIEW` | `0°` | Top-down camera when user toggles Overview |
+
+### 10.4 Navigation polylines (carried over)
+Polyline colors are unchanged from Phase 11/12 — Navigation Experience does not introduce new route colors:
+
+- **Driver → Pickup** (`trip.driverRoute.polyline`, rendered on both driver and passenger): `colors.violet.primary` (`#7B61FF`), stroke `4 px`.
+- **Pickup → Destination** (`trip.route.polyline`): `colors.blue.primary` (`#2F80ED`), stroke `4 px`.
+
+The two routes never share a Firestore field and never share rendering treatment — see [phase12_navigation_spec.md](./phase12_navigation_spec.md) "Booking Route vs Driver Route".
+
+### 10.5 External navigation hand-off (carried over)
+The "Open in Maps" affordance hands off to the platform-native app — Android → Google Maps, iOS → Apple Maps (resolved from OQ-NAV-8; do not force Google Maps on iOS). Button uses the standard `Primary button` token; no new visual treatment.
+
+---
+
 *Companion specifications: [architecture.md](./architecture.md) · [component_inventory.md](./component_inventory.md).*

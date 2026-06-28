@@ -35,18 +35,18 @@ export function EnRouteSheet() {
       <Text style={styles.subtitle}>
         Your driver is on the way to your pickup location.
       </Text>
-      {trip?.driverToPickup != null ? (
+      {trip?.driverRoute != null ? (
         <View style={styles.etaCard}>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>DISTANCE TO YOU</Text>
             <Text style={styles.etaValue}>
-              {(trip.driverToPickup.distanceMeters / 1000).toFixed(1)} km
+              {(trip.driverRoute.distanceMeters / 1000).toFixed(1)} km
             </Text>
           </View>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>ETA</Text>
             <Text style={styles.etaValue}>
-              {Math.round(trip.driverToPickup.etaSeconds / 60)} min
+              {Math.max(1, Math.round(trip.driverRoute.durationSeconds / 60))} min
             </Text>
           </View>
         </View>

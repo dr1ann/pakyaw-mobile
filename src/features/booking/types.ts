@@ -57,5 +57,4 @@ export type TripCreateData = {
     readonly polyline: string;
   };
   readonly serviceAreaId: 'ormoc';
-  readonly driverToPickup: null;
 };

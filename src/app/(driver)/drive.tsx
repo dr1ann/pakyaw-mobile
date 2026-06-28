@@ -49,7 +49,13 @@ import type { TripStatus } from '@/features/trip/types';
 import { logger } from '@/lib/logger';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useDriverToPickupETA } from '@/features/maps/hooks/useDriverToPickupETA';
+import { useDriverRouteQuery } from '@/features/maps/hooks/useDriverRouteQuery';
+import { useDriverHeading } from '@/features/maps/hooks/useDriverHeading';
+import { useNavigationCamera } from '@/features/maps/hooks/useNavigationCamera';
+import { useManeuverProgress } from '@/features/maps/hooks/useManeuverProgress';
+import { NavigationBanner } from '@/features/maps/components/NavigationBanner';
+import { RecenterButton } from '@/features/maps/components/RecenterButton';
+import { isNavActiveStatus } from '@/features/maps/navigation/navigationHelper';
 
 export default function DriveScreen() {
   const availability = useAvailabilityStore((s) => s.availability);
@@ -69,8 +75,22 @@ export default function DriveScreen() {
   // Phase 8E: subscribe to active trip document.
   useActiveTrip();
 
-  // Phase 12E: subscribe to Distance Matrix updates and publish to Firestore
-  useDriverToPickupETA(trip?.id ?? null);
+  // Fused heading (magnetometer + GPS)
+  useDriverHeading(trip?.status ?? null);
+
+  // Camera mode controller (follow/overview auto-recenter)
+  const { handleUserPan } = useNavigationCamera(trip?.status ?? null);
+
+  const navCameraMode = useActiveTripStore((s) => s.navCameraMode);
+  const navHeading = useActiveTripStore((s) => s.navHeading);
+  const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
+  const driverLocation = useActiveTripStore((s) => s.driverLocation);
+
+  // Fetch driver navigation route leg/polyline locally
+  const { data: driverRouteData } = useDriverRouteQuery(trip?.id ?? null);
+
+  // Calculate local maneuver progression
+  const progressStats = useManeuverProgress(driverRouteData ?? null, driverLocation);
 
   // Availability mutations.
   const goOnlineMutation = useGoOnlineMutation();
@@ -138,7 +158,36 @@ export default function DriveScreen() {
             : null
         }
         showDestination={trip?.status === 'in_progress' || trip?.status === 'completed'}
+        showDriverRoute={trip?.status === 'accepted' || trip?.status === 'driver_arriving' || trip?.status === 'in_progress'}
         routePolyline={trip?.route?.polyline ?? null}
+        driverRoutePolyline={driverRouteData?.polyline ?? null}
+        navigation={
+          isNavActiveStatus(trip?.status)
+            ? {
+                mode: navCameraMode,
+                center: driverLocation,
+                heading: navHeading,
+              }
+            : undefined
+        }
+        onUserPan={handleUserPan}
+      />
+
+      {/* Turn-by-turn Navigation Banner */}
+      {isNavActiveStatus(trip?.status) && trip?.status !== 'driver_arrived' && driverRouteData && (
+        <NavigationBanner
+          currentStep={driverRouteData.steps[navStepIndex] ?? null}
+          distanceToManeuver={progressStats.distanceToManeuver}
+        />
+      )}
+
+      {/* Recenter Camera Button */}
+      <RecenterButton
+        visible={
+          isNavActiveStatus(trip?.status) &&
+          navCameraMode === 'overview'
+        }
+        onPress={() => useActiveTripStore.getState().setNavCameraMode('follow')}
       />
 
       {/* ── Incoming request overlay (Phase 7) ────────────────────────────
@@ -162,6 +211,8 @@ export default function DriveScreen() {
             <DriverTripSheet
               status={trip?.status ?? null}
               onDismiss={handleDismissTerminal}
+              remainingDistanceMeters={progressStats.remainingDistanceMeters}
+              etaSeconds={progressStats.etaSeconds}
             />
           ) : isOffline ? (
             <OfflineSheet
@@ -197,18 +248,35 @@ export default function DriveScreen() {
 type DriverTripSheetProps = {
   status: TripStatus | null;
   onDismiss: () => void;
+  remainingDistanceMeters: number | null;
+  etaSeconds: number | null;
 };
 
-function DriverTripSheet({ status, onDismiss }: DriverTripSheetProps) {
+function DriverTripSheet({
+  status,
+  onDismiss,
+  remainingDistanceMeters,
+  etaSeconds,
+}: DriverTripSheetProps) {
   switch (status) {
     case 'accepted':
       return <DriverAcceptedSheet />;
     case 'driver_arriving':
-      return <DriverEnRouteSheet />;
+      return (
+        <DriverEnRouteSheet
+          remainingDistanceMeters={remainingDistanceMeters}
+          etaSeconds={etaSeconds}
+        />
+      );
     case 'driver_arrived':
       return <DriverArrivedSheet />;
     case 'in_progress':
-      return <DriverInTripSheet />;
+      return (
+        <DriverInTripSheet
+          remainingDistanceMeters={remainingDistanceMeters}
+          etaSeconds={etaSeconds}
+        />
+      );
     case 'completed':
       return <DriverCompletedSheet onDismiss={onDismiss} />;
     case 'cancelled':

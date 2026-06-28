@@ -42,12 +42,22 @@ type LocationPublishPayload = {
 
 /** Mutable singleton subscription handle. */
 let _subscription: Location.LocationSubscription | null = null;
+let _currentAccuracy: Location.Accuracy | null = null;
 
 /**
  * Request foreground location permission.
  * Throws LocationPermissionError if permission is denied.
+ *
+ * Checks the existing permission state first — only prompts the OS when needed.
+ * On Android, an unconditional requestForegroundPermissionsAsync can trigger a
+ * transparent permission Activity that briefly takes focus, causing AppState
+ * background/foreground transitions even when permission is already granted.
  */
 export async function ensureForegroundPermission(): Promise<void> {
+  const existing = await Location.getForegroundPermissionsAsync();
+  if (existing.status === 'granted') {
+    return;
+  }
   const { status } = await Location.requestForegroundPermissionsAsync();
   if (status !== 'granted') {
     throw new LocationPermissionError();
@@ -59,38 +69,52 @@ export async function ensureForegroundPermission(): Promise<void> {
  * updates to drivers/{uid}.
  *
  * Must only be called after ensureForegroundPermission() has resolved.
- * If a subscription is already active, this is a no-op (safe to call twice).
+ * If a subscription is already active with the same accuracy, this is a no-op.
+ * If active with a different accuracy, it restarts with the new accuracy.
  *
  * @param uid - Firebase Auth uid of the driver.
- * @param onLocation - Optional callback invoked on each accepted location update
- *                     (used by useLocationPublisher to mirror coords to the store).
+ * @param onLocation - Optional callback invoked on each location update (high frequency, un-throttled).
+ * @param accuracy - Dynamic accuracy config (defaults to Balanced).
  */
 export async function startPublishing(
   uid: string,
-  onLocation?: (lat: number, lng: number) => void,
+  onLocation?: (lat: number, lng: number, heading: number | null, speed: number | null) => void,
+  accuracy: Location.Accuracy = Location.Accuracy.Balanced,
 ): Promise<void> {
   if (_subscription) {
-    logger.warn('[location] startPublishing called while already active — no-op');
-    return;
+    if (_currentAccuracy === accuracy) {
+      logger.warn('[location] startPublishing called while already active with same accuracy — no-op');
+      return;
+    }
+    logger.info('[location] startPublishing accuracy changed, restarting subscription', {
+      old: _currentAccuracy,
+      new: accuracy,
+    });
+    stopPublishing();
   }
+
+  _currentAccuracy = accuracy;
 
   // Throttle state is scoped to this subscription instance.
   const throttleState: ThrottleState = { lastAt: null, lastGeo: null };
 
   _subscription = await Location.watchPositionAsync(
     {
-      accuracy: LOCATION_ACCURACY,
+      accuracy: accuracy,
       // OS-level hints to reduce callback frequency. Our own shouldEmit gate
       // is the authoritative throttle on top of these.
       distanceInterval: 10, // metres
       timeInterval: 2_000,  // ms
     },
     async (locationObject) => {
-      const { latitude, longitude, heading } = locationObject.coords;
+      const { latitude, longitude, heading, speed } = locationObject.coords;
       const now = Date.now();
       const geo: LatLng = { lat: latitude, lng: longitude };
 
-      // Apply time + distance throttle gate.
+      // Mirror to store at high frequency (un-throttled) so local UI/camera updates smoothly.
+      onLocation?.(latitude, longitude, heading ?? null, speed ?? null);
+
+      // Apply time + distance throttle gate for Firestore writes.
       if (
         !shouldEmit({
           lastAt: throttleState.lastAt,
@@ -107,9 +131,6 @@ export async function startPublishing(
       throttleState.lastAt = now;
       throttleState.lastGeo = geo;
 
-      // Mirror to store so the placeholder map can show current coords.
-      onLocation?.(latitude, longitude);
-
       const payload: LocationPublishPayload = {
         location: { latitude, longitude },
         geohash: geohashOf(geo, 7),
@@ -123,7 +144,7 @@ export async function startPublishing(
         // location subscription is started.
         const driverRef = doc(firestore, 'drivers', uid);
         await updateDoc(driverRef, payload);
-        logger.info('[location] published:', latitude, longitude);
+        logger.info('[location] published', { latitude, longitude });
       } catch (err) {
         // Non-fatal: log and keep the subscription alive.
         // The next throttled update will retry.
@@ -132,7 +153,7 @@ export async function startPublishing(
     },
   );
 
-  logger.info('[location] subscription started for:', uid);
+  logger.info('[location] subscription started', { uid, accuracy });
 }
 
 /**
@@ -145,6 +166,7 @@ export function stopPublishing(): void {
   }
   _subscription.remove();
   _subscription = null;
+  _currentAccuracy = null;
   logger.info('[location] subscription stopped');
 }
 

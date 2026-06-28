@@ -197,4 +197,23 @@ The navigation flows were completed in Phase 11 to support interactive, state-dr
 
 ---
 
+## 10. Phase 12 Map, Route & Location Tracking Updates
+
+The map, route rendering, and location tracking are fully integrated with the status-driven operational flows:
+- **Driver → Pickup Polyline (Violet) & Lifecycle:**
+  - **Activation & Styling:** When the driver transitions to `accepted` or `driver_arriving` status (en route to the pickup point), the driver's map screen (`drive.tsx`) activates the local `useDriverRouteQuery` React Query hook. The map renders this driver-to-pickup route in solid **Violet** (`colors.violet.primary`, `#7B61FF`) with a stroke width of 4px. If the query is loading or fails, the map falls back to a dashed violet straight line.
+  - **Firestore Persistence (Phase 12 → Navigation Experience):** Phase 12 kept this route strictly client-side. The **Navigation Experience phase supersedes that**: the driver publishes the canonical Driver→Pickup route to `trips/{tripId}.driverRoute` (separate from the booking `route`) so the passenger renders the exact road route from the Firestore listener with zero passenger routing. See **[phase12_navigation_spec.md](./phase12_navigation_spec.md)** §4 / §8 / §10.3.
+  - **Throttling/Polling Strategy:** To prevent spamming the Google Directions API with requests during rapid GPS updates, the driver's client throttles routing requests: a new API request is triggered only when the driver has moved significantly ($\ge 50$ meters) from the coordinates of the last successful routing query, or when 25 seconds have elapsed.
+  - **Route Lifecycle & Cleanup:** The polyline is active only during `accepted` and `driver_arriving` statuses. Upon transitioning to `driver_arrived` (or subsequent statuses like `in_progress`, `completed`, or `cancelled`), the `showDriverRoute` prop evaluates to `false`, causing **both the routed violet polyline and the straight dashed fallback line to disappear instantly** from the map, ensuring a clean and decluttered interface for the driver during the active ride.
+- **Passenger Booking Route (Blue):**
+  - The passenger booking route (pickup -> destination) remains completely independent of the driver navigation route.
+  - It is rendered on the map in solid **Blue** (`colors.blue.primary`, `#2F80ED`) with a stroke width of 4px (or falls back to a dashed blue straight line when unresolved), and is visible when `showDestination` is `true` (on both the passenger screen during booking/ride and during the active ride on the driver screen).
+- **Decoupled Telemetry (Firestore) & Routing (Google Directions):**
+  - **Realtime Firestore Location Updates:** The driver's device publishes its live coordinates at high frequency (every 4–5 seconds or 25 meters moved) to `drivers/{uid}.location` via `watchPositionAsync` in the `useLocationPublisher` hook. The passenger's client subscribes to this document via `onSnapshot` to animate the driver's vehicle marker smoothly in real-time.
+  - **Decoupling:** High-frequency real-time location updates (telemetry) and Google Directions API requests are completely decoupled. Real-time marker movements are cheap Firestore writes/reads, whereas routing polylines use the Google Directions API client-side and are strictly throttled.
+- **Marker Key Re-mounting:** Both the pickup and destination markers are dynamically keyed based on their draggable status (e.g., `key={pickupKey != null ? \`pickup-\${pickupKey}-\${!!onPickupDragEnd}\` : 'pickup-default'}`). When transitioning from booking (draggable) to active trip (non-draggable), the key changes, forcing a complete re-mount to prevent a native `react-native-maps` rendering bug that could cause the markers to disappear on the passenger side.
+
+---
+
 *Companion specifications: [architecture.md](./architecture.md) · [database_schema.md](./database_schema.md) · [state_management.md](./state_management.md).*
+

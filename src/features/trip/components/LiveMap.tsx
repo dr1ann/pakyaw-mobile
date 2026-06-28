@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, Image, type StyleProp, type ViewStyle } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { colors, shadow } from '@/constants/theme';
 import { decodePolyline } from '@/lib/maps/decodePolyline';
 import { logger } from '@/lib/logger';
+import { NAV_ZOOM, NAV_PITCH, NAV_CAMERA_ANIM_MS } from '@/features/maps/navigation/constants';
 
 export type LiveMapProps = {
   readonly driverLocation?: { latitude: number; longitude: number } | null;
@@ -16,9 +17,19 @@ export type LiveMapProps = {
   readonly onPickupDragEnd?: (coords: { readonly latitude: number; readonly longitude: number }) => void;
   readonly onDestinationDragEnd?: (coords: { readonly latitude: number; readonly longitude: number }) => void;
   readonly routePolyline?: string | null;
+  readonly driverRoutePolyline?: string | null;
+  readonly showDriverRoute?: boolean;
   readonly bottomPadding?: number;
   readonly pickupKey?: string | number;
   readonly destinationKey?: string | number;
+  readonly navigation?: {
+    readonly mode: 'follow' | 'overview';
+    readonly center: { latitude: number; longitude: number } | null;
+    readonly heading: number | null;
+    readonly zoom?: number;
+    readonly pitch?: number;
+  };
+  readonly onUserPan?: () => void;
 };
 
 const ORMOC_CENTER = {
@@ -37,10 +48,14 @@ export function LiveMap({
   style,
   onPickupDragEnd,
   routePolyline,
+  driverRoutePolyline,
+  showDriverRoute = false,
   bottomPadding,
   onDestinationDragEnd,
   pickupKey,
   destinationKey,
+  navigation,
+  onUserPan,
 }: LiveMapProps) {
   const mapRef = useRef<MapView>(null);
 
@@ -57,12 +72,14 @@ export function LiveMap({
       hasDestinationLocation: !!destinationLocation,
       destinationLocation,
       showDestination,
+      hasDriverRoutePolyline: !!driverRoutePolyline,
+      showDriverRoute,
     });
 
     if (Platform.OS === 'web') {
       logger.warn('[LiveMap] Web platform detected. react-native-maps does not have native support on web. The map might render as a blank or transparent view.');
     }
-  }, [ownLocation, driverLocation, pickupLocation, destinationLocation, showDestination]);
+  }, [ownLocation, driverLocation, pickupLocation, destinationLocation, showDestination, driverRoutePolyline, showDriverRoute]);
 
   // Collect all active coordinates to fit on the map
   const activeCoords = React.useMemo(() => {
@@ -102,6 +119,11 @@ export function LiveMap({
 
   // Adjust map region to fit all active markers
   useEffect(() => {
+    if (navigation?.mode === 'follow') {
+      logger.info('[LiveMap] Skipping camera adjust: follow camera is active');
+      return;
+    }
+
     if (activeCoordsRef.current.length === 0 || !mapRef.current) {
       logger.info('[LiveMap] Skipping camera adjust: no active coordinates or map ref is null', {
         activeCoordsCount: activeCoordsRef.current.length,
@@ -145,25 +167,64 @@ export function LiveMap({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [markersSignature, bottomPadding]);
+  }, [markersSignature, bottomPadding, navigation?.mode]);
 
-  // Determine polyline coordinates:
-  // - If driver location is active and trip hasn't started, draw from driver to pickup
-  // - If trip is in progress, draw from pickup to destination
-  const polylineCoords = React.useMemo(() => {
-    if (driverLocation && pickupLocation && !showDestination) {
-      return [driverLocation, pickupLocation];
+  // Ephemeral Camera Follow in Navigation Mode
+  useEffect(() => {
+    if (
+      !mapRef.current ||
+      !navigation ||
+      navigation.mode !== 'follow' ||
+      !navigation.center
+    ) {
+      return;
     }
-    if (pickupLocation && destinationLocation && showDestination) {
-      return [pickupLocation, destinationLocation];
-    }
+
+    const { center, heading, zoom = NAV_ZOOM, pitch = NAV_PITCH } = navigation;
+
+    logger.info('[LiveMap] Animating camera to follow driver', {
+      center,
+      heading,
+      zoom,
+      pitch,
+    });
+
+    mapRef.current.animateCamera(
+      {
+        center,
+        heading: heading ?? 0,
+        pitch,
+        zoom,
+      },
+      { duration: NAV_CAMERA_ANIM_MS }
+    );
+  }, [
+    navigation?.mode,
+    navigation?.center?.latitude,
+    navigation?.center?.longitude,
+    navigation?.heading,
+    navigation?.zoom,
+    navigation?.pitch,
+  ]);
+
+  // Fallback straight-line coordinates for passenger (pickup -> destination)
+  const passengerFallbackCoords = React.useMemo(() => {
     if (pickupLocation && destinationLocation) {
       return [pickupLocation, destinationLocation];
     }
     return [];
-  }, [driverLocation, pickupLocation, destinationLocation, showDestination]);
+  }, [pickupLocation, destinationLocation]);
 
-  // Decode the route polyline if present
+  // Fallback straight-line coordinates for driver (driver -> pickup)
+  const driverFallbackCoords = React.useMemo(() => {
+    const driverPos = driverLocation || ownLocation;
+    if (driverPos && pickupLocation) {
+      return [driverPos, pickupLocation];
+    }
+    return [];
+  }, [driverLocation, ownLocation, pickupLocation]);
+
+  // Decode the passenger route polyline if present
   const decodedRouteCoords = React.useMemo(() => {
     if (!routePolyline) return null;
     try {
@@ -179,6 +240,23 @@ export function LiveMap({
     }
     return null;
   }, [routePolyline]);
+
+  // Decode the driver route polyline if present
+  const decodedDriverRouteCoords = React.useMemo(() => {
+    if (!driverRoutePolyline) return null;
+    try {
+      const decoded = decodePolyline(driverRoutePolyline);
+      if (decoded.length > 0) {
+        return decoded.map((c) => ({
+          latitude: c.lat,
+          longitude: c.lng,
+        }));
+      }
+    } catch (err) {
+      logger.error('[LiveMap] Failed to decode driverRoutePolyline', { err, driverRoutePolyline });
+    }
+    return null;
+  }, [driverRoutePolyline]);
 
   const initialRegion = activeCoords.length > 0
     ? {
@@ -216,8 +294,12 @@ export function LiveMap({
             region,
             isGesture: details?.isGesture,
           });
+          if (details?.isGesture && onUserPan) {
+            onUserPan();
+          }
         }}
       >
+        {/* Passenger Route Polyline */}
         {decodedRouteCoords != null ? (
           <Polyline
             coordinates={decodedRouteCoords}
@@ -226,9 +308,9 @@ export function LiveMap({
             lineDashPattern={[0]}
           />
         ) : (
-          polylineCoords.length > 1 && (
+          showDestination && passengerFallbackCoords.length > 1 && (
             <Polyline
-              coordinates={polylineCoords}
+              coordinates={passengerFallbackCoords}
               strokeWidth={4}
               strokeColor={colors.blue.primary}
               lineDashPattern={[6, 6]}
@@ -236,15 +318,43 @@ export function LiveMap({
           )
         )}
 
+        {/* Driver Route Polyline */}
+        {showDriverRoute && (decodedDriverRouteCoords != null ? (
+          <Polyline
+            coordinates={decodedDriverRouteCoords}
+            strokeWidth={4}
+            strokeColor={colors.violet.primary}
+            lineDashPattern={[0]}
+          />
+        ) : (
+          driverFallbackCoords.length > 1 && (
+            <Polyline
+              coordinates={driverFallbackCoords}
+              strokeWidth={4}
+              strokeColor={colors.violet.primary}
+              lineDashPattern={[6, 6]}
+            />
+          )
+        ))}
+
         {ownLocation && (
           <Marker
             coordinate={ownLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             testID="own-location-marker"
+            rotation={navigation ? (navigation.heading ?? 0) : undefined}
           >
-            <View style={[styles.markerRing, styles.ownLocationRing]}>
-              <View style={[styles.markerDot, styles.ownLocationDot]} />
-            </View>
+            {navigation ? (
+              <Image
+                source={require('../../../../assets/images/navigation_arrow.png')}
+                style={styles.navigationArrow}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={[styles.markerRing, styles.ownLocationRing]}>
+                <View style={[styles.markerDot, styles.ownLocationDot]} />
+              </View>
+            )}
           </Marker>
         )}
 
@@ -262,7 +372,7 @@ export function LiveMap({
 
         {pickupLocation && (
           <Marker
-            key={pickupKey != null ? `pickup-${pickupKey}` : 'pickup-default'}
+            key={pickupKey != null ? `pickup-${pickupKey}-${!!onPickupDragEnd}` : 'pickup-default'}
             coordinate={pickupLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             title="Pickup"
@@ -282,7 +392,7 @@ export function LiveMap({
 
         {showDestination && destinationLocation && (
           <Marker
-            key={destinationKey != null ? `destination-${destinationKey}` : 'destination-default'}
+            key={destinationKey != null ? `destination-${destinationKey}-${!!onDestinationDragEnd}` : 'destination-default'}
             coordinate={destinationLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             title="Destination"
@@ -343,6 +453,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blue.primary,
     borderWidth: 2,
     borderColor: colors.white,
+  },
+  navigationArrow: {
+    width: 48,
+    height: 48,
   },
   // Driver Marker (For passenger viewing)
   driverRing: {

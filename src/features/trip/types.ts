@@ -49,9 +49,10 @@ export type TripDoc = {
     readonly polyline: string;
     readonly fetchedAt: Timestamp | null;
   } | null;
-  readonly driverToPickup?: {
+  readonly driverRoute?: {
+    readonly polyline: string;
     readonly distanceMeters: number;
-    readonly etaSeconds: number;
+    readonly durationSeconds: number;
     readonly updatedAt: Timestamp | null;
   } | null;
   readonly serviceAreaId?: 'ormoc' | null;

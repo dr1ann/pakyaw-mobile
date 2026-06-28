@@ -185,22 +185,32 @@ service cloud.firestore {
           && request.resource.data.geohash == resource.data.geohash
           && request.resource.data.route == resource.data.route
           && request.resource.data.serviceAreaId == resource.data.serviceAreaId
-          && request.resource.data.driverToPickup == resource.data.driverToPickup
+          // driverRoute (Phase 12) / driverToPickup (legacy) are optional. The
+          // accept write never sets them; only enforce they are unchanged when
+          // already present. Both names are tolerated so trips created by either
+          // an older app build (driverToPickup) or the current build remain
+          // acceptable during the migration window.
+          && (!('driverRoute' in request.resource.data) || request.resource.data.driverRoute == resource.data.driverRoute)
+          && (!('driverToPickup' in request.resource.data) || request.resource.data.driverToPickup == resource.data.driverToPickup)
           && request.resource.data.keys().hasOnly([
                'passengerId', 'pickup', 'destination', 'passengerCount',
                'billedSeats', 'geohash', 'status', 'driverId', 'acceptedAt',
-               'requestedAt', 'mode', 'route', 'serviceAreaId', 'driverToPickup'
+               'requestedAt', 'mode', 'route', 'serviceAreaId', 'driverRoute', 'driverToPickup'
              ])
         )
         ||
-        // ── Phase 12: driverToPickup live updates ─────────────────────────
-        // Only the assigned driver may update driverToPickup, and only while
-        // status is accepted, driver_arriving, or driver_arrived.
+        // ── Phase 12: driverRoute live updates ────────────────────────────
+        // Only the assigned driver may update driverRoute, and only while
+        // status is accepted or driver_arriving.
         (
           isDriver()
           && resource.data.driverId == request.auth.uid
           && resource.data.status in ['accepted', 'driver_arriving']
-          && request.resource.data.driverToPickup != null
+          && request.resource.data.driverRoute != null
+          && request.resource.data.driverRoute.distanceMeters is number
+          && request.resource.data.driverRoute.durationSeconds is number
+          && request.resource.data.driverRoute.polyline is string
+          && request.resource.data.driverRoute.polyline.size() <= 8192
           // Enforce all other fields are unchanged
           && request.resource.data.status == resource.data.status
           && request.resource.data.driverId == resource.data.driverId

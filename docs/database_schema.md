@@ -163,6 +163,15 @@ interface TripDoc {
   // sanity bound (<= 60_000). It is never derived from lat/lng equality.
   // route?: { distanceMeters: number; durationSeconds: number; polyline: string; fetchedAt: Timestamp };
 
+  // Navigation Experience phase — driver-published canonical Driver→Pickup route
+  // (display-only; NOT priced). SEPARATE field from `route` above and must never
+  // overwrite it: `route` is Pickup→Destination (booking), `driverRoute` is
+  // Driver→Pickup (live nav). Written by the assigned driver only, while
+  // status ∈ {accepted, driver_arriving}; read by trip participants. The passenger
+  // renders this exact road route from Firestore (no passenger Directions call).
+  // See phase12_navigation_spec.md §4 / §10.3 / "Booking Route vs Driver Route".
+  // driverRoute?: { polyline: string; distanceMeters: number; durationSeconds: number; updatedAt: Timestamp } | null;
+
   // SEAT MODEL (FR-1.2.5 — IN SCOPE; the fare built on it is DEFERRED)
   passengerCount: number;      // 1..6, what the passenger entered
   billedSeats: number;         // clamp(passengerCount, 4, 6) — see §6. Seat count, NOT money.
@@ -271,6 +280,7 @@ Rules mirror the architecture's invariants server-side. Sketch of intent:
   - Cancel (after acceptance): the passenger or the assigned driver may set `status = 'cancelled'` from `accepted`, `driver_arriving`, or `driver_arrived`; sets `cancelledBy` to their role. The document is retained for history. No fee fields (deferred).
   - Delete (before acceptance): the owning passenger may **delete** their own trip while it is still an open `request` with `driverId == null` — an abandoned booking request. This is the **only** permitted delete; no `cancelled` status is written and nothing enters history. After acceptance a trip is never deleted, only cancelled.
   - `in_progress` cannot be cancelled — only completed.
+  - `driverRoute` write (Navigation Experience phase): only the **assigned driver** (`driverId == auth.uid`) may write `driverRoute`, and only while `status ∈ {accepted, driver_arriving}`. The write must not modify the booking `route` (the two are independent fields — see §4 and [phase12_navigation_spec.md §15.2](./phase12_navigation_spec.md)). Reads follow the same participant rule below. Replaces the deprecated Phase 12 `driverToPickup` write rule.
   - Read: only the trip's `passengerId` or its `driverId`.
 - **No collection** exposes a money field, so no rule needs to protect one.
 

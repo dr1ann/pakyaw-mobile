@@ -46,7 +46,13 @@ export function DriverAcceptedSheet() {
   );
 }
 
-export function DriverEnRouteSheet() {
+export function DriverEnRouteSheet({
+  remainingDistanceMeters,
+  etaSeconds,
+}: {
+  readonly remainingDistanceMeters?: number | null;
+  readonly etaSeconds?: number | null;
+}) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
 
@@ -56,12 +62,15 @@ export function DriverEnRouteSheet() {
     }
   }
 
-  const driverToPickup = trip?.driverToPickup ?? null;
-  const etaMinutes = driverToPickup
-    ? Math.round(driverToPickup.etaSeconds / 60)
+  // Use dynamic/projected stats if available; fallback to published driverRoute; fallback to null
+  const displayDistanceMeters = remainingDistanceMeters ?? trip?.driverRoute?.distanceMeters ?? null;
+  const displayEtaSeconds = etaSeconds ?? trip?.driverRoute?.durationSeconds ?? null;
+
+  const etaMinutes = displayEtaSeconds != null
+    ? Math.max(1, Math.round(displayEtaSeconds / 60))
     : null;
-  const distanceKm = driverToPickup
-    ? (driverToPickup.distanceMeters / 1000).toFixed(1)
+  const distanceKm = displayDistanceMeters != null
+    ? (displayDistanceMeters / 1000).toFixed(1)
     : null;
 
   return (
@@ -72,7 +81,7 @@ export function DriverEnRouteSheet() {
         Heading to {trip?.pickup.label ?? 'pickup location'}
       </Text>
 
-      {driverToPickup != null && (
+      {displayDistanceMeters != null && (
         <View style={styles.etaCard}>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>DISTANCE TO PICKUP</Text>
@@ -82,6 +91,12 @@ export function DriverEnRouteSheet() {
             <Text style={styles.etaLabel}>ETA</Text>
             <Text style={styles.etaValue}>{etaMinutes} min</Text>
           </View>
+          {displayEtaSeconds != null && (
+            <View style={styles.etaRow}>
+              <Text style={styles.etaLabel}>ARRIVAL TIME</Text>
+              <Text style={styles.etaValue}>{formatArrivalTime(displayEtaSeconds)}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -130,7 +145,13 @@ export function DriverArrivedSheet() {
 // ── DriverInTripSheet ───────────────────────────────────────────────────────
 // Shown when status is 'in_progress'. Ride is underway.
 
-export function DriverInTripSheet() {
+export function DriverInTripSheet({
+  remainingDistanceMeters,
+  etaSeconds,
+}: {
+  readonly remainingDistanceMeters?: number | null;
+  readonly etaSeconds?: number | null;
+}) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
 
@@ -140,11 +161,15 @@ export function DriverInTripSheet() {
     }
   }
 
-  const routeDistanceKm = trip?.route
-    ? (trip.route.distanceMeters / 1000).toFixed(1)
+  // Use dynamic/projected stats if available; fallback to original route stats; fallback to null
+  const displayDistanceMeters = remainingDistanceMeters ?? trip?.route?.distanceMeters ?? null;
+  const displayEtaSeconds = etaSeconds ?? trip?.route?.durationSeconds ?? null;
+
+  const distanceKm = displayDistanceMeters != null
+    ? (displayDistanceMeters / 1000).toFixed(1)
     : null;
-  const routeDurationMin = trip?.route
-    ? Math.round(trip.route.durationSeconds / 60)
+  const etaMinutes = displayEtaSeconds != null
+    ? Math.max(1, Math.round(displayEtaSeconds / 60))
     : null;
 
   return (
@@ -155,16 +180,22 @@ export function DriverInTripSheet() {
         Heading to {trip?.destination.label ?? 'destination'}
       </Text>
 
-      {trip?.route != null && (
+      {displayDistanceMeters != null && (
         <View style={styles.etaCard}>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>TRIP DISTANCE</Text>
-            <Text style={styles.etaValue}>{routeDistanceKm} km</Text>
+            <Text style={styles.etaValue}>{distanceKm} km</Text>
           </View>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>ESTIMATED TIME</Text>
-            <Text style={styles.etaValue}>{routeDurationMin} min</Text>
+            <Text style={styles.etaValue}>{etaMinutes} min</Text>
           </View>
+          {displayEtaSeconds != null && (
+            <View style={styles.etaRow}>
+              <Text style={styles.etaLabel}>ARRIVAL TIME</Text>
+              <Text style={styles.etaValue}>{formatArrivalTime(displayEtaSeconds)}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -271,3 +302,15 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
   },
 });
+
+function formatArrivalTime(etaSeconds: number): string {
+  const arrivalDate = new Date(Date.now() + etaSeconds * 1000);
+  let hours = arrivalDate.getHours();
+  const minutes = arrivalDate.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minutesStr} ${ampm}`;
+}
+
