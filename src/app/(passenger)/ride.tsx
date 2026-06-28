@@ -14,8 +14,10 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import * as Location from 'expo-location';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocationStore } from '@/stores/locationStore';
+import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
+import MapView from 'react-native-maps';
 import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -44,7 +46,7 @@ import type { TripStatus } from '@/features/trip/types';
 import { logger } from '@/lib/logger';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useBookingDraftStore } from '@/stores/bookingDraftStore';
+import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftStore';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -66,22 +68,99 @@ export default function RideScreen() {
   const [pickupDragKey, setPickupDragKey] = useState(0);
   const [destinationDragKey, setDestinationDragKey] = useState(0);
 
+  const deviceLocation = useLocationStore((s) => s.location);
+
+  const mapRef = useRef<MapView>(null);
+
+  // Derive phase: Booking / Connecting / Active / Terminal
+  const phase = useMemo<'booking' | 'connecting' | 'active' | 'terminal'>(() => {
+    if (!tripId) {
+      return 'booking';
+    }
+    if (!trip) {
+      return 'connecting';
+    }
+    if (['completed', 'cancelled'].includes(trip.status)) {
+      return 'terminal';
+    }
+    return 'active';
+  }, [tripId, trip]);
+
   // Subscribe to trip doc + driver location
   useActiveTrip();
   useDriverLocation();
 
+  // Render Selector: resolves which facts feed the map based on the phase
+  const mapData = useMemo(() => {
+    if (phase === 'booking' || phase === 'connecting') {
+      // §13.2: only render the accepted route when it was computed for the
+      // current pickup/destination. A retained route from a previous origin is
+      // stale and must not be drawn as if current (no straight-line either).
+      const routeIsCurrent = routeMatchesInputs({
+        pickup: draft.pickup,
+        destination: draft.destination,
+        route: draft.route,
+      });
+      return {
+        pickupLocation: draft.pickup?.coords
+          ? { latitude: draft.pickup.coords.lat, longitude: draft.pickup.coords.lng }
+          : null,
+        destinationLocation: draft.destination?.coords
+          ? { latitude: draft.destination.coords.lat, longitude: draft.destination.coords.lng }
+          : null,
+        routePolyline: routeIsCurrent ? (draft.route?.polyline ?? null) : null,
+        driverLocation: null,
+        showDriverRoute: false,
+        driverRoutePolyline: null,
+      };
+    } else {
+      // active or terminal phase
+      return {
+        pickupLocation: trip?.pickup?.coords
+          ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
+          : null,
+        destinationLocation: trip?.destination?.coords
+          ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
+          : null,
+        routePolyline: trip?.route?.polyline ?? null,
+        driverLocation: driverLocation
+          ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
+          : null,
+        showDriverRoute: trip?.status === 'accepted' || trip?.status === 'driver_arriving',
+        driverRoutePolyline: trip?.driverRoute?.polyline ?? null,
+      };
+    }
+  }, [phase, draft.pickup, draft.destination, draft.route, trip, driverLocation]);
 
+  const cameraController = useRideCameraController(mapRef, {
+    pickupLocation: mapData.pickupLocation,
+    destinationLocation: mapData.destinationLocation,
+    driverLocation: mapData.driverLocation,
+    ownLocation: deviceLocation,
+    phase,
+    bottomPadding: isMinimized ? 160 : 320,
+  });
 
   // Query route polyline and info when pickup and destination are available
-  const { data: routeData } = useRouteQuery({
+  const { data: routeData, isLoading, isFetching } = useRouteQuery({
     pickup: draft.pickup,
     destination: draft.destination,
   });
 
-  // Sync query route data to bookingDraftStore
+  // Sync query route data to bookingDraftStore (only when it resolves).
+  // Tag the accepted route with the pickup/destination it was computed for so
+  // the render selector can detect a stale (wrong-origin) route (§13.2).
   useEffect(() => {
-    setRoute(routeData ?? null);
-  }, [routeData, setRoute]);
+    if (routeData && draft.pickup?.coords && draft.destination?.coords) {
+      setRoute({
+        ...routeData,
+        source: {
+          pickup: draft.pickup.coords,
+          destination: draft.destination.coords,
+        },
+      });
+    }
+  }, [routeData, draft.pickup, draft.destination, setRoute]);
 
   // Query user profile to display passenger's first name
   const { data: profile } = useQuery<UserDoc | null>({
@@ -91,44 +170,30 @@ export default function RideScreen() {
     staleTime: 5 * 60_000,
   });
 
-  // Auto-resolve current location on mount if pickup is empty
+  // Auto-resolve / seed pickup from device location when available and pickup is empty
   useEffect(() => {
-    if (draft.pickup) return;
+    if (draft.pickup || !deviceLocation) return;
 
     let active = true;
-    async function resolveInitialLocation() {
+    async function seedPickup() {
       try {
-        logger.info('[RideScreen] Requesting location permission on mount...');
-        const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
-        if (permStatus !== 'granted') {
-          logger.warn('[RideScreen] Location permission not granted');
-          return;
-        }
-
-        logger.info('[RideScreen] Fetching current position...');
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        if (!active) return;
-
-        logger.info('[RideScreen] Reverse-geocoding current position...', loc.coords);
-        const place = await reverseGeocode(loc.coords.latitude, loc.coords.longitude);
+        logger.info('[RideScreen] Seeding pickup from device location...', deviceLocation);
+        const place = await reverseGeocode(deviceLocation.latitude, deviceLocation.longitude);
         if (place && active) {
-          logger.info('[RideScreen] Initialized pickup location:', place);
+          logger.info('[RideScreen] Seeded pickup location:', place);
           setPickup(place);
         }
       } catch (err) {
-        logger.error('[RideScreen] Failed to resolve initial location', err);
+        logger.error('[RideScreen] Failed to seed pickup location', err);
       }
     }
 
-    void resolveInitialLocation();
+    void seedPickup();
 
     return () => {
       active = false;
     };
-  }, [draft.pickup, setPickup]);
+  }, [deviceLocation, draft.pickup, setPickup]);
 
   // Draggable pickup pin callback with strict service-area validation and immediate route recalculation
   const handlePickupDragEnd = (coords: { latitude: number; longitude: number }) => {
@@ -245,34 +310,28 @@ export default function RideScreen() {
   }, [status, driverLocation, decodedRouteCoords, trip?.route]);
 
   // Extract coordinates for LiveMap, checking both active trip and booking draft
-  const pickupLocation = trip?.pickup?.coords
-    ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-    : draft.pickup?.coords
-      ? { latitude: draft.pickup.coords.lat, longitude: draft.pickup.coords.lng }
-      : null;
-
-  const destinationLocation = trip?.destination?.coords
-    ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-    : draft.destination?.coords
-      ? { latitude: draft.destination.coords.lat, longitude: draft.destination.coords.lng }
-      : null;
+  // (Replaced by selector layer mapData)
 
   return (
     <View style={styles.root}>
       {/* Interactive Map Background */}
       <LiveMap
-        driverLocation={driverLocation}
-        pickupLocation={pickupLocation}
-        destinationLocation={destinationLocation}
+        mapRef={mapRef}
+        ownLocation={deviceLocation}
+        driverLocation={mapData.driverLocation}
+        pickupLocation={mapData.pickupLocation}
+        destinationLocation={mapData.destinationLocation}
         showDestination={true}
-        onPickupDragEnd={status === null ? handlePickupDragEnd : undefined}
-        onDestinationDragEnd={status === null ? handleDestinationDragEnd : undefined}
+        onPickupDragEnd={phase === 'booking' ? handlePickupDragEnd : undefined}
+        onDestinationDragEnd={phase === 'booking' ? handleDestinationDragEnd : undefined}
         pickupKey={pickupDragKey}
         destinationKey={destinationDragKey}
-        routePolyline={trip?.route?.polyline ?? draft.route?.polyline ?? null}
-        driverRoutePolyline={trip?.driverRoute?.polyline ?? null}
-        showDriverRoute={trip?.status === 'accepted' || trip?.status === 'driver_arriving'}
+        routePolyline={mapData.routePolyline}
+        driverRoutePolyline={mapData.driverRoutePolyline}
+        showDriverRoute={mapData.showDriverRoute}
         bottomPadding={isMinimized ? 160 : 320}
+        onMapReady={cameraController.onMapReady}
+        onUserPan={cameraController.onUserPan}
       />
 
       {/* Bottom Sheet Overlays */}
@@ -321,6 +380,7 @@ export default function RideScreen() {
                 onSearchDestination={() => setSearchMode('destination')}
                 isMinimized={isMinimized}
                 onToggleMinimize={handleToggleMinimize}
+                isLoadingRoute={isLoading || isFetching}
               />
             </View>
           </SafeAreaView>

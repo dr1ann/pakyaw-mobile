@@ -16,8 +16,16 @@ export function useRouteQuery({ pickup, destination }: UseRouteQueryProps) {
 
   const enabled = !!pickupCoords && !!destinationCoords;
 
+  const roundCoord = (num?: number) => (num != null ? Math.round(num * 100000) / 100000 : null);
+
   return useQuery<RouteResult, Error>({
-    queryKey: ['route', pickupCoords, destinationCoords],
+    queryKey: [
+      'route',
+      roundCoord(pickupCoords?.lat),
+      roundCoord(pickupCoords?.lng),
+      roundCoord(destinationCoords?.lat),
+      roundCoord(destinationCoords?.lng),
+    ],
     queryFn: async () => {
       if (!pickupCoords || !destinationCoords) {
         throw new Error('Coordinates missing.');

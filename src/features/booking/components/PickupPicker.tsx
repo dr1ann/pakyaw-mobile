@@ -1,4 +1,3 @@
-import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,6 +6,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 import { SAVED_PICKUP_PLACES } from '@/features/booking/constants';
 import type { Place } from '@/features/booking/types';
 import { logger } from '@/lib/logger';
+import { useLocationStore } from '@/stores/locationStore';
 
 export type PickupPickerProps = {
   value: Place | null;
@@ -26,24 +26,44 @@ export function PickupPicker({ value, onChange, error }: PickupPickerProps) {
 
   async function resolveCurrentLocation() {
     setLocating(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        onChange({ label: 'Current location (unavailable)', coords: null });
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+    const state = useLocationStore.getState();
+    const loc = state.location;
+    if (loc) {
       onChange({
         label: 'Current location',
-        coords: { lat: loc.coords.latitude, lng: loc.coords.longitude },
+        coords: { lat: loc.latitude, lng: loc.longitude },
       });
-    } catch (err) {
-      logger.warn('[PickupPicker] location failed', { err });
-      onChange({ label: 'Current location (unavailable)', coords: null });
-    } finally {
       setLocating(false);
+    } else {
+      if (state.permissionStatus === 'denied') {
+        onChange({ label: 'Current location (unavailable)', coords: null });
+        setLocating(false);
+        return;
+      }
+      
+      const unsubscribe = useLocationStore.subscribe((currState) => {
+        if (currState.location) {
+          onChange({
+            label: 'Current location',
+            coords: { lat: currState.location.latitude, lng: currState.location.longitude },
+          });
+          setLocating(false);
+          unsubscribe();
+        } else if (currState.permissionStatus === 'denied') {
+          onChange({ label: 'Current location (unavailable)', coords: null });
+          setLocating(false);
+          unsubscribe();
+        }
+      });
+      
+      setTimeout(() => {
+        unsubscribe();
+        setLocating(false);
+        const latestLoc = useLocationStore.getState().location;
+        if (!latestLoc) {
+          onChange({ label: 'Current location (unavailable)', coords: null });
+        }
+      }, 3000);
     }
   }
 

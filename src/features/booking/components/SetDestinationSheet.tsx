@@ -1,3 +1,11 @@
+import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { colors, radius, spacing, typography } from '@/constants/theme';
+import type { Place } from '@/features/booking/types';
+import { useOrmocPlacesAutocomplete } from '@/features/maps/hooks/useOrmocPlacesAutocomplete';
+import { getPlaceDetails, reverseGeocode } from '@/features/maps/services/placesService';
+import { logger } from '@/lib/logger';
+import { isInServiceArea } from '@/lib/serviceArea';
+import { useLocationStore } from '@/stores/locationStore';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,14 +18,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as Location from 'expo-location';
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography } from '@/constants/theme';
-import type { Place } from '@/features/booking/types';
-import { useOrmocPlacesAutocomplete } from '@/features/maps/hooks/useOrmocPlacesAutocomplete';
-import { getPlaceDetails, reverseGeocode } from '@/features/maps/services/placesService';
-import { isInServiceArea } from '@/lib/serviceArea';
-import { logger } from '@/lib/logger';
 
 type StaticPlace = {
   readonly label: string;
@@ -34,22 +34,22 @@ const SUGGESTED_PLACES: readonly StaticPlace[] = [
   {
     label: 'Robinsons Place Ormoc',
     address: 'Brgy. Cogon, Ormoc City, Leyte',
-    coords: { lat: 11.0051, lng: 124.6218 },
+    coords: { lat: 11.025467127451368, lng: 124.60509243084043 },
   },
   {
     label: 'Ormoc Superdome',
     address: 'Larrazabal Blvd, Ormoc City, Leyte',
-    coords: { lat: 11.0076, lng: 124.6042 },
+    coords: { lat: 11.004196339986503, lng: 124.60958545198201 },
   },
   {
     label: 'SM Center Ormoc',
     address: 'Real St, Brgy. District 14, Ormoc City, Leyte',
-    coords: { lat: 11.0028, lng: 124.6083 },
+    coords: { lat: 11.010894765109262, lng: 124.60771518229937 },
   },
   {
     label: 'Ormoc City Hall',
     address: 'Avelino St, Ormoc City, Leyte',
-    coords: { lat: 11.0044, lng: 124.6074 },
+    coords: { lat: 11.01338557648569, lng: 124.60477265161069 },
   },
 ];
 
@@ -59,14 +59,14 @@ const SAVED_PLACES: readonly SavedPlace[] = [
     icon: 'house.fill',
     label: 'Home',
     address: 'Brgy. Linao, Ormoc City',
-    coords: { lat: 11.0250, lng: 124.6010 },
+    coords: { lat: 11.015462101185108, lng: 124.59161360299319 },
   },
   {
     id: 'work',
     icon: 'briefcase.fill',
     label: 'Work',
     address: 'Ormoc Doctors Hospital, Ormoc City',
-    coords: { lat: 11.0120, lng: 124.6095 },
+    coords: { lat: 11.005074062234158, lng: 124.61175049393847 },
   },
 ];
 
@@ -86,20 +86,9 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
   async function handleUseCurrentLocation() {
     setDetectingLocation(true);
     try {
-      logger.info('[SetDestinationSheet] Checking location permission status...');
-      const currentPerm = await Location.getForegroundPermissionsAsync();
-      
-      const canPrompt = currentPerm.status === 'undetermined' || currentPerm.canAskAgain;
-
-      if (canPrompt) {
-        logger.info('[SetDestinationSheet] Requesting location permission...');
-        const requestPerm = await Location.requestForegroundPermissionsAsync();
-        if (requestPerm.status !== 'granted') {
-          logger.warn('[SetDestinationSheet] Location permission denied by user prompt');
-          return;
-        }
-      } else {
-        logger.warn('[SetDestinationSheet] Location permission permanently denied, showing settings alert');
+      const state = useLocationStore.getState();
+      if (state.permissionStatus !== 'granted') {
+        logger.warn('[SetDestinationSheet] Location permission not granted');
         Alert.alert(
           'Location Permission',
           'Location permission is required to use your current location. Please enable it in your device settings.'
@@ -107,13 +96,18 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
         return;
       }
 
-      logger.info('[SetDestinationSheet] Getting current position...');
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const loc = state.location;
+      if (!loc) {
+        logger.warn('[SetDestinationSheet] Current location not available yet');
+        Alert.alert(
+          'Location Unavailable',
+          'Could not determine your current location. Please try again in a moment.'
+        );
+        return;
+      }
 
-      logger.info('[SetDestinationSheet] Reverse-geocoding current position...', loc.coords);
-      const place = await reverseGeocode(loc.coords.latitude, loc.coords.longitude);
+      logger.info('[SetDestinationSheet] Reverse-geocoding current position...', loc);
+      const place = await reverseGeocode(loc.latitude, loc.longitude);
       
       if (place && place.coords && isInServiceArea(place.coords)) {
         logger.info('[SetDestinationSheet] Selected current location:', place);

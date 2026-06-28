@@ -1,10 +1,10 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { SymbolIcon } from '@/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { useCreateBooking } from '@/features/booking/hooks/useCreateBooking';
-import { useBookingDraftStore } from '@/stores/bookingDraftStore';
+import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftStore';
 import { logger } from '@/lib/logger';
 
 type BookingSheetProps = {
@@ -12,6 +12,7 @@ type BookingSheetProps = {
   readonly onSearchDestination?: () => void;
   readonly isMinimized?: boolean;
   readonly onToggleMinimize?: () => void;
+  readonly isLoadingRoute?: boolean;
 };
 
 export function BookingSheet({
@@ -19,6 +20,7 @@ export function BookingSheet({
   onSearchDestination,
   isMinimized = false,
   onToggleMinimize,
+  isLoadingRoute = false,
 }: BookingSheetProps) {
   const draft = useBookingDraftStore((s) => s.draft);
   const setPassengerCount = useBookingDraftStore((s) => s.setPassengerCount);
@@ -40,6 +42,13 @@ export function BookingSheet({
       return;
     }
 
+    // Guard against booking a route that no longer matches the current inputs
+    // (e.g. pickup changed and the refetch hasn't landed yet) — §13.2.
+    if (!routeMatchesInputs(draft)) {
+      logger.warn('[BookingSheet] Confirm tapped but route is stale for current inputs; ignoring');
+      return;
+    }
+
     const payload = {
       pickup: draft.pickup,
       destination: draft.destination,
@@ -55,17 +64,21 @@ export function BookingSheet({
     mutate(payload);
   }
 
-  const isRouteTooShort = !!draft.route && draft.route.distanceMeters < 50;
+  // Only treat the route as usable when it was computed for the current inputs.
+  const routeIsCurrent = routeMatchesInputs(draft);
+  const currentRoute = routeIsCurrent ? draft.route : null;
+
+  const isRouteTooShort = !!currentRoute && currentRoute.distanceMeters < 50;
 
   // Formatting distance & duration
-  const distanceKm = draft.route
-    ? (draft.route.distanceMeters / 1000).toFixed(1)
+  const distanceKm = currentRoute
+    ? (currentRoute.distanceMeters / 1000).toFixed(1)
     : '0.0';
-  const durationMin = draft.route
-    ? Math.round(draft.route.durationSeconds / 60)
+  const durationMin = currentRoute
+    ? Math.round(currentRoute.durationSeconds / 60)
     : 0;
 
-  const hasValidRoute = !!draft.route && !isRouteTooShort;
+  const hasValidRoute = !!currentRoute && !isRouteTooShort;
 
   return (
     <View style={styles.container} testID="booking-sheet">
@@ -147,8 +160,15 @@ export function BookingSheet({
         )}
       </View>
 
-      {/* Distance & ETA Pills Row */}
-      {hasValidRoute && (
+      {/* Distance & ETA Pills Row or Loading Placeholder */}
+      {!currentRoute ? (
+        <View style={styles.skeletonContainer}>
+          <View style={styles.skeletonRow}>
+            <ActivityIndicator size="small" color={colors.blue.primary} />
+            <Text style={{ color: colors.ink[500], fontSize: 12, marginLeft: 8 }}>Calculating route...</Text>
+          </View>
+        </View>
+      ) : hasValidRoute ? (
         <View style={styles.pillsRow}>
           <View style={styles.pill}>
             <Text style={styles.pillLabel}>DISTANCE</Text>
@@ -166,7 +186,7 @@ export function BookingSheet({
             </View>
           </View>
         </View>
-      )}
+      ) : null}
 
       {/* Main Form Fields */}
       <ScrollView
@@ -279,7 +299,7 @@ export function BookingSheet({
             label="Request Pakyaw"
             onPress={handleConfirm}
             loading={isPending}
-            disabled={isPending || !hasValidRoute}
+            disabled={isPending || !hasValidRoute || isLoadingRoute}
             testID="booking-confirm"
             style={styles.confirmButton}
           />

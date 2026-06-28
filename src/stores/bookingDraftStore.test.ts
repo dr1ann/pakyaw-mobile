@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useBookingDraftStore } from './bookingDraftStore';
+import { useBookingDraftStore, routeMatchesInputs } from './bookingDraftStore';
 
 describe('bookingDraftStore', () => {
   beforeEach(() => {
@@ -14,15 +14,16 @@ describe('bookingDraftStore', () => {
     expect(state.route).toBeNull();
   });
 
-  it('allows setting pickup and resets route', () => {
+  it('allows setting pickup and retains route', () => {
     const store = useBookingDraftStore.getState();
     
     // Set a route first
-    store.setRoute({
+    const mockRoute = {
       distanceMeters: 1000,
       durationSeconds: 120,
       polyline: 'abc',
-    });
+    };
+    store.setRoute(mockRoute);
     
     expect(useBookingDraftStore.getState().draft.route).not.toBeNull();
 
@@ -35,18 +36,19 @@ describe('bookingDraftStore', () => {
     
     const state = useBookingDraftStore.getState().draft;
     expect(state.pickup).toEqual(mockPlace);
-    expect(state.route).toBeNull(); // Should be reset
+    expect(state.route).toEqual(mockRoute); // Should be retained
   });
 
-  it('allows setting destination and resets route', () => {
+  it('allows setting destination and retains route', () => {
     const store = useBookingDraftStore.getState();
     
     // Set a route first
-    store.setRoute({
+    const mockRoute = {
       distanceMeters: 1000,
       durationSeconds: 120,
       polyline: 'abc',
-    });
+    };
+    store.setRoute(mockRoute);
 
     const mockPlace = {
       label: 'Ormoc Superdome',
@@ -57,7 +59,7 @@ describe('bookingDraftStore', () => {
     
     const state = useBookingDraftStore.getState().draft;
     expect(state.destination).toEqual(mockPlace);
-    expect(state.route).toBeNull(); // Should be reset
+    expect(state.route).toEqual(mockRoute); // Should be retained
   });
 
   it('allows setting passengerCount', () => {
@@ -88,7 +90,7 @@ describe('bookingDraftStore', () => {
 
   it('resets to initial state', () => {
     const store = useBookingDraftStore.getState();
-    
+
     store.setPickup({ label: 'A', coords: { lat: 1, lng: 1 } });
     store.setDestination({ label: 'B', coords: { lat: 2, lng: 2 } });
     store.setPassengerCount(5);
@@ -101,5 +103,54 @@ describe('bookingDraftStore', () => {
     expect(state.destination).toBeNull();
     expect(state.passengerCount).toBe(4);
     expect(state.route).toBeNull();
+  });
+});
+
+describe('routeMatchesInputs', () => {
+  beforeEach(() => {
+    useBookingDraftStore.getState().reset();
+  });
+
+  const pickup = { label: 'P', coords: { lat: 11.0, lng: 124.6 } };
+  const destination = { label: 'D', coords: { lat: 11.02, lng: 124.61 } };
+
+  it('returns false when there is no route', () => {
+    expect(routeMatchesInputs(useBookingDraftStore.getState().draft)).toBe(false);
+  });
+
+  it('treats a sourceless (legacy/manual) route as matching', () => {
+    const store = useBookingDraftStore.getState();
+    store.setRoute({ distanceMeters: 1000, durationSeconds: 120, polyline: 'abc' });
+    expect(routeMatchesInputs(useBookingDraftStore.getState().draft)).toBe(true);
+  });
+
+  it('matches a route whose source equals the current inputs', () => {
+    const store = useBookingDraftStore.getState();
+    store.setPickup(pickup);
+    store.setDestination(destination);
+    store.setRoute({
+      distanceMeters: 1000,
+      durationSeconds: 120,
+      polyline: 'abc',
+      source: { pickup: pickup.coords, destination: destination.coords },
+    });
+    expect(routeMatchesInputs(useBookingDraftStore.getState().draft)).toBe(true);
+  });
+
+  it('detects a stale route after the pickup moves to a different place', () => {
+    const store = useBookingDraftStore.getState();
+    store.setPickup(pickup);
+    store.setDestination(destination);
+    store.setRoute({
+      distanceMeters: 1000,
+      durationSeconds: 120,
+      polyline: 'abc',
+      source: { pickup: pickup.coords, destination: destination.coords },
+    });
+
+    // User changes pickup; the retained route's origin no longer matches.
+    store.setPickup({ label: 'Elsewhere', coords: { lat: 11.05, lng: 124.55 } });
+
+    expect(routeMatchesInputs(useBookingDraftStore.getState().draft)).toBe(false);
   });
 });

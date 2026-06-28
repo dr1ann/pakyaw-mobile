@@ -52,8 +52,6 @@ export function useActiveTrip(): void {
         (trip) => {
           if (trip) {
             setTrip(trip);
-            // Reset the booking draft store since the active trip has successfully loaded!
-            useBookingDraftStore.getState().reset();
           } else {
             logger.warn('[trip] active trip document disappeared', { tripId });
             clearTrip();

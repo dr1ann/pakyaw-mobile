@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { createTrip } from '@/features/booking/services/booking.service';
 import type { CreateBookingInput } from '@/features/booking/types';
 import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useBookingDraftStore } from '@/stores/bookingDraftStore';
 import { useSessionStore } from '@/stores/sessionStore';
 
 export function useCreateBooking() {
@@ -18,6 +19,7 @@ export function useCreateBooking() {
     },
     onSuccess: (tripId) => {
       setTripId(tripId);
+      useBookingDraftStore.getState().reset();
     },
   });
 }
