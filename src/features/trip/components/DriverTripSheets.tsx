@@ -17,14 +17,44 @@ import { useActiveTripStore } from '@/stores/activeTripStore';
 // ── DriverAcceptedSheet ─────────────────────────────────────────────────────
 // Shown when status is 'accepted'. Driver just accepted, about to head out.
 
-export function DriverAcceptedSheet() {
+type DriverSheetModeProps = {
+  readonly compact?: boolean;
+};
+
+export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
+  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
   const { mutate: transition, isPending } = useTripTransition();
 
   function handleStartNavigation() {
     if (trip) {
+      // Arm Navigation Mode for the to-pickup leg; auto-disarms when the trip
+      // advances past 'driver_arriving'.
+      setNavActiveStatus('driver_arriving');
       transition({ tripId: trip.id, status: 'driver_arriving' });
     }
+  }
+
+  if (compact) {
+    return (
+      <View style={styles.compactContainer}>
+        <View style={styles.compactInfo}>
+          <Text style={styles.compactPrimary} numberOfLines={1}>Trip accepted</Text>
+          <Text style={styles.compactSecondary} numberOfLines={1}>
+            {trip?.pickup.label ?? 'Pickup location'}
+          </Text>
+        </View>
+        <Button
+          label="Navigate"
+          onPress={handleStartNavigation}
+          loading={isPending}
+          disabled={isPending}
+          fullWidth={false}
+          style={styles.compactButton}
+          testID="driver-start-navigation"
+        />
+      </View>
+    );
   }
 
   return (
@@ -49,9 +79,11 @@ export function DriverAcceptedSheet() {
 export function DriverEnRouteSheet({
   remainingDistanceMeters,
   etaSeconds,
+  compact = false,
 }: {
   readonly remainingDistanceMeters?: number | null;
   readonly etaSeconds?: number | null;
+  readonly compact?: boolean;
 }) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
@@ -72,6 +104,30 @@ export function DriverEnRouteSheet({
   const distanceKm = displayDistanceMeters != null
     ? (displayDistanceMeters / 1000).toFixed(1)
     : null;
+
+  if (compact) {
+    return (
+      <View style={styles.compactContainer}>
+        <View style={styles.compactInfo}>
+          <Text style={styles.compactPrimary} numberOfLines={1}>
+            {etaMinutes != null ? `${etaMinutes} min` : 'To pickup'}
+          </Text>
+          <Text style={styles.compactSecondary} numberOfLines={1}>
+            {distanceKm != null ? `${distanceKm} km` : 'En route'} - {trip?.pickup.label ?? 'Pickup'}
+          </Text>
+        </View>
+        <Button
+          label="Arrived"
+          onPress={handleArrived}
+          loading={isPending}
+          disabled={isPending}
+          fullWidth={false}
+          style={styles.compactButton}
+          testID="driver-arrived-at-pickup"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -114,14 +170,40 @@ export function DriverEnRouteSheet({
 // ── DriverArrivedSheet ──────────────────────────────────────────────────────
 // Shown when status is 'driver_arrived'. Driver is at the pickup waiting.
 
-export function DriverArrivedSheet() {
+export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
+  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
   const { mutate: transition, isPending } = useTripTransition();
 
   function handleStartTrip() {
     if (trip) {
+      // Arm Navigation Mode for the to-destination leg; auto-disarms when the
+      // trip advances past 'in_progress'.
+      setNavActiveStatus('in_progress');
       transition({ tripId: trip.id, status: 'in_progress' });
     }
+  }
+
+  if (compact) {
+    return (
+      <View style={styles.compactContainer}>
+        <View style={styles.compactInfo}>
+          <Text style={styles.compactPrimary} numberOfLines={1}>At pickup</Text>
+          <Text style={styles.compactSecondary} numberOfLines={1}>
+            Waiting for passenger
+          </Text>
+        </View>
+        <Button
+          label="Start trip"
+          onPress={handleStartTrip}
+          loading={isPending}
+          disabled={isPending}
+          fullWidth={false}
+          style={styles.compactButton}
+          testID="driver-start-trip"
+        />
+      </View>
+    );
   }
 
   return (
@@ -148,9 +230,11 @@ export function DriverArrivedSheet() {
 export function DriverInTripSheet({
   remainingDistanceMeters,
   etaSeconds,
+  compact = false,
 }: {
   readonly remainingDistanceMeters?: number | null;
   readonly etaSeconds?: number | null;
+  readonly compact?: boolean;
 }) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
@@ -171,6 +255,30 @@ export function DriverInTripSheet({
   const etaMinutes = displayEtaSeconds != null
     ? Math.max(1, Math.round(displayEtaSeconds / 60))
     : null;
+
+  if (compact) {
+    return (
+      <View style={styles.compactContainer}>
+        <View style={styles.compactInfo}>
+          <Text style={styles.compactPrimary} numberOfLines={1}>
+            {etaMinutes != null ? `${etaMinutes} min` : 'In trip'}
+          </Text>
+          <Text style={styles.compactSecondary} numberOfLines={1}>
+            {distanceKm != null ? `${distanceKm} km` : 'Heading'} - {trip?.destination.label ?? 'Destination'}
+          </Text>
+        </View>
+        <Button
+          label="End"
+          onPress={handleEndTrip}
+          loading={isPending}
+          disabled={isPending}
+          fullWidth={false}
+          style={styles.compactButton}
+          testID="driver-end-trip"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -300,6 +408,34 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     color: colors.ink[900],
     fontWeight: typography.weight.bold,
+  },
+  compactContainer: {
+    minHeight: 76,
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[3],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  compactInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  compactPrimary: {
+    fontSize: 22,
+    fontWeight: typography.weight.extraBold,
+    color: colors.ink[900],
+  },
+  compactSecondary: {
+    marginTop: 2,
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+  },
+  compactButton: {
+    minWidth: 104,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
   },
 });
 

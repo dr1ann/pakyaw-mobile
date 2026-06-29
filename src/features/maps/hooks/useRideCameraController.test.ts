@@ -218,4 +218,38 @@ describe('useRideCameraController', () => {
       }
     );
   });
+
+  it('aims the navigation camera directly at the driver (off-center anchor handled by mapPadding)', () => {
+    isMapReady = true;
+    const animateCameraMock = vi.fn();
+    const mapRef = { current: { animateCamera: animateCameraMock } };
+    const driverCoordinate = { latitude: 11.0, longitude: 124.0 };
+    const inputs = {
+      pickupLocation: null,
+      destinationLocation: { latitude: 11.1, longitude: 124.1 },
+      driverLocation: driverCoordinate,
+      ownLocation: driverCoordinate,
+      phase: 'active' as const,
+      navigation: {
+        enabled: true,
+        coordinate: driverCoordinate,
+        heading: 0,
+      },
+    };
+
+    useRideCameraController(mapRef as any, inputs);
+    capturedEffect();
+
+    expect(animateCameraMock).toHaveBeenCalledOnce();
+    const [camera, options] = animateCameraMock.mock.calls[0];
+    expect(camera.heading).toBe(0);
+    expect(camera.pitch).toBe(50);
+    expect(camera.zoom).toBe(19.1);
+    expect(camera.altitude).toBe(180);
+    // Camera target is now the driver coordinate itself; the "driver near the
+    // bottom, road ahead" framing is achieved via mapPadding on <MapView/>.
+    expect(camera.center.latitude).toBe(driverCoordinate.latitude);
+    expect(camera.center.longitude).toBe(driverCoordinate.longitude);
+    expect(options).toEqual({ duration: 600 });
+  });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { colors, shadow } from '@/constants/theme';
+import { colors, shadow, spacing } from '@/constants/theme';
 import { SymbolIcon } from '@/components/ui/SymbolIcon';
 
 export type RecenterButtonProps = {
@@ -26,8 +26,6 @@ export function RecenterButton({ visible, onPress }: RecenterButtonProps) {
 
 const styles = StyleSheet.create({
   button: {
-    position: 'absolute',
-    bottom: 300, // positioned nicely above the driver sheets
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -37,6 +35,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     ...shadow.float,
     zIndex: 1000,
+    marginBottom: spacing[4],
   },
   text: {
     fontSize: 14,

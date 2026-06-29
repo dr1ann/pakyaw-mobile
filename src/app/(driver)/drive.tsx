@@ -20,8 +20,9 @@
  *   active trip (on_trip)   → Trip status sheets (Phase 8E)
  */
 
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
+import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, shadow, spacing } from '@/constants/theme';
@@ -51,13 +52,15 @@ import { useActiveTripStore } from '@/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useDriverRouteQuery } from '@/features/maps/hooks/useDriverRouteQuery';
 import { useDriverHeading } from '@/features/maps/hooks/useDriverHeading';
-import { useNavigationCamera } from '@/features/maps/hooks/useNavigationCamera';
+import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
 import { useManeuverProgress } from '@/features/maps/hooks/useManeuverProgress';
 import { NavigationBanner } from '@/features/maps/components/NavigationBanner';
 import { RecenterButton } from '@/features/maps/components/RecenterButton';
 import { isNavActiveStatus } from '@/features/maps/navigation/navigationHelper';
+import { SymbolIcon } from '@/components/ui/SymbolIcon';
 
 export default function DriveScreen() {
+  const mapRef = useRef<MapView>(null);
   const availability = useAvailabilityStore((s) => s.availability);
   const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
   const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
@@ -65,6 +68,7 @@ export default function DriveScreen() {
   const trip = useActiveTripStore((s) => s.trip);
 
   const [showPreflight, setShowPreflight] = useState(false);
+  const [expandedTripStatus, setExpandedTripStatus] = useState<TripStatus | null>(null);
 
   // Location subscription — starts/stops with availability & AppState.
   const { locationPermissionDenied } = useLocationPublisher();
@@ -78,13 +82,10 @@ export default function DriveScreen() {
   // Fused heading (magnetometer + GPS)
   useDriverHeading(trip?.status ?? null);
 
-  // Camera mode controller (follow/overview auto-recenter)
-  const { handleUserPan } = useNavigationCamera(trip?.status ?? null);
-
-  const navCameraMode = useActiveTripStore((s) => s.navCameraMode);
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
+  const navActiveStatus = useActiveTripStore((s) => s.navActiveStatus);
 
   // Fetch driver navigation route leg/polyline locally
   const { data: driverRouteData } = useDriverRouteQuery(trip?.id ?? null);
@@ -116,7 +117,7 @@ export default function DriveScreen() {
         setShowPreflight(false);
       },
       onError: (err) => {
-        logger.error('[drive] goOnline mutation onError', err);
+        logger.error('[drive] goOnline mutation onError', { err });
       },
     });
   }
@@ -125,10 +126,62 @@ export default function DriveScreen() {
     goOfflineMutation.mutate();
   }
 
+  function handleToggleTripSheet() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedTripStatus((expandedStatus) =>
+      expandedStatus === trip?.status ? null : (trip?.status ?? null)
+    );
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const isOffline = availability === 'offline';
   const isOnTrip = availability === 'on_trip';
+  const isTripSheetExpanded = expandedTripStatus === trip?.status;
+  const ownLocation =
+    lastLatitude !== null && lastLongitude !== null
+      ? { latitude: lastLatitude, longitude: lastLongitude }
+      : null;
+  const pickupLocation = trip?.pickup?.coords
+    ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
+    : null;
+  const destinationLocation = trip?.destination?.coords
+    ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
+    : null;
+  const navigationCoordinate = driverLocation ?? ownLocation;
+
+  // Navigation Mode (tilted driving camera) is opt-in: it engages only while the
+  // driver has armed it for the current status (via "Start navigation" / "Start
+  // trip"). Otherwise the map stays in a zoomed-out overview of the active leg.
+  const isDriving =
+    isNavActiveStatus(trip?.status) && navActiveStatus === trip?.status;
+
+  // The leg the driver is currently working: head to pickup until they reach
+  // the passenger, then head to destination. Used to frame the overview camera.
+  const headingToDestination =
+    trip?.status === 'driver_arrived' || trip?.status === 'in_progress';
+  const legTarget = headingToDestination ? destinationLocation : pickupLocation;
+  const overviewCoordinates =
+    !isDriving &&
+    isNavActiveStatus(trip?.status) &&
+    navigationCoordinate &&
+    legTarget
+      ? [navigationCoordinate, legTarget]
+      : null;
+
+  const cameraController = useRideCameraController(mapRef, {
+    pickupLocation,
+    destinationLocation,
+    driverLocation: navigationCoordinate,
+    ownLocation: navigationCoordinate,
+    phase: isOnTrip && !isDriving ? 'terminal' : 'booking',
+    overviewCoordinates,
+    navigation: {
+      enabled: isDriving,
+      coordinate: navigationCoordinate,
+      heading: navHeading,
+    },
+  });
   const showIncomingCard =
     availability === 'online' && incomingRequests.length > 0;
   const topRequest = showIncomingCard ? incomingRequests[0] : null;
@@ -142,53 +195,27 @@ export default function DriveScreen() {
     <View style={styles.root}>
       {/* ── Real Map View (full-bleed) ─────────────────────────────────────── */}
       <LiveMap
-        ownLocation={
-          lastLatitude !== null && lastLongitude !== null
-            ? { latitude: lastLatitude, longitude: lastLongitude }
-            : null
-        }
-        pickupLocation={
-          trip?.pickup?.coords
-            ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-            : null
-        }
-        destinationLocation={
-          trip?.destination?.coords
-            ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-            : null
-        }
-        showDestination={trip?.status === 'in_progress' || trip?.status === 'completed'}
+        mapRef={mapRef}
+        ownLocation={navigationCoordinate}
+        pickupLocation={pickupLocation}
+        destinationLocation={destinationLocation}
+        showDestination={destinationLocation != null}
         showDriverRoute={trip?.status === 'accepted' || trip?.status === 'driver_arriving' || trip?.status === 'in_progress'}
         routePolyline={trip?.route?.polyline ?? null}
-        driverRoutePolyline={driverRouteData?.polyline ?? null}
-        navigation={
-          isNavActiveStatus(trip?.status)
-            ? {
-                mode: navCameraMode,
-                center: driverLocation,
-                heading: navHeading,
-              }
-            : undefined
-        }
-        onUserPan={handleUserPan}
+        driverRoutePolyline={driverRouteData?.overviewPolyline ?? null}
+        showNavigationArrow={isDriving}
+        navigationActive={isDriving}
+        onMapReady={cameraController.onMapReady}
+        onUserPan={cameraController.onUserPan}
       />
 
       {/* Turn-by-turn Navigation Banner */}
-      {isNavActiveStatus(trip?.status) && trip?.status !== 'driver_arrived' && driverRouteData && (
+      {isDriving && trip?.status !== 'driver_arrived' && driverRouteData && (
         <NavigationBanner
           currentStep={driverRouteData.steps[navStepIndex] ?? null}
           distanceToManeuver={progressStats.distanceToManeuver}
         />
       )}
-
-      {/* Recenter Camera Button */}
-      <RecenterButton
-        visible={
-          isNavActiveStatus(trip?.status) &&
-          navCameraMode === 'overview'
-        }
-        onPress={() => useActiveTripStore.getState().setNavCameraMode('follow')}
-      />
 
       {/* ── Incoming request overlay (Phase 7) ────────────────────────────
           Floats above the OnlineSheet as a separate layer so the map stays
@@ -206,13 +233,41 @@ export default function DriveScreen() {
 
       {/* ── Bottom sheet area ─────────────────────────────────────────────── */}
       <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+        {/* Recenter Camera Button */}
+        <RecenterButton
+          visible={
+            isDriving &&
+            cameraController.userPanned
+          }
+          onPress={cameraController.recenter}
+        />
+
         <View style={[styles.sheetCard, shadow.float]}>
+          {isOnTrip ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isTripSheetExpanded ? 'Collapse trip details' : 'Expand trip details'}
+              onPress={handleToggleTripSheet}
+              style={styles.sheetToggle}
+              testID="driver-trip-sheet-toggle"
+            >
+              <View style={styles.sheetGrabber} />
+              <View style={styles.sheetToggleLabel}>
+                <SymbolIcon
+                  name={isTripSheetExpanded ? 'chevron.down' : 'chevron.up'}
+                  size={26}
+                  tintColor={colors.ink[500]}
+                />
+              </View>
+            </Pressable>
+          ) : null}
           {isOnTrip ? (
             <DriverTripSheet
               status={trip?.status ?? null}
               onDismiss={handleDismissTerminal}
               remainingDistanceMeters={progressStats.remainingDistanceMeters}
               etaSeconds={progressStats.etaSeconds}
+              compact={!isTripSheetExpanded}
             />
           ) : isOffline ? (
             <OfflineSheet
@@ -250,6 +305,7 @@ type DriverTripSheetProps = {
   onDismiss: () => void;
   remainingDistanceMeters: number | null;
   etaSeconds: number | null;
+  compact: boolean;
 };
 
 function DriverTripSheet({
@@ -257,24 +313,27 @@ function DriverTripSheet({
   onDismiss,
   remainingDistanceMeters,
   etaSeconds,
+  compact,
 }: DriverTripSheetProps) {
   switch (status) {
     case 'accepted':
-      return <DriverAcceptedSheet />;
+      return <DriverAcceptedSheet compact={compact} />;
     case 'driver_arriving':
       return (
         <DriverEnRouteSheet
           remainingDistanceMeters={remainingDistanceMeters}
           etaSeconds={etaSeconds}
+          compact={compact}
         />
       );
     case 'driver_arrived':
-      return <DriverArrivedSheet />;
+      return <DriverArrivedSheet compact={compact} />;
     case 'in_progress':
       return (
         <DriverInTripSheet
           remainingDistanceMeters={remainingDistanceMeters}
           etaSeconds={etaSeconds}
+          compact={compact}
         />
       );
     case 'completed':
@@ -290,7 +349,7 @@ function DriverTripSheet({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.surface.background,
+    backgroundColor: colors.surface.bgLight,
   },
   sheetArea: {
     position: 'absolute',
@@ -302,6 +361,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  sheetToggle: {
+    alignItems: 'center',
+    paddingTop: spacing[2],
+  },
+  sheetGrabber: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border.subtle,
+    marginBottom: spacing[1],
+  },
+  sheetToggleLabel: {
+    width: 48,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   incomingArea: {
     position: 'absolute',

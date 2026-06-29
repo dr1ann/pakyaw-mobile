@@ -1,10 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useNavigation } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image } from 'expo-image';
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { colors, shadow } from '@/constants/theme';
-import { NAV_CAMERA_ANIM_MS, NAV_PITCH, NAV_ZOOM } from '@/features/maps/navigation/constants';
+import { NAV_DRIVER_SCREEN_ANCHOR } from '@/features/maps/navigation/constants';
 import { logger } from '@/lib/logger';
 import { decodePolyline } from '@/lib/maps/decodePolyline';
 
@@ -23,13 +32,9 @@ export type LiveMapProps = {
   readonly bottomPadding?: number;
   readonly pickupKey?: string | number;
   readonly destinationKey?: string | number;
-  readonly navigation?: {
-    readonly mode: 'follow' | 'overview';
-    readonly center: { latitude: number; longitude: number } | null;
-    readonly heading: number | null;
-    readonly zoom?: number;
-    readonly pitch?: number;
-  };
+  readonly showNavigationArrow?: boolean;
+  readonly navigationActive?: boolean;
+  readonly navigationBottomInset?: number;
   readonly onUserPan?: () => void;
   readonly mapRef?: React.RefObject<MapView | null>;
   readonly onMapReady?: () => void;
@@ -56,7 +61,9 @@ export function LiveMap({
   onDestinationDragEnd,
   pickupKey,
   destinationKey,
-  navigation,
+  showNavigationArrow = false,
+  navigationActive = false,
+  navigationBottomInset = 320,
   onUserPan,
   mapRef: externalMapRef,
   onMapReady,
@@ -66,6 +73,42 @@ export function LiveMap({
 
   const navigationObj = useNavigation();
   const [focusKey, setFocusKey] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const [longitudeDelta, setLongitudeDelta] = useState(0.015);
+
+  const arrowSize = React.useMemo(() => {
+    // We use discrete sizes to prevent too many re-renders while ensuring
+    // the marker is recreated via its key to avoid clipping/drawing bugs on Android.
+    if (longitudeDelta < 0.006) {
+      return 48; // Zoomed in (maximum size)
+    } else if (longitudeDelta < 0.018) {
+      return 38; // Medium zoom
+    } else {
+      return 30; // Zoomed out (minimum size, won't get too small)
+    }
+  }, [longitudeDelta]);
+
+  // Compute mapPadding so the camera anchor (where `center` lands) is biased
+  // toward the upper portion of the visible map. With Google Maps' mapPadding,
+  // the anchor sits at the centroid of the *unpadded* rect, so a tall top
+  // inset pushes the camera target downward on screen — placing the driver
+  // marker low (Grab / Google Maps navigation feel) while the road ahead fills
+  // the upper view. Only applied during Navigation Mode; overview framing uses
+  // unpadded fits so it isn't distorted.
+  const navigationMapPadding = React.useMemo(() => {
+    if (!navigationActive || containerHeight <= 0) {
+      return { top: 0, right: 0, bottom: 0, left: 0 };
+    }
+    const visibleHeight = Math.max(0, containerHeight - navigationBottomInset);
+    // anchor fraction f within the visible rect → topPad / visibleHeight = (2f - 1)
+    const anchorOffset = Math.max(0, 2 * NAV_DRIVER_SCREEN_ANCHOR - 1) * visibleHeight;
+    return {
+      top: Math.round(anchorOffset),
+      right: 0,
+      bottom: Math.round(navigationBottomInset),
+      left: 0,
+    };
+  }, [navigationActive, containerHeight, navigationBottomInset]);
 
   useEffect(() => {
     const unsubscribe = navigationObj.addListener('focus', () => {
@@ -100,55 +143,10 @@ export function LiveMap({
   // §9.1, P4, I6: LiveMap is controlled and presentational.
   // All camera logic removed — the controller owns camera behavior.
 
-  // Ephemeral Camera Follow in Navigation Mode
-  useEffect(() => {
-    if (
-      !mapRef.current ||
-      !navigation ||
-      navigation.mode !== 'follow' ||
-      !navigation.center
-    ) {
-      return;
-    }
-
-    const { center, heading, zoom = NAV_ZOOM, pitch = NAV_PITCH } = navigation;
-
-    logger.info('[LiveMap] Animating camera to follow driver', {
-      center,
-      heading,
-      zoom,
-      pitch,
-    });
-
-    mapRef.current.animateCamera(
-      {
-        center,
-        heading: heading ?? 0,
-        pitch,
-        zoom,
-      },
-      { duration: NAV_CAMERA_ANIM_MS }
-    );
-  }, [
-    navigation?.mode,
-    navigation?.center?.latitude,
-    navigation?.center?.longitude,
-    navigation?.heading,
-    navigation?.zoom,
-    navigation?.pitch,
-  ]);
+  // The camera controller owns all imperative camera behavior.
 
   // §13.1, P4a, I13: the passenger Ride screen must never synthesize a
   // straight-line route. No pickup→destination fallback is computed here.
-
-  // Fallback straight-line coordinates for driver (driver -> pickup)
-  const driverFallbackCoords = React.useMemo(() => {
-    const driverPos = driverLocation || ownLocation;
-    if (driverPos && pickupLocation) {
-      return [driverPos, pickupLocation];
-    }
-    return [];
-  }, [driverLocation, ownLocation, pickupLocation]);
 
   // Decode the passenger route polyline if present
   const decodedRouteCoords = React.useMemo(() => {
@@ -183,6 +181,12 @@ export function LiveMap({
     }
     return null;
   }, [driverRoutePolyline]);
+
+  const shouldShowDriverRouteLoading =
+    showDriverRoute &&
+    decodedDriverRouteCoords == null &&
+    (driverLocation != null || ownLocation != null) &&
+    (pickupLocation != null || destinationLocation != null);
 
   // Initial region only — the camera controller takes over once the map is ready.
   const initialRegion = React.useMemo(() => {
@@ -221,6 +225,7 @@ export function LiveMap({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         logger.info('[LiveMap] Layout dimensions updated', { width, height });
+        setContainerHeight(height);
       }}
     >
       <MapView
@@ -229,6 +234,7 @@ export function LiveMap({
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={initialRegion}
+        mapPadding={navigationMapPadding}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -242,11 +248,21 @@ export function LiveMap({
         onMapLoaded={() => {
           logger.info('[LiveMap] onMapLoaded callback triggered.');
         }}
+        onRegionChange={(_region, details) => {
+          // Detect the gesture the moment it starts (continuous event) so the
+          // camera controller releases its follow lock immediately. Waiting for
+          // onRegionChangeComplete lets streaming GPS updates keep snapping the
+          // camera back to the driver mid-gesture, fighting a pinch-zoom.
+          if (details?.isGesture && onUserPan) {
+            onUserPan();
+          }
+        }}
         onRegionChangeComplete={(region, details) => {
           logger.info('[LiveMap] onRegionChangeComplete triggered', {
             region,
             isGesture: details?.isGesture,
           });
+          setLongitudeDelta(region.longitudeDelta);
           if (details?.isGesture && onUserPan) {
             onUserPan();
           }
@@ -258,42 +274,33 @@ export function LiveMap({
             coordinates={decodedRouteCoords}
             strokeWidth={4}
             strokeColor={colors.blue.primary}
-            lineDashPattern={[0]}
           />
         )}
 
         {/* Driver Route Polyline */}
-        {showDriverRoute && (decodedDriverRouteCoords != null ? (
+        {showDriverRoute && decodedDriverRouteCoords != null && (
           <Polyline
             coordinates={decodedDriverRouteCoords}
             strokeWidth={4}
             strokeColor={colors.violet.primary}
-            lineDashPattern={[0]}
           />
-        ) : (
-          driverFallbackCoords.length > 1 && (
-            <Polyline
-              coordinates={driverFallbackCoords}
-              strokeWidth={4}
-              strokeColor={colors.violet.primary}
-              lineDashPattern={[6, 6]}
-            />
-          )
-        ))}
+        )}
 
         {ownLocation && (
           <Marker
+            key={`own-location-${showNavigationArrow ? arrowSize : 'dot'}`}
             coordinate={ownLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             testID="own-location-marker"
-            rotation={navigation ? (navigation.heading ?? 0) : undefined}
           >
-            {navigation ? (
-              <Image
-                source={require('../../../../assets/images/navigation_arrow.png')}
-                style={styles.navigationArrow}
-                resizeMode="contain"
-              />
+            {showNavigationArrow ? (
+              <View style={[styles.navigationArrow, { alignItems: 'center', justifyContent: 'center' }]}>
+                <Image
+                  source={require('../../../../assets/images/navigation_arrow.svg')}
+                  style={{ width: arrowSize, height: arrowSize }}
+                  contentFit="contain"
+                />
+              </View>
             ) : (
               <View style={[styles.markerRing, styles.ownLocationRing]}>
                 <View style={[styles.markerDot, styles.ownLocationDot]} />
@@ -354,6 +361,13 @@ export function LiveMap({
           </Marker>
         )}
       </MapView>
+
+      {shouldShowDriverRouteLoading && (
+        <View pointerEvents="none" style={[styles.routeLoadingPill, shadow.float]}>
+          <ActivityIndicator size="small" color={colors.violet.primary} />
+          <Text style={styles.routeLoadingText}>Finding route...</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -365,6 +379,23 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  routeLoadingPill: {
+    position: 'absolute',
+    top: 54,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface.card,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  routeLoadingText: {
+    color: colors.ink[700],
+    fontSize: 13,
+    fontWeight: '600',
   },
   markerRing: {
     width: 24,
