@@ -37,9 +37,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#EAF1FB",
           "android": {
-            "image": "./assets/images/splash-icon.png",
+            "image": "./assets/images/pakyaw_logo.png",
             "imageWidth": 76
           }
         }

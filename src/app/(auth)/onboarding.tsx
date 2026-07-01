@@ -59,7 +59,7 @@ export default function OnboardingScreen() {
 
   function finish() {
     setOnboardingSeen(true);
-    router.replace('/welcome');
+    router.replace('/');
   }
 
   function next() {

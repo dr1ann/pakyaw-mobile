@@ -1,5 +1,5 @@
 /**
- * Drive screen — (driver)/drive.tsx
+ * Drive screen — (driver)/index.tsx
  *
  * Phase 5 implementation:
  * - Full-bleed placeholder map View (real Google Maps deferred — Phase 8).
@@ -284,11 +284,6 @@ export default function DriveScreen() {
             trip?.status === 'in_progress')
         }
         driverRouteVariant={isTripInProgress ? 'trip' : 'pickup'}
-        // In-trip, the live-snapped navigation route is drawn in the trip
-        // (blue) style so we suppress the static booking polyline to avoid
-        // rendering the same route twice. On terminal status (completed /
-        // cancelled) every navigation polyline goes away — the camera and
-        // sheet both rest until the driver dismisses or a new trip begins.
         routePolyline={
           isTripTerminal || isTripInProgress ? null : trip?.route?.polyline ?? null
         }
@@ -321,10 +316,7 @@ export default function DriveScreen() {
         />
       )}
 
-      {/* ── Incoming request overlay (Phase 7) ────────────────────────────
-          Floats above the OnlineSheet as a separate layer so the map stays
-          visible behind it and the sheet's rounded card is untouched.
-      ─────────────────────────────────────────────────────────────────── */}
+      {/* Incoming request overlay (Phase 7) */}
       {!isInPip && topRequest != null ? (
         <SafeAreaView
           edges={['top']}
@@ -335,7 +327,7 @@ export default function DriveScreen() {
         </SafeAreaView>
       ) : null}
 
-      {/* ── Bottom sheet area ─────────────────────────────────────────────── */}
+      {/* Bottom sheet area */}
       {!isInPip && (
       <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
         {/* Recenter Camera Button */}
@@ -393,7 +385,7 @@ export default function DriveScreen() {
       </SafeAreaView>
       )}
 
-      {/* ── Pre-flight checklist modal ────────────────────────────────────── */}
+      {/* Pre-flight checklist modal */}
       <PreflightChecklist
         visible={showPreflight}
         onClose={handlePreflightClose}
@@ -404,8 +396,6 @@ export default function DriveScreen() {
     </View>
   );
 }
-
-// ── Driver trip sheet switcher ──────────────────────────────────────────────
 
 type DriverTripSheetProps = {
   status: TripStatus | null;
@@ -448,7 +438,6 @@ function DriverTripSheet({
     case 'cancelled':
       return <DriverCancelledSheet onDismiss={onDismiss} />;
     default:
-      // Fallback — shouldn't happen when on_trip, but safe.
       return null;
   }
 }
@@ -495,4 +484,3 @@ const styles = StyleSheet.create({
     paddingTop: spacing[3],
   },
 });
-

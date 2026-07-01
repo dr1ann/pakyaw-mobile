@@ -1,5 +1,5 @@
 /**
- * welcome.tsx
+ * (auth)/index.tsx
  *
  * Welcome screen — account type choice.
  * Passengers → sign-up or sign-in.
@@ -7,7 +7,9 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, Redirect } from 'expo-router';
+
+import { useSessionStore } from '@/stores/sessionStore';
 
 const COLORS = {
   ink900: '#0E1726',
@@ -23,6 +25,10 @@ const COLORS = {
 };
 
 export default function WelcomeScreen() {
+  const onboardingSeen = useSessionStore((s) => s.onboardingSeen);
+  if (!onboardingSeen) {
+    return <Redirect href="/onboarding" />;
+  }
   return (
     <View style={styles.container}>
       {/* Logo / brand mark area */}

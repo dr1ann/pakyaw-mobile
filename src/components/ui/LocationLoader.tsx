@@ -1,6 +1,5 @@
-import React from 'react';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography, radius } from '@/constants/theme';
 
 type LocationLoaderProps = {
   readonly theme?: 'passenger' | 'driver';
@@ -29,6 +28,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.05)', // Very light overlay to keep the map and content visible
     zIndex: 9999,
+    paddingBottom: 10, // Shift the loading pill upwards, away from the bottom sheet & tab bar
   },
   pill: {
     flexDirection: 'row',

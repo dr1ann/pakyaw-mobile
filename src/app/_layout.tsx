@@ -1,45 +1,104 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState, useCallback } from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/features/driver-availability/services/backgroundLocationTask';
 import { useSession, useSessionBootstrap } from '@/features/auth/hooks/useSession';
-import { queryClient } from '@/services/query/queryClient';
+import { queryClient, persistOptions } from '@/services/query/queryClient';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useActiveTripStore } from '@/stores/activeTripStore';
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+export const unstable_settings = {
+  '(auth)': { initialRouteName: 'index' },
+  '(passenger)': { initialRouteName: 'index' },
+  '(driver)': { initialRouteName: 'index' },
+};
 
 function AppNavigator() {
-  // Bootstrap the Firebase auth listener — this must be inside the
-  // QueryClientProvider so useQueryClient() resolves correctly.
   useSessionBootstrap();
 
   const { status, role } = useSession();
   const authed = status === 'authenticated';
 
-  // Keep splash up while auth state is resolving (architecture.md §6.1).
+  const onLayoutRootView = useCallback(async () => {
+    if (status !== 'loading') {
+      try {
+        await SplashScreen.hideAsync();
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [status]);
+
   if (status === 'loading') return null;
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!authed}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!authed}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={authed && role === 'passenger'}>
-        <Stack.Screen name="(passenger)" />
-      </Stack.Protected>
+        <Stack.Protected guard={authed && role === 'passenger'}>
+          <Stack.Screen name="(passenger)" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={authed && role === 'driver'}>
-        <Stack.Screen name="(driver)" />
-      </Stack.Protected>
-    </Stack>
+        <Stack.Protected guard={authed && role === 'driver'}>
+          <Stack.Screen name="(driver)" />
+        </Stack.Protected>
+      </Stack>
+    </View>
   );
 }
 
 export default function RootLayout() {
+  const [storesHydrated, setStoresHydrated] = useState(false);
+  const [queryRestored, setQueryRestored] = useState(false);
+
+  useEffect(() => {
+    // Monitor Zustand hydration
+    const unsubSession = useSessionStore.persist.onFinishHydration(() => {
+      checkZustandHydration();
+    });
+    const unsubTrip = useActiveTripStore.persist.onFinishHydration(() => {
+      checkZustandHydration();
+    });
+
+    function checkZustandHydration() {
+      if (
+        useSessionStore.persist.hasHydrated() &&
+        useActiveTripStore.persist.hasHydrated()
+      ) {
+        setStoresHydrated(true);
+      }
+    }
+
+    // Check in case stores are already hydrated
+    checkZustandHydration();
+
+    return () => {
+      unsubSession();
+      unsubTrip();
+    };
+  }, []);
+
+  const isReady = storesHydrated && queryRestored;
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={persistOptions}
+      onSuccess={() => setQueryRestored(true)}
+    >
       <SafeAreaProvider>
-        <AppNavigator />
+        {isReady ? <AppNavigator /> : null}
       </SafeAreaProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
+

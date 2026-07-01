@@ -1,6 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSessionStore } from './sessionStore';
+import {
+  getPersistedSessionState,
+  useSessionStore,
+  type SessionState,
+} from './sessionStore';
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+  },
+}));
 
 const initial = useSessionStore.getState();
 
@@ -10,6 +22,7 @@ beforeEach(() => {
     uid: null,
     role: null,
     onboardingSeen: false,
+    signingIn: false,
   });
 });
 
@@ -47,5 +60,18 @@ describe('sessionStore', () => {
   it('setStatus can move into loading', () => {
     useSessionStore.getState().setStatus('loading');
     expect(useSessionStore.getState().status).toBe('loading');
+  });
+
+  it('persists only onboardingSeen', () => {
+    const state = {
+      ...useSessionStore.getState(),
+      status: 'authenticated',
+      uid: 'uid-3',
+      role: 'passenger',
+      onboardingSeen: true,
+      signingIn: true,
+    } as SessionState;
+
+    expect(getPersistedSessionState(state)).toEqual({ onboardingSeen: true });
   });
 });

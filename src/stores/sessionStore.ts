@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type SessionStatus = 'loading' | 'unauthenticated' | 'authenticated';
 export type SessionRole = 'passenger' | 'driver' | null;
@@ -16,15 +18,35 @@ export type SessionState = {
   setSigningIn: (value: boolean) => void;
 };
 
-export const useSessionStore = create<SessionState>((set) => ({
-  status: 'loading',
-  uid: null,
-  role: null,
-  onboardingSeen: false,
-  signingIn: false,
-  setSession: (uid, role) => set({ status: 'authenticated', uid, role }),
-  clear: () => set({ status: 'unauthenticated', uid: null, role: null }),
-  setStatus: (status) => set({ status }),
-  setOnboardingSeen: (value) => set({ onboardingSeen: value }),
-  setSigningIn: (value) => set({ signingIn: value }),
-}));
+export type PersistedSessionState = Pick<SessionState, 'onboardingSeen'>;
+
+export const SESSION_STORAGE_KEY = 'pakyaw:session';
+
+export function getPersistedSessionState(
+  state: SessionState,
+): PersistedSessionState {
+  return { onboardingSeen: state.onboardingSeen };
+}
+
+export const useSessionStore = create<SessionState>()(
+  persist(
+    (set) => ({
+      status: 'loading',
+      uid: null,
+      role: null,
+      onboardingSeen: false,
+      signingIn: false,
+      setSession: (uid, role) => set({ status: 'authenticated', uid, role }),
+      clear: () => set({ status: 'unauthenticated', uid: null, role: null }),
+      setStatus: (status) => set({ status }),
+      setOnboardingSeen: (value) => set({ onboardingSeen: value }),
+      setSigningIn: (value) => set({ signingIn: value }),
+    }),
+    {
+      name: SESSION_STORAGE_KEY,
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: getPersistedSessionState,
+      version: 1,
+    },
+  ),
+);

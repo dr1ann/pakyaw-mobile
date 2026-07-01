@@ -1,5 +1,5 @@
 /**
- * Ride screen — (passenger)/ride.tsx
+ * Passenger ride screen — (passenger)/index.tsx
  *
  * Phase 12D: Map-Driven Booking & Figma Alignment.
  *
@@ -324,9 +324,6 @@ export default function RideScreen() {
     };
   }, [status, driverLocation, decodedRouteCoords, activeRoute, activeTripProgress]);
 
-  // Extract coordinates for LiveMap, checking both active trip and booking draft
-  // (Replaced by selector layer mapData)
-
   return (
     <View style={styles.root}>
       {/* Interactive Map Background */}
@@ -354,10 +351,6 @@ export default function RideScreen() {
         // Booking Flow sheets
         searchMode ? (
           // Full-screen search overlay.
-          // Rendered inside a Modal so it paints in its own native window above
-          // the Google map surface. On Android the native MapView (PROVIDER_GOOGLE)
-          // renders on top of sibling RN views, which would otherwise hide a plain
-          // absolute-positioned overlay (only the autofocused keyboard would show).
           <Modal
             visible
             animationType="slide"

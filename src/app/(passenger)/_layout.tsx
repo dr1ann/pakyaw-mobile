@@ -3,6 +3,8 @@ import { SymbolIcon } from '../../components/ui/SymbolIcon';
 import { colors } from '../../constants/theme';
 import { usePassengerLocationPublisher } from '@/features/booking/hooks/usePassengerLocationPublisher';
 
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function PassengerLayout() {
   usePassengerLocationPublisher();
 
@@ -19,7 +21,7 @@ export default function PassengerLayout() {
       }}
     >
       <Tabs.Screen
-        name="ride"
+        name="index"
         options={{
           title: 'Ride',
           tabBarIcon: ({ color, size, focused }) => (

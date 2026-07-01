@@ -3,6 +3,8 @@ import { SymbolIcon } from '../../components/ui/SymbolIcon';
 import { colors } from '../../constants/theme';
 import { useAvailabilityStore } from '../../stores/availabilityStore';
 
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function DriverLayout() {
   const availability = useAvailabilityStore((s) => s.availability);
   const isFullScreenDriverMode = availability !== 'offline';
@@ -22,7 +24,7 @@ export default function DriverLayout() {
       }}
     >
       <Tabs.Screen
-        name="drive"
+        name="index"
         options={{
           title: 'Drive',
           tabBarIcon: ({ color, size, focused }) => (
