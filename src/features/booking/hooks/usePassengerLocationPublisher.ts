@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 
 export function usePassengerLocationPublisher() {
   const uid = useSessionStore((s) => s.uid);
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const setLocation = useLocationStore((s) => s.setLocation);
   const setPermissionStatus = useLocationStore((s) => s.setPermissionStatus);
   const resetStore = useLocationStore((s) => s.reset);
@@ -16,7 +16,7 @@ export function usePassengerLocationPublisher() {
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  const isRideActive = segments.includes('ride');
+  const isRideActive = !segments.includes('activity') && !segments.includes('account');
   const isAppActive = appStateRef.current === 'active';
   const shouldSubscribe = !!uid && isRideActive && isAppActive;
 
