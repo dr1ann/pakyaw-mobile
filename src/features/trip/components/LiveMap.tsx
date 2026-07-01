@@ -14,6 +14,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { colors, shadow } from '@/constants/theme';
 import { NAV_DRIVER_SCREEN_ANCHOR } from '@/features/maps/navigation/constants';
+import { splitPolylineAtClosestPoint, type LatLng } from '@/lib/geoProjection';
 import { logger } from '@/lib/logger';
 import { decodePolyline } from '@/lib/maps/decodePolyline';
 
@@ -29,12 +30,27 @@ export type LiveMapProps = {
   readonly routePolyline?: string | null;
   readonly driverRoutePolyline?: string | null;
   readonly showDriverRoute?: boolean;
+  /**
+   * Which leg the driver navigation polyline represents.
+   *   'pickup' → pre-pickup leg (driver → pickup), rendered in violet.
+   *   'trip'   → in-trip leg (pickup → destination), rendered in blue so the
+   *             rider-facing trip route styling is reused for the actual,
+   *             live-snapped navigation route. The static booking polyline
+   *             should be suppressed by the caller in this mode to avoid
+   *             duplicating the route on screen.
+   */
+  readonly driverRouteVariant?: 'pickup' | 'trip';
+  readonly driverRouteProgressCoordinate?: { latitude: number; longitude: number } | null;
+  readonly showRouteStatus?: boolean;
+  readonly routeStatusLabel?: string;
   readonly bottomPadding?: number;
   readonly pickupKey?: string | number;
   readonly destinationKey?: string | number;
   readonly showNavigationArrow?: boolean;
   readonly navigationActive?: boolean;
   readonly navigationBottomInset?: number;
+  readonly navigationDriverScreenAnchor?: number;
+  readonly freezeNavigationMapPadding?: boolean;
   readonly onUserPan?: () => void;
   readonly mapRef?: React.RefObject<MapView | null>;
   readonly onMapReady?: () => void;
@@ -58,12 +74,18 @@ export function LiveMap({
   routePolyline,
   driverRoutePolyline,
   showDriverRoute = false,
+  driverRouteVariant = 'pickup',
+  driverRouteProgressCoordinate,
+  showRouteStatus = false,
+  routeStatusLabel = 'Finding route...',
   onDestinationDragEnd,
   pickupKey,
   destinationKey,
   showNavigationArrow = false,
   navigationActive = false,
   navigationBottomInset = 320,
+  navigationDriverScreenAnchor = NAV_DRIVER_SCREEN_ANCHOR,
+  freezeNavigationMapPadding = false,
   onUserPan,
   mapRef: externalMapRef,
   onMapReady,
@@ -75,6 +97,7 @@ export function LiveMap({
   const [focusKey, setFocusKey] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [longitudeDelta, setLongitudeDelta] = useState(0.015);
+  const lastNavigationMapPaddingRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
 
   const arrowSize = React.useMemo(() => {
     // We use discrete sizes to prevent too many re-renders while ensuring
@@ -96,19 +119,31 @@ export function LiveMap({
   // the upper view. Only applied during Navigation Mode; overview framing uses
   // unpadded fits so it isn't distorted.
   const navigationMapPadding = React.useMemo(() => {
+    if (freezeNavigationMapPadding) {
+      return lastNavigationMapPaddingRef.current;
+    }
+
     if (!navigationActive || containerHeight <= 0) {
-      return { top: 0, right: 0, bottom: 0, left: 0 };
+      lastNavigationMapPaddingRef.current = { top: 0, right: 0, bottom: 0, left: 0 };
+      return lastNavigationMapPaddingRef.current;
     }
     const visibleHeight = Math.max(0, containerHeight - navigationBottomInset);
     // anchor fraction f within the visible rect → topPad / visibleHeight = (2f - 1)
-    const anchorOffset = Math.max(0, 2 * NAV_DRIVER_SCREEN_ANCHOR - 1) * visibleHeight;
-    return {
+    const anchorOffset = Math.max(0, 2 * navigationDriverScreenAnchor - 1) * visibleHeight;
+    lastNavigationMapPaddingRef.current = {
       top: Math.round(anchorOffset),
       right: 0,
       bottom: Math.round(navigationBottomInset),
       left: 0,
     };
-  }, [navigationActive, containerHeight, navigationBottomInset]);
+    return lastNavigationMapPaddingRef.current;
+  }, [
+    freezeNavigationMapPadding,
+    navigationActive,
+    containerHeight,
+    navigationBottomInset,
+    navigationDriverScreenAnchor,
+  ]);
 
   useEffect(() => {
     const unsubscribe = navigationObj.addListener('focus', () => {
@@ -165,16 +200,13 @@ export function LiveMap({
     return null;
   }, [routePolyline]);
 
-  // Decode the driver route polyline if present
-  const decodedDriverRouteCoords = React.useMemo(() => {
+  // Decode the driver route polyline if present.
+  const decodedDriverRouteLatLng = React.useMemo(() => {
     if (!driverRoutePolyline) return null;
     try {
       const decoded = decodePolyline(driverRoutePolyline);
       if (decoded.length > 0) {
-        return decoded.map((c) => ({
-          latitude: c.lat,
-          longitude: c.lng,
-        }));
+        return decoded;
       }
     } catch (err) {
       logger.error('[LiveMap] Failed to decode driverRoutePolyline', { err, driverRoutePolyline });
@@ -182,11 +214,68 @@ export function LiveMap({
     return null;
   }, [driverRoutePolyline]);
 
+  const decodedDriverRouteCoords = React.useMemo(
+    () =>
+      decodedDriverRouteLatLng?.map((c) => ({
+        latitude: c.lat,
+        longitude: c.lng,
+      })) ?? null,
+    [decodedDriverRouteLatLng]
+  );
+
+  const driverRouteProgressLatitude = driverRouteProgressCoordinate?.latitude ?? null;
+  const driverRouteProgressLongitude = driverRouteProgressCoordinate?.longitude ?? null;
+  const driverRouteProgressLatLng = React.useMemo<LatLng | null>(
+    () =>
+      driverRouteProgressLatitude !== null && driverRouteProgressLongitude !== null
+        ? {
+            lat: driverRouteProgressLatitude,
+            lng: driverRouteProgressLongitude,
+          }
+        : null,
+    [driverRouteProgressLatitude, driverRouteProgressLongitude]
+  );
+
+  const trimmedDriverRoute = React.useMemo(() => {
+    if (!decodedDriverRouteLatLng || !driverRouteProgressLatLng) {
+      return null;
+    }
+
+    const split = splitPolylineAtClosestPoint(
+      driverRouteProgressLatLng,
+      decodedDriverRouteLatLng
+    );
+
+    return {
+      consumed: split.consumed.map((c) => ({
+        latitude: c.lat,
+        longitude: c.lng,
+      })),
+      remaining: split.remaining.map((c) => ({
+        latitude: c.lat,
+        longitude: c.lng,
+      })),
+    };
+  }, [decodedDriverRouteLatLng, driverRouteProgressLatLng]);
+
   const shouldShowDriverRouteLoading =
-    showDriverRoute &&
-    decodedDriverRouteCoords == null &&
-    (driverLocation != null || ownLocation != null) &&
-    (pickupLocation != null || destinationLocation != null);
+    showRouteStatus ||
+    (showDriverRoute &&
+      decodedDriverRouteCoords == null &&
+      (driverLocation != null || ownLocation != null) &&
+      (pickupLocation != null || destinationLocation != null));
+
+  // Driver navigation polyline styling depends on the leg the driver is on.
+  // Pre-pickup (driver → pickup) is rendered in violet to distinguish it from
+  // the rider-facing trip route. Once the trip is underway, the same live,
+  // snapped navigation route is re-styled in the trip blue — callers suppress
+  // the static booking polyline in this mode so the user sees a single route.
+  const driverRouteRemainingColor =
+    driverRouteVariant === 'trip' ? colors.blue.primary : colors.violet.primary;
+  const driverRouteConsumedColor =
+    driverRouteVariant === 'trip'
+      ? 'rgba(47, 128, 237, 0.28)'
+      : 'rgba(126, 87, 194, 0.28)';
 
   // Initial region only — the camera controller takes over once the map is ready.
   const initialRegion = React.useMemo(() => {
@@ -277,12 +366,29 @@ export function LiveMap({
           />
         )}
 
-        {/* Driver Route Polyline */}
-        {showDriverRoute && decodedDriverRouteCoords != null && (
+        {/* Driver Route Polyline (color is leg-dependent: pre-pickup = violet,
+            in-trip = blue so the rider-facing trip route styling is reused
+            for the live-snapped navigation route, with the booking polyline
+            suppressed by the caller to avoid drawing the same line twice). */}
+        {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.consumed.length >= 2 && (
+          <Polyline
+            coordinates={trimmedDriverRoute.consumed}
+            strokeWidth={4}
+            strokeColor={driverRouteConsumedColor}
+          />
+        )}
+        {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.remaining.length >= 2 && (
+          <Polyline
+            coordinates={trimmedDriverRoute.remaining}
+            strokeWidth={5}
+            strokeColor={driverRouteRemainingColor}
+          />
+        )}
+        {showDriverRoute && trimmedDriverRoute == null && decodedDriverRouteCoords != null && (
           <Polyline
             coordinates={decodedDriverRouteCoords}
             strokeWidth={4}
-            strokeColor={colors.violet.primary}
+            strokeColor={driverRouteRemainingColor}
           />
         )}
 
@@ -365,7 +471,7 @@ export function LiveMap({
       {shouldShowDriverRouteLoading && (
         <View pointerEvents="none" style={[styles.routeLoadingPill, shadow.float]}>
           <ActivityIndicator size="small" color={colors.violet.primary} />
-          <Text style={styles.routeLoadingText}>Finding route...</Text>
+          <Text style={styles.routeLoadingText}>{routeStatusLabel}</Text>
         </View>
       )}
     </View>

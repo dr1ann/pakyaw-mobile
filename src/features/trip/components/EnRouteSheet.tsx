@@ -17,6 +17,10 @@ export function EnRouteSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
   const { mutate: cancel, isPending } = useCancelTrip();
+  const displayDistanceMeters =
+    trip?.tripProgress?.remainingMeters ?? trip?.driverRoute?.distanceMeters ?? null;
+  const displayEtaSeconds =
+    trip?.tripProgress?.etaSeconds ?? trip?.driverRoute?.durationSeconds ?? null;
 
   function handleCancel() {
     if (trip) {
@@ -35,18 +39,18 @@ export function EnRouteSheet() {
       <Text style={styles.subtitle}>
         Your driver is on the way to your pickup location.
       </Text>
-      {trip?.driverRoute != null ? (
+      {displayDistanceMeters != null && displayEtaSeconds != null ? (
         <View style={styles.etaCard}>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>DISTANCE TO YOU</Text>
             <Text style={styles.etaValue}>
-              {(trip.driverRoute.distanceMeters / 1000).toFixed(1)} km
+              {(displayDistanceMeters / 1000).toFixed(1)} km
             </Text>
           </View>
           <View style={styles.etaRow}>
             <Text style={styles.etaLabel}>ETA</Text>
             <Text style={styles.etaValue}>
-              {Math.max(1, Math.round(trip.driverRoute.durationSeconds / 60))} min
+              {Math.max(1, Math.round(displayEtaSeconds / 60))} min
             </Text>
           </View>
         </View>

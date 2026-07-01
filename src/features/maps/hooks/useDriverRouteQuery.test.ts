@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useDriverRouteQuery } from './useDriverRouteQuery';
+import {
+  getHeadingDeltaDegrees,
+  getRouteDeviation,
+  useDriverRouteQuery,
+} from './useDriverRouteQuery';
 
 let mockTrip: any = null;
 let mockDriverLat: number | null = null;
 let mockDriverLng: number | null = null;
+let mockGpsHeading: number | null = null;
+let mockGpsSpeed: number | null = null;
 
 vi.mock('@/stores/activeTripStore', () => ({
-  useActiveTripStore: (selector: any) => selector({ trip: mockTrip }),
+  useActiveTripStore: (selector: any) => selector({
+    trip: mockTrip,
+    gpsHeading: mockGpsHeading,
+    gpsSpeed: mockGpsSpeed,
+  }),
 }));
 
 vi.mock('@/stores/availabilityStore', () => ({
@@ -41,29 +51,35 @@ describe('useDriverRouteQuery', () => {
   let capturedEffects: (() => void | (() => void))[] = [];
   let stateValue: any = null;
   const setStateMock = vi.fn();
+  let isReroutingState = false;
+  const setIsReroutingMock = vi.fn();
   let refValues: any[] = [];
   let refCallCount = 0;
+  let stateCallCount = 0;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockTrip = null;
     mockDriverLat = null;
     mockDriverLng = null;
+    mockGpsHeading = null;
+    mockGpsSpeed = null;
     capturedEffects = [];
     stateValue = null;
+    isReroutingState = false;
     refValues = [
       { current: 0 },    // 0: lastFetchTimeRef
       { current: null }, // 1: lastPublishedRouteRef
       { current: null }, // 2: currentRouteRef
       { current: [] },   // 3: decodedRoutePointsRef
       { current: true }, // 4: isFirstMountRef
-      { current: null },
-      { current: null },
+      { current: 0 },    // 5: offRouteConfirmationCountRef
     ];
     refCallCount = 0;
+    stateCallCount = 0;
 
     // Set default mock return value for useQuery to avoid undefined errors
-    mockUseQuery.mockReturnValue({ data: undefined });
+    mockUseQuery.mockReturnValue({ data: undefined, isFetching: false });
 
     setStateMock.mockImplementation((val) => {
       stateValue = val;
@@ -74,8 +90,12 @@ describe('useDriverRouteQuery', () => {
     });
 
     mockUseState.mockImplementation((init) => {
-      if (stateValue === null) stateValue = init;
-      return [stateValue, setStateMock];
+      const idx = stateCallCount++;
+      if (idx === 0) {
+        if (stateValue === null) stateValue = init;
+        return [stateValue, setStateMock];
+      }
+      return [isReroutingState, setIsReroutingMock];
     });
 
     mockUseRef.mockImplementation((init) => {
@@ -210,5 +230,77 @@ describe('useDriverRouteQuery', () => {
 
     // setState should be called due to time threshold
     expect(setStateMock).toHaveBeenCalledWith({ lat: 10.05, lng: 124.05 });
+  });
+
+  it('does not reroute on a single off-route sample', () => {
+    mockTrip = {
+      id: 'trip-1',
+      status: 'accepted',
+      pickup: { coords: { lat: 10.0, lng: 124.0 } },
+    };
+    stateValue = { lat: 10.005, lng: 124.01 };
+    refValues[0].current = Date.now();
+    refValues[2].current = { overviewPolyline: 'route' };
+    refValues[3].current = [
+      { lat: 10.0, lng: 124.0 },
+      { lat: 10.01, lng: 124.0 },
+    ];
+    mockDriverLat = 10.005;
+    mockDriverLng = 124.01;
+
+    useDriverRouteQuery('trip-1');
+    capturedEffects.forEach((eff) => eff());
+
+    expect(refValues[5].current).toBe(1);
+    expect(setStateMock).not.toHaveBeenCalled();
+  });
+
+  it('reroutes after consecutive off-route confirmations', () => {
+    mockTrip = {
+      id: 'trip-1',
+      status: 'accepted',
+      pickup: { coords: { lat: 10.0, lng: 124.0 } },
+    };
+    stateValue = { lat: 10.005, lng: 124.01 };
+    refValues[0].current = Date.now();
+    refValues[2].current = { overviewPolyline: 'route' };
+    refValues[3].current = [
+      { lat: 10.0, lng: 124.0 },
+      { lat: 10.01, lng: 124.0 },
+    ];
+    refValues[5].current = 1;
+    mockDriverLat = 10.005;
+    mockDriverLng = 124.01;
+
+    useDriverRouteQuery('trip-1');
+    capturedEffects.forEach((eff) => eff());
+
+    expect(setStateMock).toHaveBeenCalledWith({ lat: 10.005, lng: 124.01 });
+    expect(setIsReroutingMock).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('driver route deviation helpers', () => {
+  it('computes shortest heading delta across north', () => {
+    expect(getHeadingDeltaDegrees(350, 10)).toBe(20);
+  });
+
+  it('detects heading mismatch only when GPS course is reliable', () => {
+    const route = [
+      { lat: 10.0, lng: 124.0 },
+      { lat: 10.01, lng: 124.0 },
+    ];
+
+    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 2)).toEqual(
+      expect.objectContaining({
+        headingMismatch: true,
+      })
+    );
+    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 0)).toEqual(
+      expect.objectContaining({
+        headingMismatch: false,
+        headingDeltaDegrees: null,
+      })
+    );
   });
 });

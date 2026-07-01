@@ -23,14 +23,11 @@ type DriverSheetModeProps = {
 
 export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
-  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
   const { mutate: transition, isPending } = useTripTransition();
 
   function handleStartNavigation() {
     if (trip) {
-      // Arm Navigation Mode for the to-pickup leg; auto-disarms when the trip
-      // advances past 'driver_arriving'.
-      setNavActiveStatus('driver_arriving');
+      useActiveTripStore.getState().setNavActiveStatus('driver_arriving');
       transition({ tripId: trip.id, status: 'driver_arriving' });
     }
   }
@@ -172,14 +169,10 @@ export function DriverEnRouteSheet({
 
 export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
-  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
   const { mutate: transition, isPending } = useTripTransition();
 
   function handleStartTrip() {
     if (trip) {
-      // Arm Navigation Mode for the to-destination leg; auto-disarms when the
-      // trip advances past 'in_progress'.
-      setNavActiveStatus('in_progress');
       transition({ tripId: trip.id, status: 'in_progress' });
     }
   }

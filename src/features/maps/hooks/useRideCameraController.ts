@@ -1,6 +1,14 @@
 import { logger } from '@/lib/logger';
 import { useEffect, useRef, useState } from 'react';
+import {
+  AppState,
+  type AppStateStatus,
+  InteractionManager,
+  Platform,
+} from 'react-native';
 import MapView from 'react-native-maps';
+import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useUiStore } from '@/stores/uiStore';
 import {
   NAV_ALTITUDE_M,
   NAV_CAMERA_ANIM_MS,
@@ -24,6 +32,7 @@ export type CameraCommand =
       zoom: number;
       pitch: number;
       altitude: number;
+      animationDurationMs: number;
     }
   | { type: 'overview' };
 
@@ -47,6 +56,7 @@ export type RideCameraInput = {
     zoom?: number;
     pitch?: number;
     altitude?: number;
+    animationDurationMs?: number;
   };
 };
 
@@ -62,10 +72,16 @@ export function useRideCameraController(
   inputs: RideCameraInput
 ) {
   const [isMapReady, setIsMapReady] = useState(false);
-  const [userPanned, setUserPanned] = useState(false);
+  const [userPanned, setUserPanned] = useState(
+    Boolean(inputs.navigation?.enabled && !useActiveTripStore.getState().cameraFollowing)
+  );
   const queuedCommandRef = useRef<CameraCommand | null>(null);
   const lastExecutedCommandRef = useRef<string>('');
   const prevNavEnabledRef = useRef(false);
+  // Tracks the JS-side AppState. Camera mutations are gated on this being
+  // 'active' so we never call into the native MapView while Android has torn
+  // down the GL surface (Frustum == null in GoogleMap.getProjection() → NPE).
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const {
     pickupLocation,
@@ -95,6 +111,7 @@ export function useRideCameraController(
         zoom: navigation.zoom ?? NAV_ZOOM,
         pitch: navigation.pitch ?? NAV_PITCH,
         altitude: navigation.altitude ?? NAV_ALTITUDE_M,
+        animationDurationMs: navigation.animationDurationMs ?? NAV_CAMERA_ANIM_MS,
       };
     }
 
@@ -134,6 +151,21 @@ export function useRideCameraController(
       }
     }
 
+    // Terminal phase: the navigation session has just ended (status flipped
+    // to completed/cancelled). Snap back to an overview centered on the
+    // driver's current navigation position (interpolated/snapped — the same
+    // coordinate Navigation Mode was tracking) so the camera transition is
+    // continuous with the rest of the navigation system. animateToRegion
+    // implicitly restores pitch=0, heading=0, and overview zoom.
+    if (phase === 'terminal') {
+      if (driverLocation) {
+        return { type: 'centerOn', coordinate: driverLocation };
+      }
+      if (ownLocation) {
+        return { type: 'centerOn', coordinate: ownLocation };
+      }
+    }
+
     return null;
   };
 
@@ -141,6 +173,16 @@ export function useRideCameraController(
     const map = mapRef.current;
     if (!map) {
       logger.info('[RideCameraController] Map not ready, queueing command:', command);
+      queuedCommandRef.current = command;
+      return;
+    }
+
+    // Gate every camera mutation behind a foreground AppState. Touching the
+    // native map while the Activity is paused/stopped lets the camera-move
+    // listener inside react-native-maps dereference a torn-down GL frustum
+    // (java.lang.NullPointerException: Frustum is null at MapView.java:677).
+    if (appStateRef.current !== 'active') {
+      logger.info('[RideCameraController] App not active, queueing command:', command);
       queuedCommandRef.current = command;
       return;
     }
@@ -202,6 +244,11 @@ export function useRideCameraController(
         break;
       }
       case 'navigationFollow': {
+        if (Platform.OS === 'android' && useUiStore.getState().pip.isInPip) {
+          logger.info('[RideCameraController] Skipping navigation camera while PiP is active.');
+          break;
+        }
+
         const heading = normalizeHeading(command.heading);
 
         // The driver coordinate is passed directly as the camera target. The
@@ -218,7 +265,7 @@ export function useRideCameraController(
             zoom: command.zoom,
             altitude: command.altitude,
           },
-          { duration: NAV_CAMERA_ANIM_MS }
+          { duration: command.animationDurationMs }
         );
         break;
       }
@@ -226,6 +273,47 @@ export function useRideCameraController(
         break;
     }
   };
+
+  // AppState listener — gate camera mutations on foreground, drain the queue
+  // when we come back. Placed before the main camera effect so subsequent
+  // dependency-driven runs see the up-to-date appStateRef.
+  useEffect(() => {
+    const drainQueue = () => {
+      const command = queuedCommandRef.current;
+      queuedCommandRef.current = null;
+      lastExecutedCommandRef.current = '';
+      if (command) {
+        logger.info('[RideCameraController] Draining queued command after resume:', command);
+        executeCommand(command);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      // Ignore transient 'inactive' (iOS Control Center, app switcher peek,
+      // permission dialogs). Only real background/active transitions should
+      // flip the gate.
+      if (nextState === 'inactive') return;
+      const previous = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (previous !== 'active' && nextState === 'active') {
+        // Wait two animation frames so the GoogleMap GL surface has been
+        // re-bound by react-native-maps' lifecycle observer (Activity
+        // ON_RESUME → MapView.onResume → frustum recreated), then defer past
+        // any in-flight interactions before touching the native map.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            InteractionManager.runAfterInteractions(drainQueue);
+          });
+        });
+      }
+    });
+
+    return () => subscription.remove();
+    // executeCommand is stable for our purposes (reads from refs/props through
+    // closure); listing it would recreate the subscription on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-evaluate camera whenever inputs or userPanned state changes
   useEffect(() => {
@@ -235,6 +323,16 @@ export function useRideCameraController(
     const navEnabled = Boolean(navigation?.enabled);
     if (navEnabled && !prevNavEnabledRef.current && userPanned) {
       setUserPanned(false);
+      useActiveTripStore.getState().setCameraFollowing(true);
+    }
+    // On the falling edge (nav has just ended — e.g. trip completed/cancelled
+    // disarms Driving Mode) also clear the pan latch so the terminal-phase
+    // camera command isn't suppressed by a stale pan from the in-trip phase.
+    // Without this, panning during in_progress would freeze the camera in
+    // place after Complete Trip until the driver tapped recenter.
+    if (!navEnabled && prevNavEnabledRef.current && userPanned) {
+      setUserPanned(false);
+      useActiveTripStore.getState().setCameraFollowing(true);
     }
     prevNavEnabledRef.current = navEnabled;
 
@@ -264,6 +362,7 @@ export function useRideCameraController(
     navigation?.zoom,
     navigation?.pitch,
     navigation?.altitude,
+    navigation?.animationDurationMs,
     phase,
     userPanned,
     isMapReady,
@@ -277,6 +376,7 @@ export function useRideCameraController(
     const preserveManualNavigationPan = Boolean(navigation?.enabled && userPanned);
     if (!preserveManualNavigationPan) {
       setUserPanned(false);
+      useActiveTripStore.getState().setCameraFollowing(true);
     }
     const command =
       queuedCommandRef.current ??
@@ -294,11 +394,13 @@ export function useRideCameraController(
     if (userPanned) return;
     logger.info('[RideCameraController] User panned map. Switching to overview.');
     setUserPanned(true);
+    useActiveTripStore.getState().setCameraFollowing(false);
   };
 
   const recenter = () => {
     logger.info('[RideCameraController] Recentering camera.');
     setUserPanned(false);
+    useActiveTripStore.getState().setCameraFollowing(true);
     lastExecutedCommandRef.current = '';
   };
 
@@ -306,6 +408,7 @@ export function useRideCameraController(
     onMapReady: handleMapReady,
     onUserPan: handleUserPan,
     recenter,
+    forceFollow: recenter,
     userPanned,
   };
 }

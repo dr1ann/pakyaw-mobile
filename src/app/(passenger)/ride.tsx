@@ -21,6 +21,7 @@ import MapView from 'react-native-maps';
 import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { LocationLoader } from '@/components/ui/LocationLoader';
 import { colors, shadow } from '@/constants/theme';
 import { useSession } from '@/features/auth/hooks/useSession';
 import { getUserDoc } from '@/features/auth/services/auth.service';
@@ -69,6 +70,7 @@ export default function RideScreen() {
   const [destinationDragKey, setDestinationDragKey] = useState(0);
 
   const deviceLocation = useLocationStore((s) => s.location);
+  const permissionStatus = useLocationStore((s) => s.permissionStatus);
 
   const mapRef = useRef<MapView>(null);
 
@@ -85,6 +87,8 @@ export default function RideScreen() {
     }
     return 'active';
   }, [tripId, trip]);
+
+  const isLocationLoading = phase === 'booking' && !deviceLocation && permissionStatus !== 'denied';
 
   // Subscribe to trip doc + driver location
   useActiveTrip();
@@ -275,22 +279,33 @@ export default function RideScreen() {
   const status = trip?.status ?? (tripId ? 'request' : null);
   const isSheetSelfContained = status === null || status === 'request';
 
+  const activeRoute = trip?.route ?? null;
+  const activeRoutePolyline = activeRoute?.polyline ?? null;
+  const activeTripProgress = trip?.tripProgress ?? null;
+
   // Decode passenger route polyline for progress stats calculation
   const decodedRouteCoords = useMemo(() => {
-    if (trip?.route?.polyline) {
-      return decodePolyline(trip.route.polyline);
+    if (activeRoutePolyline) {
+      return decodePolyline(activeRoutePolyline);
     }
     return null;
-  }, [trip?.route?.polyline]);
+  }, [activeRoutePolyline]);
 
   // Passenger client-side projected stats to destination during active ride
   const progressStats = useMemo(() => {
+    if (status === 'in_progress' && activeTripProgress != null) {
+      return {
+        remainingDistanceMeters: activeTripProgress.remainingMeters,
+        etaSeconds: activeTripProgress.etaSeconds,
+      };
+    }
+
     if (
       status !== 'in_progress' ||
       !driverLocation ||
       !decodedRouteCoords ||
       decodedRouteCoords.length === 0 ||
-      !trip?.route
+      !activeRoute
     ) {
       return { remainingDistanceMeters: null, etaSeconds: null };
     }
@@ -298,8 +313,8 @@ export default function RideScreen() {
     const driverPos = { lat: driverLocation.latitude, lng: driverLocation.longitude };
     const remainingDistanceMeters = getDistanceToStepEnd(driverPos, { polyline: decodedRouteCoords });
 
-    const totalDistance = trip.route.distanceMeters;
-    const totalDuration = trip.route.durationSeconds;
+    const totalDistance = activeRoute.distanceMeters;
+    const totalDuration = activeRoute.durationSeconds;
 
     const etaSeconds = totalDistance > 0 ? totalDuration * (remainingDistanceMeters / totalDistance) : 0;
 
@@ -307,7 +322,7 @@ export default function RideScreen() {
       remainingDistanceMeters,
       etaSeconds,
     };
-  }, [status, driverLocation, decodedRouteCoords, trip?.route]);
+  }, [status, driverLocation, decodedRouteCoords, activeRoute, activeTripProgress]);
 
   // Extract coordinates for LiveMap, checking both active trip and booking draft
   // (Replaced by selector layer mapData)
@@ -415,6 +430,7 @@ export default function RideScreen() {
           </SafeAreaView>
         )
       )}
+      {isLocationLoading && <LocationLoader theme="passenger" />}
     </View>
   );
 }

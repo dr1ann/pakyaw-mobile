@@ -1,8 +1,64 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import type { NavRoute } from '../navigation/types';
 import { haversineMeters } from '@/lib/geo';
 import { getDistanceToStepEnd, getMinDistanceToPolyline } from '@/lib/geoProjection';
+
+const MIN_SPEED_SAMPLES = 3;
+const MAX_SPEED_SAMPLES = 8;
+const MIN_RELIABLE_SPEED_MPS = 1;
+const MAX_REASONABLE_SPEED_MPS = 45;
+
+export function getRouteDurationEtaSeconds(
+  remainingDistanceMeters: number,
+  totalDistanceMeters: number,
+  totalDurationSeconds: number
+): number {
+  return totalDistanceMeters > 0
+    ? totalDurationSeconds * (remainingDistanceMeters / totalDistanceMeters)
+    : 0;
+}
+
+export function getAverageReliableSpeed(samples: readonly number[]): number | null {
+  const reliableSamples = samples.filter(
+    (speed) =>
+      Number.isFinite(speed) &&
+      speed >= MIN_RELIABLE_SPEED_MPS &&
+      speed <= MAX_REASONABLE_SPEED_MPS
+  );
+
+  if (reliableSamples.length < MIN_SPEED_SAMPLES) {
+    return null;
+  }
+
+  const totalSpeed = reliableSamples.reduce((sum, speed) => sum + speed, 0);
+  return totalSpeed / reliableSamples.length;
+}
+
+export function getAdaptiveEtaSeconds({
+  remainingDistanceMeters,
+  totalDistanceMeters,
+  totalDurationSeconds,
+  averageSpeedMetersPerSecond,
+}: {
+  readonly remainingDistanceMeters: number;
+  readonly totalDistanceMeters: number;
+  readonly totalDurationSeconds: number;
+  readonly averageSpeedMetersPerSecond: number | null;
+}): number {
+  if (
+    averageSpeedMetersPerSecond !== null &&
+    averageSpeedMetersPerSecond >= MIN_RELIABLE_SPEED_MPS
+  ) {
+    return remainingDistanceMeters / averageSpeedMetersPerSecond;
+  }
+
+  return getRouteDurationEtaSeconds(
+    remainingDistanceMeters,
+    totalDistanceMeters,
+    totalDurationSeconds
+  );
+}
 
 /**
  * Hook to track local turn-by-turn step progression, remaining step distance,
@@ -14,6 +70,8 @@ export function useManeuverProgress(
 ) {
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
   const setNavStepIndex = useActiveTripStore((s) => s.setNavStepIndex);
+  const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
+  const [speedSamples, setSpeedSamples] = useState<readonly number[]>([]);
 
   const steps = useMemo(() => route?.steps ?? [], [route?.steps]);
 
@@ -21,6 +79,33 @@ export function useManeuverProgress(
   useEffect(() => {
     setNavStepIndex(0);
   }, [route?.fetchedAt, setNavStepIndex]);
+
+  useEffect(() => {
+    const isUnreliableSpeed =
+      gpsSpeed === null ||
+      !Number.isFinite(gpsSpeed) ||
+      gpsSpeed < MIN_RELIABLE_SPEED_MPS ||
+      gpsSpeed > MAX_REASONABLE_SPEED_MPS;
+
+    if (isUnreliableSpeed) {
+      const frame = requestAnimationFrame(() => {
+        setSpeedSamples((samples) => (samples.length === 0 ? samples : []));
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const frame = requestAnimationFrame(() => {
+      setSpeedSamples((samples) => [...samples, gpsSpeed].slice(-MAX_SPEED_SAMPLES));
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [gpsSpeed]);
+
+  const averageSpeedMetersPerSecond = useMemo(
+    () => getAverageReliableSpeed(speedSamples),
+    [speedSamples]
+  );
 
   // Advance step index based on driver location relative to current and next steps
   useEffect(() => {
@@ -73,17 +158,21 @@ export function useManeuverProgress(
       remainingDistanceMeters += steps[i].distanceMeters;
     }
 
-    // Project dynamic ETA based on proportion of remaining distance
     const totalDistance = route.distanceMeters;
     const totalDuration = route.durationSeconds;
-    const etaSeconds = totalDistance > 0 ? totalDuration * (remainingDistanceMeters / totalDistance) : 0;
+    const etaSeconds = getAdaptiveEtaSeconds({
+      remainingDistanceMeters,
+      totalDistanceMeters: totalDistance,
+      totalDurationSeconds: totalDuration,
+      averageSpeedMetersPerSecond,
+    });
 
     return {
       distanceToManeuver,
       remainingDistanceMeters,
       etaSeconds,
     };
-  }, [route, steps, driverLocation, navStepIndex]);
+  }, [route, steps, driverLocation, navStepIndex, averageSpeedMetersPerSecond]);
 
   return stats;
 }

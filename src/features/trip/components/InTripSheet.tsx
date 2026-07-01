@@ -20,8 +20,10 @@ export function InTripSheet({
 }) {
   const trip = useActiveTripStore((s) => s.trip);
 
-  const displayDistanceMeters = remainingDistanceMeters ?? trip?.route?.distanceMeters ?? null;
-  const displayEtaSeconds = etaSeconds ?? trip?.route?.durationSeconds ?? null;
+  const displayDistanceMeters =
+    remainingDistanceMeters ?? trip?.tripProgress?.remainingMeters ?? trip?.route?.distanceMeters ?? null;
+  const displayEtaSeconds =
+    etaSeconds ?? trip?.tripProgress?.etaSeconds ?? trip?.route?.durationSeconds ?? null;
 
   const distanceKm = displayDistanceMeters != null
     ? (displayDistanceMeters / 1000).toFixed(1)

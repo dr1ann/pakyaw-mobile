@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import '@/features/driver-availability/services/backgroundLocationTask';
 import { useSession, useSessionBootstrap } from '@/features/auth/hooks/useSession';
 import { queryClient } from '@/services/query/queryClient';
 

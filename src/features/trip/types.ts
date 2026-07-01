@@ -55,6 +55,11 @@ export type TripDoc = {
     readonly durationSeconds: number;
     readonly updatedAt: Timestamp | null;
   } | null;
+  readonly tripProgress?: {
+    readonly remainingMeters: number;
+    readonly etaSeconds: number;
+    readonly updatedAt: Timestamp | null;
+  } | null;
   readonly serviceAreaId?: 'ormoc' | null;
 };
 

@@ -2,10 +2,60 @@ import { useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import { logger } from '@/lib/logger';
-import { HEADING_SPEED_THRESHOLD_MS } from '../navigation/constants';
+import {
+  HEADING_GPS_COURSE_DISABLE_SPEED_MS,
+  HEADING_SPEED_THRESHOLD_MS,
+} from '../navigation/constants';
 import { isNavActiveStatus } from '../navigation/navigationHelper';
 
 const SMOOTHING_FACTOR = 0.25; // Shortest-arc low-pass smoothing factor
+type HeadingSource = 'gps' | 'compass' | null;
+
+type HeadingSourceParams = {
+  previousSource: HeadingSource;
+  gpsHeading: number | null;
+  gpsSpeed: number | null;
+  hasCompassHeading: boolean;
+};
+
+function hasGpsCourse(
+  gpsHeading: number | null,
+  gpsSpeed: number | null,
+): gpsHeading is number {
+  return (
+    gpsHeading !== null &&
+    gpsHeading !== -1 &&
+    Number.isFinite(gpsHeading) &&
+    gpsSpeed !== null &&
+    Number.isFinite(gpsSpeed)
+  );
+}
+
+export function selectHeadingSource({
+  previousSource,
+  gpsHeading,
+  gpsSpeed,
+  hasCompassHeading,
+}: HeadingSourceParams): HeadingSource {
+  const gpsEnterSpeed =
+    previousSource === 'gps'
+      ? HEADING_GPS_COURSE_DISABLE_SPEED_MS
+      : HEADING_SPEED_THRESHOLD_MS;
+
+  if (
+    hasGpsCourse(gpsHeading, gpsSpeed) &&
+    gpsSpeed !== null &&
+    gpsSpeed >= gpsEnterSpeed
+  ) {
+    return 'gps';
+  }
+
+  if (hasCompassHeading) {
+    return 'compass';
+  }
+
+  return null;
+}
 
 /**
  * Hook to fuse and smooth device magnetometer heading with GPS course heading.
@@ -18,23 +68,25 @@ export function useDriverHeading(status: string | null) {
   
   const latestMagnetometerHeadingRef = useRef<number | null>(null);
   const smoothedHeadingRef = useRef<number | null>(null);
+  const headingSourceRef = useRef<HeadingSource>(null);
 
   const isNavActive = isNavActiveStatus(status);
 
   // Fusion and Low-pass Unit Vector Smoothing
   const fuseAndSmooth = () => {
-    let sourceHeading: number | null = null;
+    const headingSource = selectHeadingSource({
+      previousSource: headingSourceRef.current,
+      gpsHeading,
+      gpsSpeed,
+      hasCompassHeading: latestMagnetometerHeadingRef.current !== null,
+    });
 
-    if (
-      gpsSpeed !== null &&
-      gpsSpeed >= HEADING_SPEED_THRESHOLD_MS &&
-      gpsHeading !== null &&
-      gpsHeading !== -1
-    ) {
-      sourceHeading = gpsHeading;
-    } else if (latestMagnetometerHeadingRef.current !== null) {
-      sourceHeading = latestMagnetometerHeadingRef.current;
-    }
+    headingSourceRef.current = headingSource;
+
+    const sourceHeading =
+      headingSource === 'gps'
+        ? gpsHeading
+        : latestMagnetometerHeadingRef.current;
 
     if (sourceHeading === null) {
       return;
@@ -74,6 +126,7 @@ export function useDriverHeading(status: string | null) {
     if (!isNavActive) {
       latestMagnetometerHeadingRef.current = null;
       smoothedHeadingRef.current = null;
+      headingSourceRef.current = null;
       setNavHeading(null);
       return;
     }
@@ -90,7 +143,7 @@ export function useDriverHeading(status: string | null) {
           fuseAndSmooth();
         });
       } catch (err) {
-        logger.error('[useDriverHeading] Failed to watch heading', err);
+        logger.error('[useDriverHeading] Failed to watch heading', { error: err });
       }
     }
 

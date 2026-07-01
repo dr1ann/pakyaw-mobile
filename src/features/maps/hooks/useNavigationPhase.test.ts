@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getNavPhase, useNavigationPhase } from './useNavigationPhase';
+import { getAutomaticNavigationStatus } from '../navigation/navigationHelper';
 
 let mockTripStatus: any = null;
 
@@ -43,6 +44,18 @@ describe('useNavigationPhase', () => {
 
       mockTripStatus = null;
       expect(useNavigationPhase()).toBe('idle');
+    });
+  });
+
+  describe('getAutomaticNavigationStatus', () => {
+    it('arms navigation automatically only for actively driving legs', () => {
+      expect(getAutomaticNavigationStatus('accepted')).toBeNull();
+      expect(getAutomaticNavigationStatus('driver_arriving')).toBe('driver_arriving');
+      expect(getAutomaticNavigationStatus('driver_arrived')).toBe('driver_arrived');
+      expect(getAutomaticNavigationStatus('in_progress')).toBe('in_progress');
+      expect(getAutomaticNavigationStatus('completed')).toBeNull();
+      expect(getAutomaticNavigationStatus('cancelled')).toBeNull();
+      expect(getAutomaticNavigationStatus(null)).toBeNull();
     });
   });
 });

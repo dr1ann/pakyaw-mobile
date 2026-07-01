@@ -20,11 +20,12 @@
  *   active trip (on_trip)   → Trip status sheets (Phase 8E)
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LocationLoader } from '@/components/ui/LocationLoader';
 import { colors, shadow, spacing } from '@/constants/theme';
 import { OfflineSheet } from '@/features/driver-availability/components/OfflineSheet';
 import { OnlineSheet } from '@/features/driver-availability/components/OnlineSheet';
@@ -46,18 +47,29 @@ import {
 } from '@/features/trip/components/DriverTripSheets';
 import { LiveMap } from '@/features/trip/components/LiveMap';
 import { useActiveTrip } from '@/features/trip/hooks/useActiveTrip';
+import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
 import type { TripStatus } from '@/features/trip/types';
 import { logger } from '@/lib/logger';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useDriverRouteQuery } from '@/features/maps/hooks/useDriverRouteQuery';
 import { useDriverHeading } from '@/features/maps/hooks/useDriverHeading';
+import { useInterpolatedCoordinate } from '@/features/maps/hooks/useInterpolatedCoordinate';
 import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
 import { useManeuverProgress } from '@/features/maps/hooks/useManeuverProgress';
+import { useVoiceGuidance } from '@/features/maps/hooks/useVoiceGuidance';
 import { NavigationBanner } from '@/features/maps/components/NavigationBanner';
+import { PipNavigationView } from '@/features/maps/components/PipNavigationView';
 import { RecenterButton } from '@/features/maps/components/RecenterButton';
-import { isNavActiveStatus } from '@/features/maps/navigation/navigationHelper';
+import {
+  getAutomaticNavigationStatus,
+  isNavActiveStatus,
+} from '@/features/maps/navigation/navigationHelper';
+import { useNavigationLifecycle } from '@/features/maps/navigation/useNavigationLifecycle';
+import { usePictureInPicture } from '@/features/maps/navigation/usePictureInPicture';
 import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { snapPointToPolyline } from '@/lib/geoProjection';
+import { useUiStore } from '@/stores/uiStore';
 
 export default function DriveScreen() {
   const mapRef = useRef<MapView>(null);
@@ -71,8 +83,6 @@ export default function DriveScreen() {
   const [expandedTripStatus, setExpandedTripStatus] = useState<TripStatus | null>(null);
 
   // Location subscription — starts/stops with availability & AppState.
-  const { locationPermissionDenied } = useLocationPublisher();
-
   // Phase 7: subscribe to nearby trip requests while online.
   useIncomingRequests();
 
@@ -86,12 +96,31 @@ export default function DriveScreen() {
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
   const navActiveStatus = useActiveTripStore((s) => s.navActiveStatus);
+  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
+
+  useEffect(() => {
+    const automaticNavStatus = getAutomaticNavigationStatus(trip?.status);
+    if (navActiveStatus !== automaticNavStatus) {
+      setNavActiveStatus(automaticNavStatus);
+    }
+  }, [navActiveStatus, setNavActiveStatus, trip?.status]);
 
   // Fetch driver navigation route leg/polyline locally
-  const { data: driverRouteData } = useDriverRouteQuery(trip?.id ?? null);
+  const {
+    data: driverRouteData,
+    isRerouting,
+    refetch: refetchDriverRoute,
+  } = useDriverRouteQuery(trip?.id ?? null);
 
   // Calculate local maneuver progression
   const progressStats = useManeuverProgress(driverRouteData ?? null, driverLocation);
+  const canPublishProgress = driverRouteData != null && driverLocation != null;
+  useTripProgressPublisher({
+    tripId: trip?.id ?? null,
+    status: trip?.status ?? null,
+    remainingMeters: canPublishProgress ? progressStats.remainingDistanceMeters : null,
+    etaSeconds: canPublishProgress ? progressStats.etaSeconds : null,
+  });
 
   // Availability mutations.
   const goOnlineMutation = useGoOnlineMutation();
@@ -137,6 +166,9 @@ export default function DriveScreen() {
 
   const isOffline = availability === 'offline';
   const isOnTrip = availability === 'on_trip';
+  const isTripTerminal =
+    trip?.status === 'completed' || trip?.status === 'cancelled';
+  const isTripInProgress = trip?.status === 'in_progress';
   const isTripSheetExpanded = expandedTripStatus === trip?.status;
   const ownLocation =
     lastLatitude !== null && lastLongitude !== null
@@ -148,13 +180,37 @@ export default function DriveScreen() {
   const destinationLocation = trip?.destination?.coords
     ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
     : null;
-  const navigationCoordinate = driverLocation ?? ownLocation;
+  const rawNavigationCoordinate = driverLocation ?? ownLocation;
+  const currentRoutePolyline = useMemo(
+    () => driverRouteData?.steps.flatMap((step) => step.polyline) ?? [],
+    [driverRouteData?.steps]
+  );
+  const snappedNavigationCoordinate = useMemo(() => {
+    if (!rawNavigationCoordinate || currentRoutePolyline.length === 0) {
+      return null;
+    }
 
-  // Navigation Mode (tilted driving camera) is opt-in: it engages only while the
-  // driver has armed it for the current status (via "Start navigation" / "Start
-  // trip"). Otherwise the map stays in a zoomed-out overview of the active leg.
+    const snappedPoint = snapPointToPolyline(
+      {
+        lat: rawNavigationCoordinate.latitude,
+        lng: rawNavigationCoordinate.longitude,
+      },
+      currentRoutePolyline
+    );
+
+    return snappedPoint
+      ? { latitude: snappedPoint.lat, longitude: snappedPoint.lng }
+      : null;
+  }, [rawNavigationCoordinate, currentRoutePolyline]);
+  const navigationTargetCoordinate = snappedNavigationCoordinate ?? rawNavigationCoordinate;
+  const navigationCoordinate = useInterpolatedCoordinate(navigationTargetCoordinate);
+
+  // Navigation Mode (tilted driving camera) starts automatically for active
+  // driving legs. Other trip phases stay in overview mode.
   const isDriving =
-    isNavActiveStatus(trip?.status) && navActiveStatus === trip?.status;
+    isNavActiveStatus(trip?.status) &&
+    (navActiveStatus === trip?.status ||
+      (trip?.status === 'accepted' && navActiveStatus === 'driver_arriving'));
 
   // The leg the driver is currently working: head to pickup until they reach
   // the passenger, then head to destination. Used to frame the overview camera.
@@ -180,7 +236,28 @@ export default function DriveScreen() {
       enabled: isDriving,
       coordinate: navigationCoordinate,
       heading: navHeading,
+      animationDurationMs: 0,
     },
+  });
+  useNavigationLifecycle({
+    isDriving,
+    forceFollow: cameraController.forceFollow,
+    refetchDriverRoute,
+  });
+  usePictureInPicture({ isDriving });
+  const { locationPermissionDenied } = useLocationPublisher();
+  const isLocationLoading =
+    (availability === 'online' || availability === 'on_trip') &&
+    rawNavigationCoordinate === null &&
+    !locationPermissionDenied;
+  const isInPip = useUiStore((s) => s.pip.isInPip);
+  const currentNavStep = driverRouteData?.steps[navStepIndex] ?? null;
+  useVoiceGuidance({
+    enabled: isDriving && trip?.status !== 'driver_arrived' && driverRouteData != null,
+    currentStep: currentNavStep,
+    stepIndex: navStepIndex,
+    routeFetchedAt: driverRouteData?.fetchedAt ?? null,
+    distanceToManeuver: progressStats.distanceToManeuver,
   });
   const showIncomingCard =
     availability === 'online' && incomingRequests.length > 0;
@@ -200,19 +277,46 @@ export default function DriveScreen() {
         pickupLocation={pickupLocation}
         destinationLocation={destinationLocation}
         showDestination={destinationLocation != null}
-        showDriverRoute={trip?.status === 'accepted' || trip?.status === 'driver_arriving' || trip?.status === 'in_progress'}
-        routePolyline={trip?.route?.polyline ?? null}
-        driverRoutePolyline={driverRouteData?.overviewPolyline ?? null}
+        showDriverRoute={
+          !isTripTerminal &&
+          (trip?.status === 'accepted' ||
+            trip?.status === 'driver_arriving' ||
+            trip?.status === 'in_progress')
+        }
+        driverRouteVariant={isTripInProgress ? 'trip' : 'pickup'}
+        // In-trip, the live-snapped navigation route is drawn in the trip
+        // (blue) style so we suppress the static booking polyline to avoid
+        // rendering the same route twice. On terminal status (completed /
+        // cancelled) every navigation polyline goes away — the camera and
+        // sheet both rest until the driver dismisses or a new trip begins.
+        routePolyline={
+          isTripTerminal || isTripInProgress ? null : trip?.route?.polyline ?? null
+        }
+        driverRoutePolyline={
+          isTripTerminal ? null : driverRouteData?.overviewPolyline ?? null
+        }
+        driverRouteProgressCoordinate={navigationCoordinate}
+        showRouteStatus={isRerouting}
+        routeStatusLabel={isRerouting ? 'Rerouting...' : 'Finding route...'}
         showNavigationArrow={isDriving}
         navigationActive={isDriving}
+        freezeNavigationMapPadding={isInPip}
         onMapReady={cameraController.onMapReady}
         onUserPan={cameraController.onUserPan}
       />
 
+      {isInPip && (
+        <PipNavigationView
+          currentStep={currentNavStep}
+          distanceToManeuver={progressStats.distanceToManeuver}
+          etaSeconds={progressStats.etaSeconds}
+        />
+      )}
+
       {/* Turn-by-turn Navigation Banner */}
-      {isDriving && trip?.status !== 'driver_arrived' && driverRouteData && (
+      {!isInPip && isDriving && trip?.status !== 'driver_arrived' && driverRouteData && (
         <NavigationBanner
-          currentStep={driverRouteData.steps[navStepIndex] ?? null}
+          currentStep={currentNavStep}
           distanceToManeuver={progressStats.distanceToManeuver}
         />
       )}
@@ -221,7 +325,7 @@ export default function DriveScreen() {
           Floats above the OnlineSheet as a separate layer so the map stays
           visible behind it and the sheet's rounded card is untouched.
       ─────────────────────────────────────────────────────────────────── */}
-      {topRequest != null ? (
+      {!isInPip && topRequest != null ? (
         <SafeAreaView
           edges={['top']}
           style={styles.incomingArea}
@@ -232,6 +336,7 @@ export default function DriveScreen() {
       ) : null}
 
       {/* ── Bottom sheet area ─────────────────────────────────────────────── */}
+      {!isInPip && (
       <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
         {/* Recenter Camera Button */}
         <RecenterButton
@@ -286,6 +391,7 @@ export default function DriveScreen() {
           )}
         </View>
       </SafeAreaView>
+      )}
 
       {/* ── Pre-flight checklist modal ────────────────────────────────────── */}
       <PreflightChecklist
@@ -294,6 +400,7 @@ export default function DriveScreen() {
         onConfirm={handlePreflightConfirm}
         loading={goOnlineMutation.isPending}
       />
+      {isLocationLoading && <LocationLoader theme="driver" />}
     </View>
   );
 }

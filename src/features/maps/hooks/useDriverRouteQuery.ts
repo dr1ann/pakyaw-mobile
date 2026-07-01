@@ -8,13 +8,97 @@ import type { NavRoute } from '../navigation/types';
 import { useActiveTripStore } from '@/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { haversineMeters } from '@/lib/geo';
-import { getMinDistanceToPolyline } from '@/lib/geoProjection';
+import { projectPointOnSegment } from '@/lib/geoProjection';
 import { logger } from '@/lib/logger';
 import {
   REROUTE_MIN_MOVE_M,
   REROUTE_MIN_INTERVAL_MS,
   OFF_ROUTE_M,
+  OFF_ROUTE_CONFIRMATION_COUNT,
+  HEADING_MISMATCH_DEG,
+  HEADING_SPEED_THRESHOLD_MS,
 } from '../navigation/constants';
+
+type LatLng = { lat: number; lng: number };
+
+function normalizeHeadingDegrees(heading: number): number {
+  return ((heading % 360) + 360) % 360;
+}
+
+export function getHeadingDeltaDegrees(a: number, b: number): number {
+  const delta = Math.abs(normalizeHeadingDegrees(a) - normalizeHeadingDegrees(b));
+  return Math.min(delta, 360 - delta);
+}
+
+export function getBearingDegrees(from: LatLng, to: LatLng): number {
+  const fromLat = (from.lat * Math.PI) / 180;
+  const toLat = (to.lat * Math.PI) / 180;
+  const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(deltaLng) * Math.cos(toLat);
+  const x =
+    Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
+  return normalizeHeadingDegrees((Math.atan2(y, x) * 180) / Math.PI);
+}
+
+export function getRouteDeviation(
+  point: LatLng,
+  polyline: readonly LatLng[],
+  gpsHeading: number | null,
+  gpsSpeed: number | null
+): {
+  readonly distanceMeters: number;
+  readonly headingMismatch: boolean;
+  readonly headingDeltaDegrees: number | null;
+} {
+  if (polyline.length === 0) {
+    return {
+      distanceMeters: Infinity,
+      headingMismatch: false,
+      headingDeltaDegrees: null,
+    };
+  }
+  if (polyline.length === 1) {
+    return {
+      distanceMeters: haversineMeters(point, polyline[0]),
+      headingMismatch: false,
+      headingDeltaDegrees: null,
+    };
+  }
+
+  let minDistance = Infinity;
+  let closestSegmentIndex = 0;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const projectedPoint = projectPointOnSegment(point, polyline[i], polyline[i + 1]);
+    const distance = haversineMeters(point, projectedPoint);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestSegmentIndex = i;
+    }
+  }
+
+  const hasReliableHeading =
+    gpsHeading !== null &&
+    gpsHeading !== -1 &&
+    Number.isFinite(gpsHeading) &&
+    gpsSpeed !== null &&
+    gpsSpeed >= HEADING_SPEED_THRESHOLD_MS;
+  const routeBearing = getBearingDegrees(
+    polyline[closestSegmentIndex],
+    polyline[closestSegmentIndex + 1]
+  );
+  const headingDeltaDegrees = hasReliableHeading
+    ? getHeadingDeltaDegrees(gpsHeading, routeBearing)
+    : null;
+
+  return {
+    distanceMeters: minDistance,
+    headingMismatch:
+      headingDeltaDegrees !== null && headingDeltaDegrees >= HEADING_MISMATCH_DEG,
+    headingDeltaDegrees,
+  };
+}
 
 /**
  * Hook to fetch the driver navigation route (Phase 12 Navigation).
@@ -24,6 +108,8 @@ import {
  */
 export function useDriverRouteQuery(tripId: string | null) {
   const trip = useActiveTripStore((s) => s.trip);
+  const gpsHeading = useActiveTripStore((s) => s.gpsHeading);
+  const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
   
   // Driver's own live location from availabilityStore
   const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
@@ -50,11 +136,13 @@ export function useDriverRouteQuery(tripId: string | null) {
     status !== 'driver_arrived';
 
   const [queryCoords, setQueryCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
   const lastFetchTimeRef = useRef<number>(0);
   const lastPublishedRouteRef = useRef<{ polyline: string; distanceMeters: number; durationSeconds: number } | null>(null);
   const currentRouteRef = useRef<NavRoute | null>(null);
   const decodedRoutePointsRef = useRef<{ lat: number; lng: number }[]>([]);
   const isFirstMountRef = useRef<boolean>(true);
+  const offRouteConfirmationCountRef = useRef<number>(0);
 
   // Reset tracking refs and coordinates inside useEffect when tripId changes (skip initial mount)
   useEffect(() => {
@@ -66,6 +154,8 @@ export function useDriverRouteQuery(tripId: string | null) {
     lastPublishedRouteRef.current = null;
     currentRouteRef.current = null;
     decodedRoutePointsRef.current = [];
+    offRouteConfirmationCountRef.current = 0;
+    setIsRerouting(false);
     setQueryCoords(null);
   }, [tripId]);
 
@@ -73,8 +163,10 @@ export function useDriverRouteQuery(tripId: string | null) {
     if (!enabled) {
       setTimeout(() => {
         setQueryCoords(null);
+        setIsRerouting(false);
       }, 0);
       lastFetchTimeRef.current = 0;
+      offRouteConfirmationCountRef.current = 0;
       return;
     }
 
@@ -91,16 +183,36 @@ export function useDriverRouteQuery(tripId: string | null) {
         return;
       }
 
-      // Check off-route trigger (immediate)
+      // Check off-route trigger. A single bad GPS sample should not reroute;
+      // require consecutive confirmations, optionally strengthened by heading.
       if (currentRouteRef.current && currentRouteRef.current.overviewPolyline) {
         const decodedPoints = decodedRoutePointsRef.current;
         if (decodedPoints.length > 0) {
-          const offRouteDist = getMinDistanceToPolyline(currentLive, decodedPoints);
-          if (offRouteDist >= OFF_ROUTE_M) {
-            logger.info('[useDriverRouteQuery] Off-route detected! Forcing immediate route refresh.', {
-              offRouteDist,
+          const deviation = getRouteDeviation(
+            currentLive,
+            decodedPoints,
+            gpsHeading,
+            gpsSpeed
+          );
+          const shouldConfirmOffRoute =
+            deviation.distanceMeters >= OFF_ROUTE_M || deviation.headingMismatch;
+
+          if (shouldConfirmOffRoute) {
+            offRouteConfirmationCountRef.current += 1;
+          } else {
+            offRouteConfirmationCountRef.current = 0;
+          }
+
+          if (offRouteConfirmationCountRef.current >= OFF_ROUTE_CONFIRMATION_COUNT) {
+            logger.info('[useDriverRouteQuery] Off-route confirmed. Forcing route refresh.', {
+              offRouteDist: deviation.distanceMeters,
+              headingMismatch: deviation.headingMismatch,
+              headingDeltaDegrees: deviation.headingDeltaDegrees,
+              confirmations: offRouteConfirmationCountRef.current,
               currentLive,
             });
+            offRouteConfirmationCountRef.current = 0;
+            setIsRerouting(true);
             setQueryCoords(currentLive);
             lastFetchTimeRef.current = now;
             return;
@@ -129,7 +241,7 @@ export function useDriverRouteQuery(tripId: string | null) {
     // Setup periodic check for time-based refetching (every 5 seconds)
     const interval = setInterval(checkAndUpdate, 5_000);
     return () => clearInterval(interval);
-  }, [lastLatitude, lastLongitude, targetCoords, status, enabled, queryCoords]);
+  }, [lastLatitude, lastLongitude, targetCoords, status, enabled, queryCoords, gpsHeading, gpsSpeed]);
 
   const query = useQuery<NavRoute, Error>({
     queryKey: [
@@ -156,8 +268,21 @@ export function useDriverRouteQuery(tripId: string | null) {
     if (query.data) {
       currentRouteRef.current = query.data;
       decodedRoutePointsRef.current = query.data.steps.flatMap((s) => s.polyline);
+      const timeout = setTimeout(() => {
+        setIsRerouting(false);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [query.data]);
+
+  useEffect(() => {
+    if (query.error) {
+      const timeout = setTimeout(() => {
+        setIsRerouting(false);
+      }, 0);
+      return () => clearTimeout(timeout);
+    }
+  }, [query.error]);
 
   // Publish to Firestore when to_pickup route is successfully updated
   useEffect(() => {
@@ -208,6 +333,7 @@ export function useDriverRouteQuery(tripId: string | null) {
     ...query,
     // Return null route if not enabled, ensuring the polyline disappears immediately on status change
     data: enabled ? query.data : undefined,
+    isRerouting: enabled && isRerouting && query.isFetching,
   };
 }
 

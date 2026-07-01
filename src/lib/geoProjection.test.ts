@@ -4,6 +4,8 @@ import {
   getMinDistanceToPolyline,
   getDistanceToStepEnd,
   getRemainingDistance,
+  snapPointToPolyline,
+  splitPolylineAtClosestPoint,
 } from './geoProjection';
 
 describe('geoProjection', () => {
@@ -49,6 +51,50 @@ describe('geoProjection', () => {
       const dist = getMinDistanceToPolyline(p, poly);
       expect(dist).toBeGreaterThan(0);
       expect(dist).toBeLessThan(100); // roughly 50m
+    });
+  });
+
+  describe('snapPointToPolyline', () => {
+    it('returns the closest projected point on the polyline', () => {
+      const poly = [pA, pB, pC];
+      const p = { lat: 11.0005, lng: 124.6005 };
+
+      const snapped = snapPointToPolyline(p, poly);
+
+      expect(snapped).not.toBeNull();
+      expect(snapped?.lat).toBeCloseTo(11.0005, 5);
+      expect(snapped?.lng).toBeCloseTo(124.6000, 5);
+    });
+
+    it('returns null when there is no route geometry', () => {
+      expect(snapPointToPolyline(pA, [])).toBeNull();
+    });
+  });
+
+  describe('splitPolylineAtClosestPoint', () => {
+    it('splits consumed and remaining route at the closest projected point', () => {
+      const poly = [pA, pB, pC];
+      const p = { lat: 11.0005, lng: 124.6005 };
+
+      const split = splitPolylineAtClosestPoint(p, poly);
+
+      expect(split.segmentIndex).toBe(0);
+      expect(split.splitPoint?.lat).toBeCloseTo(11.0005, 5);
+      expect(split.splitPoint?.lng).toBeCloseTo(124.6000, 5);
+      expect(split.consumed).toHaveLength(2);
+      expect(split.remaining).toHaveLength(3);
+      expect(split.consumed.at(-1)).toEqual(split.splitPoint);
+      expect(split.remaining[0]).toEqual(split.splitPoint);
+      expect(split.remaining.at(-1)).toEqual(pC);
+    });
+
+    it('does not duplicate the next vertex when the split lands exactly on it', () => {
+      const poly = [pA, pB, pC];
+
+      const split = splitPolylineAtClosestPoint(pB, poly);
+
+      expect(split.remaining[0]).toEqual(pB);
+      expect(split.remaining[1]).toEqual(pC);
     });
   });
 

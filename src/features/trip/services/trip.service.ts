@@ -24,6 +24,7 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  updateDoc,
   type DocumentData,
   type FirestoreError,
   type Timestamp,
@@ -70,6 +71,21 @@ function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
           durationSeconds: data.route.durationSeconds as number,
           polyline: data.route.polyline as string,
           fetchedAt: (data.route.fetchedAt as Timestamp) ?? null,
+        }
+      : null,
+    driverRoute: data.driverRoute
+      ? {
+          polyline: data.driverRoute.polyline as string,
+          distanceMeters: data.driverRoute.distanceMeters as number,
+          durationSeconds: data.driverRoute.durationSeconds as number,
+          updatedAt: (data.driverRoute.updatedAt as Timestamp) ?? null,
+        }
+      : null,
+    tripProgress: data.tripProgress
+      ? {
+          remainingMeters: data.tripProgress.remainingMeters as number,
+          etaSeconds: data.tripProgress.etaSeconds as number,
+          updatedAt: (data.tripProgress.updatedAt as Timestamp) ?? null,
         }
       : null,
     serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
@@ -237,5 +253,31 @@ export async function cancel(
       throw new TripServiceError('Cancel failed', err);
     }
     throw new TripServiceError('Cancel failed', err);
+  }
+}
+
+export async function publishTripProgress(
+  tripId: string,
+  progress: {
+    readonly remainingMeters: number;
+    readonly etaSeconds: number;
+  },
+): Promise<void> {
+  const tripRef = doc(firestore, 'trips', tripId);
+
+  try {
+    await updateDoc(tripRef, {
+      tripProgress: {
+        remainingMeters: progress.remainingMeters,
+        etaSeconds: progress.etaSeconds,
+        updatedAt: serverTimestamp(),
+      },
+    });
+  } catch (err) {
+    logger.error('[trip] progress publish failed', { err, tripId });
+    if (err instanceof FirebaseError) {
+      throw new TripServiceError('Progress publish failed', err);
+    }
+    throw new TripServiceError('Progress publish failed', err);
   }
 }

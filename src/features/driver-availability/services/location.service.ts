@@ -3,7 +3,7 @@
  * and throttled Firestore writes to drivers/{uid}.
  *
  * Architecture constraints (Phase 5):
- * - Foreground ONLY. No TaskManager, no background permissions.
+ * - Background tracking uses the same drivers/{uid} write contract.
  * - Watch is started/stopped by useLocationPublisher (never directly by screens).
  * - Throttle: ~4–5 s elapsed OR ~25 m moved (lib/throttle.shouldEmit).
  * - Writes update: location, geohash, heading, locationUpdatedAt.
@@ -13,6 +13,7 @@
  */
 
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, type FieldValue, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { LocationPermissionError } from '@/features/driver-availability/errors';
@@ -23,8 +24,17 @@ import { logger } from '@/lib/logger';
 import { shouldEmit } from '@/lib/throttle';
 import { firestore } from '@/services/firebase/firebase';
 
-/** How accurate we need the location for publishing. */
-const LOCATION_ACCURACY = Location.Accuracy.Balanced;
+export const DRIVER_BACKGROUND_LOCATION_TASK = 'pakyaw-driver-background-location';
+export const DRIVER_BACKGROUND_LOCATION_UID_KEY = 'pakyaw:driver-background-location-uid';
+export const DRIVER_LAST_BACKGROUND_LOCATION_KEY = 'pakyaw:last-bg-location';
+
+export type LastBackgroundLocation = {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly heading: number | null;
+  readonly speed: number | null;
+  readonly recordedAt: number;
+};
 
 /** Throttle state — bound to each subscription instance. */
 type ThrottleState = {
@@ -44,6 +54,23 @@ type LocationPublishPayload = {
 let _subscription: Location.LocationSubscription | null = null;
 let _currentAccuracy: Location.Accuracy | null = null;
 
+export function getBackgroundLocationOptions(): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.Balanced,
+    distanceInterval: 25,
+    timeInterval: 10_000,
+    deferredUpdatesDistance: 25,
+    deferredUpdatesInterval: 10_000,
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: 'Pakyaw driver location active',
+      notificationBody: 'Sharing your location while you are online or on a trip.',
+      notificationColor: '#208AEF',
+    },
+  };
+}
+
 /**
  * Request foreground location permission.
  * Throws LocationPermissionError if permission is denied.
@@ -62,6 +89,77 @@ export async function ensureForegroundPermission(): Promise<void> {
   if (status !== 'granted') {
     throw new LocationPermissionError();
   }
+}
+
+export async function ensureBackgroundPermission(): Promise<void> {
+  await ensureForegroundPermission();
+
+  const existing = await Location.getBackgroundPermissionsAsync();
+  if (existing.status === 'granted') {
+    return;
+  }
+
+  const { status } = await Location.requestBackgroundPermissionsAsync();
+  if (status !== 'granted') {
+    throw new LocationPermissionError(
+      'Background location permission is required to keep sharing driver location when Pakyaw is not open.',
+    );
+  }
+}
+
+export async function startBackgroundPublishing(uid: string): Promise<void> {
+  await AsyncStorage.setItem(DRIVER_BACKGROUND_LOCATION_UID_KEY, uid);
+
+  const hasStarted = await Location.hasStartedLocationUpdatesAsync(
+    DRIVER_BACKGROUND_LOCATION_TASK,
+  );
+
+  if (hasStarted) {
+    return;
+  }
+
+  await ensureBackgroundPermission();
+  await Location.startLocationUpdatesAsync(
+    DRIVER_BACKGROUND_LOCATION_TASK,
+    getBackgroundLocationOptions(),
+  );
+  logger.info('[location] background subscription started');
+}
+
+export async function stopBackgroundPublishing(): Promise<void> {
+  const hasStarted = await Location.hasStartedLocationUpdatesAsync(
+    DRIVER_BACKGROUND_LOCATION_TASK,
+  );
+
+  if (!hasStarted) {
+    await AsyncStorage.removeItem(DRIVER_BACKGROUND_LOCATION_UID_KEY);
+    return;
+  }
+
+  await Location.stopLocationUpdatesAsync(DRIVER_BACKGROUND_LOCATION_TASK);
+  await AsyncStorage.removeItem(DRIVER_BACKGROUND_LOCATION_UID_KEY);
+  logger.info('[location] background subscription stopped');
+}
+
+export function getLocationPublishPayload(
+  locationObject: Location.LocationObject,
+): LocationPublishPayload {
+  const { latitude, longitude, heading } = locationObject.coords;
+
+  return {
+    location: { latitude, longitude },
+    geohash: geohashOf({ lat: latitude, lng: longitude }, 7),
+    heading: heading ?? null,
+    locationUpdatedAt: serverTimestamp(),
+  };
+}
+
+export async function publishDriverLocation(
+  uid: string,
+  locationObject: Location.LocationObject,
+): Promise<void> {
+  const driverRef = doc(firestore, 'drivers', uid);
+  await updateDoc(driverRef, getLocationPublishPayload(locationObject));
 }
 
 /**
@@ -131,24 +229,16 @@ export async function startPublishing(
       throttleState.lastAt = now;
       throttleState.lastGeo = geo;
 
-      const payload: LocationPublishPayload = {
-        location: { latitude, longitude },
-        geohash: geohashOf(geo, 7),
-        heading: heading ?? null,
-        locationUpdatedAt: serverTimestamp(),
-      };
-
       try {
         // updateDoc is safe here: the document is guaranteed to exist because
         // goOnline() (which uses setDoc+merge) must succeed before the
         // location subscription is started.
-        const driverRef = doc(firestore, 'drivers', uid);
-        await updateDoc(driverRef, payload);
+        await publishDriverLocation(uid, locationObject);
         logger.info('[location] published', { latitude, longitude });
       } catch (err) {
         // Non-fatal: log and keep the subscription alive.
         // The next throttled update will retry.
-        logger.error('[location] publish write failed:', err);
+        logger.error('[location] publish write failed:', { error: err });
       }
     },
   );

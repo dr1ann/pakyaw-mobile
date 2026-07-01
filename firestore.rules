@@ -226,6 +226,24 @@ service cloud.firestore {
           && request.resource.data.serviceAreaId == resource.data.serviceAreaId
         )
         ||
+        // ── Phase 4: lightweight passenger live progress ──────────────────
+        // Only the assigned driver may publish the compact progress object.
+        // The full route is never accepted by this write path.
+        (
+          isDriver()
+          && resource.data.driverId == request.auth.uid
+          && resource.data.status in ['driver_arriving', 'in_progress']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tripProgress'])
+          && request.resource.data.tripProgress.keys().hasOnly([
+               'remainingMeters', 'etaSeconds', 'updatedAt'
+             ])
+          && request.resource.data.tripProgress.remainingMeters is number
+          && request.resource.data.tripProgress.remainingMeters >= 0
+          && request.resource.data.tripProgress.etaSeconds is number
+          && request.resource.data.tripProgress.etaSeconds >= 0
+          && request.resource.data.tripProgress.updatedAt == request.time
+        )
+        ||
         // ── Phase 8A: accepted → driver_arriving ──────────────────────────
         (
           isDriver()

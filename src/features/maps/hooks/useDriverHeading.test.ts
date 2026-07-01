@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useDriverHeading } from './useDriverHeading';
+import { selectHeadingSource, useDriverHeading } from './useDriverHeading';
 
 let mockGpsHeading: number | null = null;
 let mockGpsSpeed: number | null = null;
@@ -48,5 +48,37 @@ describe('useDriverHeading', () => {
     mockCapturedEffects.forEach((eff) => eff());
 
     expect(headingCallback).not.toBeNull();
+  });
+
+  it('keeps compass heading until GPS course reaches the enter threshold', () => {
+    expect(selectHeadingSource({
+      previousSource: 'compass',
+      gpsHeading: 90,
+      gpsSpeed: 1.4,
+      hasCompassHeading: true,
+    })).toBe('compass');
+
+    expect(selectHeadingSource({
+      previousSource: 'compass',
+      gpsHeading: 90,
+      gpsSpeed: 1.5,
+      hasCompassHeading: true,
+    })).toBe('gps');
+  });
+
+  it('keeps GPS course until speed drops below the lower release threshold', () => {
+    expect(selectHeadingSource({
+      previousSource: 'gps',
+      gpsHeading: 90,
+      gpsSpeed: 1.1,
+      hasCompassHeading: true,
+    })).toBe('gps');
+
+    expect(selectHeadingSource({
+      previousSource: 'gps',
+      gpsHeading: 90,
+      gpsSpeed: 0.9,
+      hasCompassHeading: true,
+    })).toBe('compass');
   });
 });

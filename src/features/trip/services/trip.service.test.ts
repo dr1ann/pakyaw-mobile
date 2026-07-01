@@ -15,6 +15,7 @@ let mockDriverData: Record<string, unknown> | null = null;
 const mockTxGet = vi.fn();
 const mockTxUpdate = vi.fn();
 const mockTxDelete = vi.fn();
+const mockUpdateDoc = vi.fn();
 
 vi.mock('firebase/firestore', () => {
   return {
@@ -30,6 +31,7 @@ vi.mock('firebase/firestore', () => {
       await fn(tx);
     }),
     serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
+    updateDoc: mockUpdateDoc,
   };
 });
 
@@ -302,5 +304,35 @@ describe('CANCELLABLE_STATUSES constant', () => {
     expect(CANCELLABLE_STATUSES).not.toContain('in_progress');
     expect(CANCELLABLE_STATUSES).not.toContain('completed');
     expect(CANCELLABLE_STATUSES).not.toContain('cancelled');
+  });
+});
+
+describe('trip.service — publishTripProgress()', () => {
+  let publishTripProgress: typeof import('@/features/trip/services/trip.service').publishTripProgress;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const mod = await import('@/features/trip/services/trip.service');
+    publishTripProgress = mod.publishTripProgress;
+  });
+
+  it('writes only the lightweight tripProgress payload', async () => {
+    await expect(
+      publishTripProgress('trip-1', {
+        remainingMeters: 1234,
+        etaSeconds: 456,
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'trips', id: 'trip-1' }),
+      {
+        tripProgress: {
+          remainingMeters: 1234,
+          etaSeconds: 456,
+          updatedAt: { __serverTimestamp: true },
+        },
+      }
+    );
   });
 });

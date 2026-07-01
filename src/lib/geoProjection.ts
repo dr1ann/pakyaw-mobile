@@ -62,6 +62,101 @@ export function getMinDistanceToPolyline(
 }
 
 /**
+ * Projects a point onto the closest segment of a polyline.
+ */
+export function snapPointToPolyline(
+  point: LatLng,
+  polyline: readonly LatLng[]
+): LatLng | null {
+  if (polyline.length === 0) return null;
+  if (polyline.length === 1) return polyline[0];
+
+  let minDistance = Infinity;
+  let closestPoint = polyline[0];
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const a = polyline[i];
+    const b = polyline[i + 1];
+    const projectedPoint = projectPointOnSegment(point, a, b);
+    const distance = haversineMeters(point, projectedPoint);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestPoint = projectedPoint;
+    }
+  }
+
+  return closestPoint;
+}
+
+function isSamePoint(a: LatLng, b: LatLng): boolean {
+  return a.lat === b.lat && a.lng === b.lng;
+}
+
+function appendPoint(points: LatLng[], point: LatLng): LatLng[] {
+  const lastPoint = points[points.length - 1];
+  if (lastPoint && isSamePoint(lastPoint, point)) {
+    return points;
+  }
+  return [...points, point];
+}
+
+/**
+ * Splits a polyline at the point closest to the supplied position.
+ * The original geometry is preserved; the projected split point is inserted
+ * into both returned arrays so rendering can fade the consumed segment and
+ * keep the remaining segment highlighted.
+ */
+export function splitPolylineAtClosestPoint(
+  point: LatLng,
+  polyline: readonly LatLng[]
+): {
+  readonly consumed: readonly LatLng[];
+  readonly remaining: readonly LatLng[];
+  readonly splitPoint: LatLng | null;
+  readonly segmentIndex: number | null;
+} {
+  if (polyline.length === 0) {
+    return { consumed: [], remaining: [], splitPoint: null, segmentIndex: null };
+  }
+  if (polyline.length === 1) {
+    return {
+      consumed: [polyline[0]],
+      remaining: [polyline[0]],
+      splitPoint: polyline[0],
+      segmentIndex: 0,
+    };
+  }
+
+  let minDistance = Infinity;
+  let splitPoint = polyline[0];
+  let segmentIndex = 0;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const projectedPoint = projectPointOnSegment(point, polyline[i], polyline[i + 1]);
+    const distance = haversineMeters(point, projectedPoint);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      splitPoint = projectedPoint;
+      segmentIndex = i;
+    }
+  }
+
+  const consumed = appendPoint(polyline.slice(0, segmentIndex + 1), splitPoint);
+  const remainingStart = isSamePoint(splitPoint, polyline[segmentIndex + 1])
+    ? polyline.slice(segmentIndex + 1)
+    : [splitPoint, ...polyline.slice(segmentIndex + 1)];
+
+  return {
+    consumed,
+    remaining: remainingStart,
+    splitPoint,
+    segmentIndex,
+  };
+}
+
+/**
  * Calculates the remaining distance to the end of a step's polyline
  * starting from the driver's current projected position on that polyline.
  */

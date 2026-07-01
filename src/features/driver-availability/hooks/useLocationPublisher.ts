@@ -14,24 +14,28 @@
  * Permission denied → exposes locationPermissionDenied: true (first-class state).
  * No automatic retry on permission denial per architecture §10.7.
  *
- * This hook NEVER registers TaskManager tasks. Foreground only.
+ * TaskManager registration lives in a top-level module; this hook starts/stops it.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 
+import * as Pip from '../../../../modules/expo-pip/src/ExpoPipModule';
 import { LocationPermissionError } from '@/features/driver-availability/errors';
 import {
   ensureForegroundPermission,
   isPublishing,
+  startBackgroundPublishing,
   startPublishing,
+  stopBackgroundPublishing,
   stopPublishing,
 } from '@/features/driver-availability/services/location.service';
 import { logger } from '@/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useUiStore } from '@/stores/uiStore';
 
 export type UseLocationPublisherResult = {
   /** True when location permission has been denied. Show settings CTA when true. */
@@ -75,6 +79,14 @@ export function useLocationPublisher(): UseLocationPublisherResult {
         isForegroundedRef.current = nextState === 'active';
 
         if (wasForegrounded && nextState === 'background') {
+          const pipIsActive =
+            Platform.OS === 'android' &&
+            (useUiStore.getState().pip.isInPip || Pip.isActive());
+          if (pipIsActive) {
+            logger.info('[locationPublisher] app in PiP — keeping foreground watch');
+            return;
+          }
+
           // App entered background — stop immediately.
           logger.info('[locationPublisher] app backgrounded — stopping');
           stopPublishing();
@@ -125,6 +137,11 @@ export function useLocationPublisher(): UseLocationPublisherResult {
     } else {
       // Driver went offline — stop immediately.
       stopPublishing();
+      void stopBackgroundPublishing().catch((err) => {
+        logger.warn('[locationPublisher] failed to stop background tracking', {
+          error: String(err),
+        });
+      });
     }
 
     return () => {
@@ -139,6 +156,11 @@ export function useLocationPublisher(): UseLocationPublisherResult {
   useEffect(() => {
     return () => {
       stopPublishing();
+      void stopBackgroundPublishing().catch((err) => {
+        logger.warn('[locationPublisher] failed to stop background tracking on unmount', {
+          error: String(err),
+        });
+      });
     };
   }, []);
 
@@ -170,6 +192,12 @@ async function startIfNeeded(
       if (isCancelled?.()) return;
       setLocationPermissionDenied(false);
     }
+
+    void startBackgroundPublishing(uid).catch((err) => {
+      logger.warn('[locationPublisher] background tracking unavailable', {
+        error: String(err),
+      });
+    });
 
     await startPublishing(uid, (lat, lng, heading, speed) => {
       setLastLocation(lat, lng);
