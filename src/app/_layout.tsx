@@ -1,15 +1,15 @@
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import '@/features/driver-availability/services/backgroundLocationTask';
 import { useSession, useSessionBootstrap } from '@/features/auth/hooks/useSession';
-import { queryClient, persistOptions } from '@/services/query/queryClient';
-import { useSessionStore } from '@/stores/sessionStore';
+import '@/features/driver-availability/services/backgroundLocationTask';
+import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
