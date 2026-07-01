@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import { useSegments } from 'expo-router';
@@ -14,10 +14,10 @@ export function usePassengerLocationPublisher() {
   const resetStore = useLocationStore((s) => s.reset);
 
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   const isRideActive = !segments.includes('activity') && !segments.includes('account');
-  const isAppActive = appStateRef.current === 'active';
+  const isAppActive = appState === 'active';
   const shouldSubscribe = !!uid && isRideActive && isAppActive;
 
   // Handle permission request and status sync
@@ -58,18 +58,17 @@ export function usePassengerLocationPublisher() {
   // Handle AppState changes
   useEffect(() => {
     const appStateSub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      appStateRef.current = nextState;
-      void evaluateSubscription();
+      setAppState(nextState);
     });
 
     return () => {
       appStateSub.remove();
     };
-  });
+  }, []);
 
   const permissionStatus = useLocationStore((s) => s.permissionStatus);
 
-  const evaluateSubscription = async () => {
+  const evaluateSubscription = useCallback(async () => {
     if (!shouldSubscribe || permissionStatus !== 'granted') {
       if (subscriptionRef.current) {
         logger.info('[PassengerLocationPublisher] Stopping location watch (Idle/Suspended)');
@@ -102,7 +101,7 @@ export function usePassengerLocationPublisher() {
         logger.error('[PassengerLocationPublisher] Failed to start watchPositionAsync', err);
       }
     }
-  };
+  }, [shouldSubscribe, permissionStatus, setLocation]);
 
   useEffect(() => {
     void evaluateSubscription();
@@ -113,5 +112,5 @@ export function usePassengerLocationPublisher() {
         subscriptionRef.current = null;
       }
     };
-  }, [shouldSubscribe, permissionStatus]);
+  }, [evaluateSubscription]);
 }

@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { Timestamp } from 'firebase/firestore';
 
 import { Card } from '@/components/ui/Card';
 import { RouteConnector } from '@/components/ui/RouteConnector';
@@ -122,7 +123,7 @@ export default function TripDetailScreen() {
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Trip ID</Text>
-          <Text style={styles.detailValueId} numberOfLines={1} selectTextOnFocus>
+          <Text style={styles.detailValueId} numberOfLines={1} selectable={true}>
             {trip.id}
           </Text>
         </View>
@@ -152,9 +153,22 @@ export default function TripDetailScreen() {
   );
 }
 
-function formatDate(timestamp: any): string {
+function formatDate(timestamp: Timestamp | string | number | Date | null | undefined): string {
   if (!timestamp) return '—';
-  const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
+  let date: Date;
+  if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (
+    typeof timestamp === 'object' &&
+    timestamp !== null &&
+    'toDate' in timestamp &&
+    typeof (timestamp as { toDate: unknown }).toDate === 'function'
+  ) {
+    date = (timestamp as { toDate: () => Date }).toDate();
+  } else {
+    date = new Date(timestamp as string | number);
+  }
+
   return (
     date.toLocaleDateString('en-US', {
       weekday: 'long',

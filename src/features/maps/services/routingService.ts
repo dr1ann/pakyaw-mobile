@@ -1,7 +1,9 @@
 import Constants from 'expo-constants';
 import { env } from '@/services/env';
-import { routeResponseSchema } from '@/features/booking/validation/bookingSchema';
+import { routeResponseSchema, navRouteResponseSchema } from '@/features/booking/validation/bookingSchema';
 import { logger } from '@/lib/logger';
+import { decodePolyline } from '@/lib/maps/decodePolyline';
+import type { NavRoute, NavStep, Maneuver } from '../navigation/types';
 
 const GOOGLE_MAPS_API_KEY =
   Constants.expoConfig?.extra?.googleMapsApiKey ||
@@ -118,9 +120,6 @@ export function extractRoadName(instruction: string): string | null {
   return null;
 }
 
-import { decodePolyline } from '@/lib/maps/decodePolyline';
-import { navRouteResponseSchema } from '@/features/booking/validation/bookingSchema';
-import type { NavRoute, NavStep, Maneuver } from '../navigation/types';
 
 /**
  * Fetch a navigation route with detailed steps from Google Directions API (Phase 12 Navigation).

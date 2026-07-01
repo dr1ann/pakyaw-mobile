@@ -5,7 +5,6 @@ import { Sheet } from '@/components/ui/Sheet';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { SAVED_PICKUP_PLACES } from '@/features/booking/constants';
 import type { Place } from '@/features/booking/types';
-import { logger } from '@/lib/logger';
 import { useLocationStore } from '@/stores/locationStore';
 
 export type PickupPickerProps = {

@@ -16,7 +16,7 @@ export default function PassengerLayout() {
         tabBarInactiveTintColor: colors.ink[400],
         tabBarStyle: {
           backgroundColor: colors.surface.card,
-          borderTopColor: colors.border,
+          borderTopColor: colors.border.subtle,
         },
       }}
     >

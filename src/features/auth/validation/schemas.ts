@@ -34,7 +34,7 @@ export type SignUpProfile = z.infer<typeof signUpProfileSchema>;
  */
 export const riderTypeSchema = z.object({
   riderType: z.enum(['regular', 'student', 'pwd', 'senior'], {
-    errorMap: () => ({ message: 'Please select a rider type.' }),
+    message: 'Please select a rider type.',
   }),
 });
 

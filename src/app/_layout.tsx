@@ -29,7 +29,7 @@ function AppNavigator() {
     if (status !== 'loading') {
       try {
         await SplashScreen.hideAsync();
-      } catch (e) {
+      } catch {
         // ignore
       }
     }

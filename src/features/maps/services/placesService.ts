@@ -15,6 +15,15 @@ export type AutocompletePrediction = {
   readonly secondaryText: string;
 };
 
+interface GoogleAutocompletePrediction {
+  readonly place_id: string;
+  readonly description: string;
+  readonly structured_formatting?: {
+    readonly main_text?: string;
+    readonly secondary_text?: string;
+  };
+}
+
 /**
  * Fetch autocomplete predictions for a query, biased and restricted to Ormoc City (Phase 12).
  */
@@ -41,8 +50,8 @@ export async function getPredictions(query: string): Promise<readonly Autocomple
       return [];
     }
 
-    const predictions = data.predictions || [];
-    return predictions.map((p: any) => ({
+    const predictions = (data.predictions || []) as readonly GoogleAutocompletePrediction[];
+    return predictions.map((p) => ({
       placeId: p.place_id,
       description: p.description,
       mainText: p.structured_formatting?.main_text || p.description,
@@ -92,6 +101,12 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
   }
 }
 
+interface GoogleAddressComponent {
+  readonly long_name: string;
+  readonly short_name: string;
+  readonly types: readonly string[];
+}
+
 /**
  * Reverse geocode a latitude/longitude pair into a Place description (Phase 12).
  */
@@ -119,12 +134,12 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     const topResult = results[0];
     
     // Attempt to extract a short name or use the first parts of the address
-    const addressComponents = topResult.address_components || [];
+    const addressComponents = (topResult.address_components || []) as readonly GoogleAddressComponent[];
     let label = 'Dropped Pin';
     
     // Find the most specific named feature or street number/name
-    const routeComponent = addressComponents.find((c: any) => c.types.includes('route'));
-    const sublocalityComponent = addressComponents.find((c: any) => c.types.includes('sublocality') || c.types.includes('neighborhood'));
+    const routeComponent = addressComponents.find((c) => c.types.includes('route'));
+    const sublocalityComponent = addressComponents.find((c) => c.types.includes('sublocality') || c.types.includes('neighborhood'));
     
     if (routeComponent && sublocalityComponent) {
       label = `${routeComponent.long_name}, ${sublocalityComponent.long_name}`;

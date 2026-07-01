@@ -97,7 +97,7 @@ export function LiveMap({
   const [focusKey, setFocusKey] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [longitudeDelta, setLongitudeDelta] = useState(0.015);
-  const lastNavigationMapPaddingRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
+  const [navigationMapPadding, setNavigationMapPadding] = useState({ top: 0, right: 0, bottom: 0, left: 0 });
 
   const arrowSize = React.useMemo(() => {
     // We use discrete sizes to prevent too many re-renders while ensuring
@@ -118,25 +118,38 @@ export function LiveMap({
   // marker low (Grab / Google Maps navigation feel) while the road ahead fills
   // the upper view. Only applied during Navigation Mode; overview framing uses
   // unpadded fits so it isn't distorted.
-  const navigationMapPadding = React.useMemo(() => {
-    if (freezeNavigationMapPadding) {
-      return lastNavigationMapPaddingRef.current;
-    }
+  useEffect(() => {
+    if (freezeNavigationMapPadding) return;
+
+    let active = true;
 
     if (!navigationActive || containerHeight <= 0) {
-      lastNavigationMapPaddingRef.current = { top: 0, right: 0, bottom: 0, left: 0 };
-      return lastNavigationMapPaddingRef.current;
+      requestAnimationFrame(() => {
+        if (!active) return;
+        setNavigationMapPadding((prev) => {
+          if (prev.top === 0 && prev.right === 0 && prev.bottom === 0 && prev.left === 0) return prev;
+          return { top: 0, right: 0, bottom: 0, left: 0 };
+        });
+      });
+      return;
     }
+
     const visibleHeight = Math.max(0, containerHeight - navigationBottomInset);
-    // anchor fraction f within the visible rect → topPad / visibleHeight = (2f - 1)
     const anchorOffset = Math.max(0, 2 * navigationDriverScreenAnchor - 1) * visibleHeight;
-    lastNavigationMapPaddingRef.current = {
-      top: Math.round(anchorOffset),
-      right: 0,
-      bottom: Math.round(navigationBottomInset),
-      left: 0,
+    const top = Math.round(anchorOffset);
+    const bottom = Math.round(navigationBottomInset);
+
+    requestAnimationFrame(() => {
+      if (!active) return;
+      setNavigationMapPadding((prev) => {
+        if (prev.top === top && prev.right === 0 && prev.bottom === bottom && prev.left === 0) return prev;
+        return { top, right: 0, bottom, left: 0 };
+      });
+    });
+
+    return () => {
+      active = false;
     };
-    return lastNavigationMapPaddingRef.current;
   }, [
     freezeNavigationMapPadding,
     navigationActive,

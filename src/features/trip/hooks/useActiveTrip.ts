@@ -16,7 +16,6 @@ import { useEffect } from 'react';
 import { subscribe } from '@/features/trip/services/trip.service';
 import { logger } from '@/lib/logger';
 import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useBookingDraftStore } from '@/stores/bookingDraftStore';
 import { useSessionStore } from '@/stores/sessionStore';
 
 let activeTripId: string | null = null;

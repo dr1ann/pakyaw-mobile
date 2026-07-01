@@ -177,12 +177,13 @@ export default function RideScreen() {
   // Auto-resolve / seed pickup from device location when available and pickup is empty
   useEffect(() => {
     if (draft.pickup || !deviceLocation) return;
+    const { latitude, longitude } = deviceLocation;
 
     let active = true;
     async function seedPickup() {
       try {
         logger.info('[RideScreen] Seeding pickup from device location...', deviceLocation);
-        const place = await reverseGeocode(deviceLocation.latitude, deviceLocation.longitude);
+        const place = await reverseGeocode(latitude, longitude);
         if (place && active) {
           logger.info('[RideScreen] Seeded pickup location:', place);
           setPickup(place);

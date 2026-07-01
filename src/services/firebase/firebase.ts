@@ -2,10 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,
-  getReactNativePersistence,
   initializeAuth,
   type Auth,
+  type Persistence,
 } from 'firebase/auth';
+import * as firebaseAuth from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
 import { env } from '@/services/env';
@@ -20,10 +21,20 @@ const firebaseConfig = {
 export const app: FirebaseApp =
   getApps()[0] ?? initializeApp(firebaseConfig);
 
+type ReactNativePersistenceFn = (storage: unknown) => Persistence;
+
 // Guard against double-initialization on hot reload.
 // initializeAuth throws if called twice on the same app instance.
 let _auth: Auth;
 try {
+  const getReactNativePersistence = (
+    firebaseAuth as { readonly getReactNativePersistence?: ReactNativePersistenceFn }
+  ).getReactNativePersistence;
+
+  if (!getReactNativePersistence) {
+    throw new Error('getReactNativePersistence is not defined on firebase/auth');
+  }
+
   _auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });

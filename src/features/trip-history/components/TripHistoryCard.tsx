@@ -5,6 +5,7 @@ import { RouteConnector } from '@/components/ui/RouteConnector';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import type { TripHistoryItem } from '../types';
+import type { Timestamp } from 'firebase/firestore';
 
 export type TripHistoryCardProps = {
   readonly trip: TripHistoryItem;
@@ -66,9 +67,21 @@ export function TripHistoryCard({ trip, onPress }: TripHistoryCardProps) {
   );
 }
 
-function formatDate(timestamp: any): string {
+function formatDate(timestamp: Timestamp | string | number | Date | null | undefined): string {
   if (!timestamp) return '—';
-  const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp);
+  let date: Date;
+  if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (
+    typeof timestamp === 'object' &&
+    timestamp !== null &&
+    'toDate' in timestamp &&
+    typeof (timestamp as { toDate: unknown }).toDate === 'function'
+  ) {
+    date = (timestamp as { toDate: () => Date }).toDate();
+  } else {
+    date = new Date(timestamp as string | number);
+  }
   return (
     date.toLocaleDateString('en-US', {
       month: 'short',

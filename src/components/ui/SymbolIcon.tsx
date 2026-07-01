@@ -1,13 +1,15 @@
-import React from 'react';
-import { type StyleProp, type ViewStyle } from 'react-native';
+import React, { type ComponentProps } from 'react';
+import { type StyleProp, type ViewStyle, type ColorValue } from 'react-native';
 import { SymbolView } from 'expo-symbols';
+
 
 export type SymbolIconProps = {
   readonly name: string;
   readonly size?: number;
-  readonly tintColor?: string;
+  readonly tintColor?: ColorValue;
   readonly style?: StyleProp<ViewStyle>;
 };
+
 
 // Map iOS SF Symbols to Android/Web Material Symbols fallbacks
 const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> = {
@@ -48,7 +50,7 @@ export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProp
 
   return (
     <SymbolView
-      name={platformName}
+      name={platformName as ComponentProps<typeof SymbolView>['name']}
       size={size}
       tintColor={tintColor}
       style={style}

@@ -22,6 +22,7 @@ export type ButtonProps = {
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  tone?: 'destructive' | 'default';
 };
 
 export function Button({

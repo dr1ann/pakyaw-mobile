@@ -154,5 +154,4 @@ const styles = StyleSheet.create({
     borderColor: COLORS.greenPrimary,
   },
   btnDriverLabel: { fontSize: 16, fontWeight: '600', color: COLORS.greenPrimary },
-  ink900: '#0E1726',
 });
