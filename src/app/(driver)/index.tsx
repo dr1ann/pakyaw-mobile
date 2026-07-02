@@ -174,10 +174,10 @@ export default function DriveScreen() {
     lastLatitude !== null && lastLongitude !== null
       ? { latitude: lastLatitude, longitude: lastLongitude }
       : null;
-  const pickupLocation = trip?.pickup?.coords
+  const pickupLocation = !isTripTerminal && trip?.pickup?.coords
     ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
     : null;
-  const destinationLocation = trip?.destination?.coords
+  const destinationLocation = !isTripTerminal && trip?.destination?.coords
     ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
     : null;
   const rawNavigationCoordinate = driverLocation ?? ownLocation;

@@ -13,12 +13,12 @@
  *     - Status-driven active sheets (Searching, Matched, En Route, Arrived, etc.)
  */
 
+import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
+import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocationStore } from '@/stores/locationStore';
-import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
-import MapView from 'react-native-maps';
 import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } from 'react-native';
+import MapView from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { LocationLoader } from '@/components/ui/LocationLoader';
@@ -31,8 +31,6 @@ import { HomeSheet } from '@/features/booking/components/HomeSheet';
 import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
-import { getDistanceToStepEnd } from '@/lib/geoProjection';
-import { decodePolyline } from '@/lib/maps/decodePolyline';
 import { reverseGeocode } from '@/features/maps/services/placesService';
 import { ArrivedSheet } from '@/features/trip/components/ArrivedSheet';
 import { CancelledSheet } from '@/features/trip/components/CancelledSheet';
@@ -44,10 +42,12 @@ import { LiveMap } from '@/features/trip/components/LiveMap';
 import { useActiveTrip } from '@/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
 import type { TripStatus } from '@/features/trip/types';
+import { getDistanceToStepEnd } from '@/lib/geoProjection';
 import { logger } from '@/lib/logger';
+import { decodePolyline } from '@/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftStore';
+import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -119,19 +119,20 @@ export default function RideScreen() {
       };
     } else {
       // active or terminal phase
+      const isTerminal = phase === 'terminal';
       return {
-        pickupLocation: trip?.pickup?.coords
+        pickupLocation: !isTerminal && trip?.pickup?.coords
           ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
           : null,
-        destinationLocation: trip?.destination?.coords
+        destinationLocation: !isTerminal && trip?.destination?.coords
           ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
           : null,
-        routePolyline: trip?.route?.polyline ?? null,
-        driverLocation: driverLocation
+        routePolyline: !isTerminal ? (trip?.route?.polyline ?? null) : null,
+        driverLocation: !isTerminal && driverLocation
           ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
           : null,
-        showDriverRoute: trip?.status === 'accepted' || trip?.status === 'driver_arriving',
-        driverRoutePolyline: trip?.driverRoute?.polyline ?? null,
+        showDriverRoute: !isTerminal && (trip?.status === 'accepted' || trip?.status === 'driver_arriving'),
+        driverRoutePolyline: !isTerminal ? (trip?.driverRoute?.polyline ?? null) : null,
       };
     }
   }, [phase, draft.pickup, draft.destination, draft.route, trip, driverLocation]);
@@ -214,7 +215,7 @@ export default function RideScreen() {
     }
 
     logger.info('[RideScreen] Pickup pin drag ended inside Ormoc, updating store immediately', coords);
-    
+
     // Invalidate route and update coordinates immediately
     setPickup({
       coords: { lat: coords.latitude, lng: coords.longitude },
@@ -275,6 +276,7 @@ export default function RideScreen() {
 
   function handleDismissTerminal() {
     useActiveTripStore.getState().clearTrip();
+    useBookingDraftStore.getState().reset();
   }
 
   const status = trip?.status ?? (tripId ? 'request' : null);

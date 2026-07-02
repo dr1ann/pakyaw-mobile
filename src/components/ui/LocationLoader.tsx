@@ -28,11 +28,11 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.05)', // Very light overlay to keep the map and content visible
     zIndex: 9999,
-    paddingBottom: 10, // Shift the loading pill upwards, away from the bottom sheet & tab bar
+    paddingBottom: 10, // Shift the loading pill to float slightly above the bottom sheet
   },
   pill: {
     flexDirection: 'row',
