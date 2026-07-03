@@ -64,6 +64,7 @@ describe('useRideCameraController', () => {
   const setIsMapReady = vi.fn();
   let queuedCommandRef = { current: null };
   let lastExecutedCommandRef = { current: '' };
+  let hasExecutedNavigationFollowRef = { current: false };
   let prevNavEnabledRef = { current: false };
   let appStateRef = { current: 'active' as string };
 
@@ -76,6 +77,7 @@ describe('useRideCameraController', () => {
     mockSetCameraFollowing.mockClear();
     queuedCommandRef = { current: null };
     lastExecutedCommandRef = { current: '' };
+    hasExecutedNavigationFollowRef = { current: false };
     prevNavEnabledRef = { current: false };
     appStateRef = { current: 'active' };
     useUiStore.getState().resetPip();
@@ -95,7 +97,8 @@ describe('useRideCameraController', () => {
       if (count === 0) return queuedCommandRef;
       if (count === 1) return lastExecutedCommandRef;
       if (count === 2) return { current: 0 };
-      if (count === 3) return prevNavEnabledRef;
+      if (count === 3) return hasExecutedNavigationFollowRef;
+      if (count === 4) return prevNavEnabledRef;
       return appStateRef;
     });
   });
@@ -358,6 +361,92 @@ describe('useRideCameraController', () => {
     capturedEffect();
 
     expect(animateCameraMock).toHaveBeenCalledOnce();
+  });
+
+  it('engages the navigation camera immediately even when a stale pan latch exists', () => {
+    isMapReady = true;
+    mockCameraFollowing = false;
+    const animateCameraMock = vi.fn();
+    const mapRef = { current: { animateCamera: animateCameraMock } };
+    const driverCoordinate = { latitude: 11.0, longitude: 124.0 };
+    const inputs = {
+      pickupLocation: null,
+      destinationLocation: { latitude: 11.1, longitude: 124.1 },
+      driverLocation: driverCoordinate,
+      ownLocation: driverCoordinate,
+      phase: 'active' as const,
+      navigation: {
+        enabled: true,
+        coordinate: driverCoordinate,
+        heading: 0,
+        animationDurationMs: 0,
+      },
+    };
+
+    useRideCameraController(mapRef as any, inputs);
+    capturedEffect();
+
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(true);
+    expect(animateCameraMock).toHaveBeenCalledOnce();
+    expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 600 });
+    expect(hasExecutedNavigationFollowRef.current).toBe(true);
+  });
+
+  it('keeps the first navigation engagement animation until a coordinate is available', () => {
+    isMapReady = true;
+    prevNavEnabledRef = { current: true };
+    hasExecutedNavigationFollowRef = { current: false };
+    const animateCameraMock = vi.fn();
+    const mapRef = { current: { animateCamera: animateCameraMock } };
+    const driverCoordinate = { latitude: 11.0, longitude: 124.0 };
+
+    useRideCameraController(mapRef as any, {
+      pickupLocation: null,
+      destinationLocation: { latitude: 11.1, longitude: 124.1 },
+      driverLocation: driverCoordinate,
+      ownLocation: driverCoordinate,
+      phase: 'active' as const,
+      navigation: {
+        enabled: true,
+        coordinate: driverCoordinate,
+        heading: 0,
+        animationDurationMs: 0,
+      },
+    });
+    capturedEffect();
+
+    expect(animateCameraMock).toHaveBeenCalledOnce();
+    expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 600 });
+  });
+
+  it('recenters immediately without waiting for the store rerender', () => {
+    isMapReady = true;
+    mockCameraFollowing = false;
+    prevNavEnabledRef = { current: true };
+    hasExecutedNavigationFollowRef = { current: true };
+    const animateCameraMock = vi.fn();
+    const mapRef = { current: { animateCamera: animateCameraMock } };
+    const driverCoordinate = { latitude: 11.0, longitude: 124.0 };
+    const inputs = {
+      pickupLocation: null,
+      destinationLocation: { latitude: 11.1, longitude: 124.1 },
+      driverLocation: driverCoordinate,
+      ownLocation: driverCoordinate,
+      phase: 'active' as const,
+      navigation: {
+        enabled: true,
+        coordinate: driverCoordinate,
+        heading: 0,
+        animationDurationMs: 0,
+      },
+    };
+
+    const controller = useRideCameraController(mapRef as any, inputs);
+    controller.recenter();
+
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(true);
+    expect(animateCameraMock).toHaveBeenCalledOnce();
+    expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 0 });
   });
 
   it('does not execute navigation camera commands while Android PiP is active', () => {

@@ -77,6 +77,7 @@ export function useRideCameraController(
   const queuedCommandRef = useRef<CameraCommand | null>(null);
   const lastExecutedCommandRef = useRef<string>('');
   const cameraCommandSequenceRef = useRef(0);
+  const hasExecutedNavigationFollowRef = useRef(false);
   const prevNavEnabledRef = useRef(false);
   // Tracks the JS-side AppState. Camera mutations are gated on this being
   // 'active' so we never call into the native MapView while Android has torn
@@ -107,11 +108,10 @@ export function useRideCameraController(
       // On the rising edge of Navigation Mode we want a real camera sweep
       // (Google-Maps-style tilt/zoom transition) rather than an instant snap,
       // even if the caller passed `animationDurationMs: 0` for its streaming
-      // updates. `prevNavEnabledRef` was already just flipped by the effect
-      // below on the same tick, so we detect the edge here by looking at
-      // whether it USED to be false. Subsequent commands after the first
-      // successful executeCommand use the caller's duration.
-      const isEngagementFrame = !prevNavEnabledRef.current;
+      // updates. Track the first *executed* navigation command rather than
+      // only the enabled edge so a null coordinate or stale user-pan latch
+      // cannot consume the engagement sweep before the map actually follows.
+      const isEngagementFrame = !hasExecutedNavigationFollowRef.current;
       const requestedDuration = navigation.animationDurationMs ?? NAV_CAMERA_ANIM_MS;
       const durationMs = isEngagementFrame
         ? NAV_CAMERA_ANIM_MS
@@ -342,6 +342,7 @@ export function useRideCameraController(
           },
           { duration: command.animationDurationMs }
         );
+        hasExecutedNavigationFollowRef.current = true;
         break;
       }
       case 'overview':
@@ -399,6 +400,7 @@ export function useRideCameraController(
     if (navEnabled && !prevNavEnabledRef.current) {
       useActiveTripStore.getState().setCameraFollowing(true);
       lastExecutedCommandRef.current = '';
+      hasExecutedNavigationFollowRef.current = false;
     }
     // On the falling edge (nav has just ended — e.g. trip completed/cancelled
     // disarms Driving Mode) also clear the pan latch so the terminal-phase
@@ -408,6 +410,9 @@ export function useRideCameraController(
     if (!navEnabled && prevNavEnabledRef.current && userPanned) {
       useActiveTripStore.getState().setCameraFollowing(true);
     }
+    if (!navEnabled) {
+      hasExecutedNavigationFollowRef.current = false;
+    }
 
     // IMPORTANT: derive the command BEFORE updating prevNavEnabledRef so
     // getNextCommand's `isEngagementFrame = !prevNavEnabledRef.current` check
@@ -415,7 +420,9 @@ export function useRideCameraController(
     // first would collapse the engagement sweep to the caller's streaming
     // duration (which is 0 for the driver screen), causing the camera to
     // appear stuck — the driver would have to press Recenter to acquire focus.
-    const command = getNextCommand();
+    const command = getNextCommand({
+      ignoreUserPanned: navEnabled && !hasExecutedNavigationFollowRef.current,
+    });
     logger.info('[RideCameraController] navigation command snapshot', {
       timestampMs: Date.now(),
       isMapReady,
@@ -510,6 +517,14 @@ export function useRideCameraController(
     });
     useActiveTripStore.getState().setCameraFollowing(true);
     lastExecutedCommandRef.current = '';
+    const command = getNextCommand({ ignoreUserPanned: true });
+    if (command) {
+      if (isMapReady) {
+        executeCommand(command);
+      } else {
+        queuedCommandRef.current = command;
+      }
+    }
   };
 
   return {
