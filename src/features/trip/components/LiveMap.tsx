@@ -555,6 +555,10 @@ export function LiveMap({
       : ORMOC_CENTER;
   }, [pickupLocation, destinationLocation, showDestination, driverLocation, ownLocation]);
 
+  const showConsumed = !!(showDriverRoute && trimmedDriverRoute && trimmedDriverRoute.consumed.length >= 2);
+  const showRemaining = !!(showDriverRoute && trimmedDriverRoute && trimmedDriverRoute.remaining.length >= 2);
+  const showFallback = !!(showDriverRoute && !trimmedDriverRoute && decodedDriverRouteCoords);
+
   return (
     <View
       style={[styles.container, style]}
@@ -605,58 +609,50 @@ export function LiveMap({
         }}
       >
         {/* Passenger Route Polyline */}
-        {decodedRouteCoords != null && (
-          <Polyline
-            key={`passenger-route-${routePolyline ? routePolyline.length : 0}`}
-            coordinates={decodedRouteCoords}
-            strokeWidth={4}
-            strokeColor={colors.blue.primary}
-          />
-        )}
+        <Polyline
+          key="passenger-route"
+          coordinates={decodedRouteCoords ?? []}
+          strokeWidth={decodedRouteCoords != null ? 4 : 0}
+          strokeColor={decodedRouteCoords != null ? colors.blue.primary : 'transparent'}
+        />
 
         {/* Driver Route Polyline (color is leg-dependent: pre-pickup = violet,
             in-trip = blue so the rider-facing trip route styling is reused
             for the live-snapped navigation route, with the booking polyline
             suppressed by the caller to avoid drawing the same line twice). */}
-        {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.consumed.length >= 2 && (
-          <DriverRoutePolylineLayer
-            key={`driver-route-consumed-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
-            label="consumed"
-            coordinates={[...trimmedDriverRoute.consumed]}
-            strokeWidth={4}
-            strokeColor={driverRouteConsumedColor}
-            debugTripStatus={debugTripStatus}
-            debugShowDriverRoute={showDriverRoute}
-            debugDriverRoutePolyline={driverRoutePolyline}
-            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
-          />
-        )}
-        {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.remaining.length >= 2 && (
-          <DriverRoutePolylineLayer
-            key={`driver-route-remaining-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
-            label="remaining"
-            coordinates={[...trimmedDriverRoute.remaining]}
-            strokeWidth={5}
-            strokeColor={driverRouteRemainingColor}
-            debugTripStatus={debugTripStatus}
-            debugShowDriverRoute={showDriverRoute}
-            debugDriverRoutePolyline={driverRoutePolyline}
-            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
-          />
-        )}
-        {showDriverRoute && trimmedDriverRoute == null && decodedDriverRouteCoords != null && (
-          <DriverRoutePolylineLayer
-            key={`driver-route-fallback-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
-            label="fallback"
-            coordinates={decodedDriverRouteCoords}
-            strokeWidth={4}
-            strokeColor={driverRouteRemainingColor}
-            debugTripStatus={debugTripStatus}
-            debugShowDriverRoute={showDriverRoute}
-            debugDriverRoutePolyline={driverRoutePolyline}
-            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
-          />
-        )}
+        <DriverRoutePolylineLayer
+          key="driver-route-consumed"
+          label="consumed"
+          coordinates={showConsumed && trimmedDriverRoute ? trimmedDriverRoute.consumed : []}
+          strokeWidth={showConsumed ? 4 : 0}
+          strokeColor={showConsumed ? driverRouteConsumedColor : 'transparent'}
+          debugTripStatus={debugTripStatus}
+          debugShowDriverRoute={showDriverRoute}
+          debugDriverRoutePolyline={driverRoutePolyline}
+          debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
+        />
+        <DriverRoutePolylineLayer
+          key="driver-route-remaining"
+          label="remaining"
+          coordinates={showRemaining && trimmedDriverRoute ? trimmedDriverRoute.remaining : []}
+          strokeWidth={showRemaining ? 5 : 0}
+          strokeColor={showRemaining ? driverRouteRemainingColor : 'transparent'}
+          debugTripStatus={debugTripStatus}
+          debugShowDriverRoute={showDriverRoute}
+          debugDriverRoutePolyline={driverRoutePolyline}
+          debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
+        />
+        <DriverRoutePolylineLayer
+          key="driver-route-fallback"
+          label="fallback"
+          coordinates={showFallback && decodedDriverRouteCoords ? decodedDriverRouteCoords : []}
+          strokeWidth={showFallback ? 4 : 0}
+          strokeColor={showFallback ? driverRouteRemainingColor : 'transparent'}
+          debugTripStatus={debugTripStatus}
+          debugShowDriverRoute={showDriverRoute}
+          debugDriverRoutePolyline={driverRoutePolyline}
+          debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
+        />
 
         {ownLocation && (
           <Marker
