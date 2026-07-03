@@ -157,6 +157,57 @@ export function splitPolylineAtClosestPoint(
 }
 
 /**
+ * Bearing (degrees, 0..360) from `from` to `to`, matching the convention
+ * used by react-native-maps' animateCamera and Google Maps' compass rose.
+ */
+export function bearingDegrees(from: LatLng, to: LatLng): number {
+  const fromLat = (from.lat * Math.PI) / 180;
+  const toLat = (to.lat * Math.PI) / 180;
+  const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(deltaLng) * Math.cos(toLat);
+  const x =
+    Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
+  const raw = (Math.atan2(y, x) * 180) / Math.PI;
+  return ((raw % 360) + 360) % 360;
+}
+
+/**
+ * Returns the bearing of the polyline segment closest to `point`, i.e. the
+ * direction the road is heading at the driver's current position. Used as a
+ * stationary heading fallback so the arrow keeps pointing "down the road"
+ * when GPS course is unavailable (idle, stopped at a light, etc.) — matches
+ * Google Maps' navigation behavior.
+ *
+ * Returns null when there is no meaningful segment to derive a bearing from
+ * (empty or single-point polyline, or the projected point coincides with a
+ * degenerate segment).
+ */
+export function getBearingAlongPolyline(
+  point: LatLng,
+  polyline: readonly LatLng[]
+): number | null {
+  if (polyline.length < 2) return null;
+
+  let minDistance = Infinity;
+  let closestSegmentIndex = 0;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const projectedPoint = projectPointOnSegment(point, polyline[i], polyline[i + 1]);
+    const distance = haversineMeters(point, projectedPoint);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestSegmentIndex = i;
+    }
+  }
+
+  const a = polyline[closestSegmentIndex];
+  const b = polyline[closestSegmentIndex + 1];
+  if (a.lat === b.lat && a.lng === b.lng) return null;
+  return bearingDegrees(a, b);
+}
+
+/**
  * Calculates the remaining distance to the end of a step's polyline
  * starting from the driver's current projected position on that polyline.
  */

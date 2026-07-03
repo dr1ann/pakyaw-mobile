@@ -20,7 +20,7 @@
  *   active trip (on_trip)   → Trip status sheets (Phase 8E)
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -61,14 +61,14 @@ import { useVoiceGuidance } from '@/features/maps/hooks/useVoiceGuidance';
 import { NavigationBanner } from '@/features/maps/components/NavigationBanner';
 import { PipNavigationView } from '@/features/maps/components/PipNavigationView';
 import { RecenterButton } from '@/features/maps/components/RecenterButton';
+import { CompassModeToggle } from '@/features/maps/components/CompassModeToggle';
 import {
   getAutomaticNavigationStatus,
-  isNavActiveStatus,
 } from '@/features/maps/navigation/navigationHelper';
 import { useNavigationLifecycle } from '@/features/maps/navigation/useNavigationLifecycle';
 import { usePictureInPicture } from '@/features/maps/navigation/usePictureInPicture';
 import { SymbolIcon } from '@/components/ui/SymbolIcon';
-import { snapPointToPolyline } from '@/lib/geoProjection';
+import { getBearingAlongPolyline, snapPointToPolyline } from '@/lib/geoProjection';
 import { useUiStore } from '@/stores/uiStore';
 
 export default function DriveScreen() {
@@ -78,6 +78,7 @@ export default function DriveScreen() {
   const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
   const incomingRequests = useAvailabilityStore((s) => s.incomingRequests);
   const trip = useActiveTripStore((s) => s.trip);
+  const tripId = useActiveTripStore((s) => s.tripId);
 
   const [showPreflight, setShowPreflight] = useState(false);
   const [expandedTripStatus, setExpandedTripStatus] = useState<TripStatus | null>(null);
@@ -89,21 +90,9 @@ export default function DriveScreen() {
   // Phase 8E: subscribe to active trip document.
   useActiveTrip();
 
-  // Fused heading (magnetometer + GPS)
-  useDriverHeading(trip?.status ?? null);
-
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
-  const navActiveStatus = useActiveTripStore((s) => s.navActiveStatus);
-  const setNavActiveStatus = useActiveTripStore((s) => s.setNavActiveStatus);
-
-  useEffect(() => {
-    const automaticNavStatus = getAutomaticNavigationStatus(trip?.status);
-    if (navActiveStatus !== automaticNavStatus) {
-      setNavActiveStatus(automaticNavStatus);
-    }
-  }, [navActiveStatus, setNavActiveStatus, trip?.status]);
 
   // Fetch driver navigation route leg/polyline locally
   const {
@@ -165,7 +154,14 @@ export default function DriveScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const isOffline = availability === 'offline';
-  const isOnTrip = availability === 'on_trip';
+  // Under the pessimistic model, the "on trip" UI state is driven by the
+  // Firestore trip document (via tripId + useActiveTrip) rather than by a
+  // client-predicted availability flag. This means the sheet only transitions
+  // to the trip lifecycle sheets once the authoritative trip snapshot lands —
+  // if the accept transaction succeeded but the snapshot is still in-flight,
+  // the Accept button stays in its loading state instead of showing an empty
+  // "on trip" sheet with no data (Grab / Uber parity).
+  const isOnTrip = trip != null || tripId != null;
   const isTripTerminal =
     trip?.status === 'completed' || trip?.status === 'cancelled';
   const isTripInProgress = trip?.status === 'in_progress';
@@ -205,12 +201,31 @@ export default function DriveScreen() {
   const navigationTargetCoordinate = snappedNavigationCoordinate ?? rawNavigationCoordinate;
   const navigationCoordinate = useInterpolatedCoordinate(navigationTargetCoordinate);
 
+  // Route bearing at the driver's current position on the polyline. Used as
+  // a stationary heading fallback so the arrow keeps pointing down the road
+  // when GPS course is unavailable — matches Google Maps behavior when the
+  // vehicle idles at a light. See useDriverHeading's route-bearing branch.
+  const routeBearing = useMemo(() => {
+    if (!navigationTargetCoordinate || currentRoutePolyline.length < 2) return null;
+    return getBearingAlongPolyline(
+      {
+        lat: navigationTargetCoordinate.latitude,
+        lng: navigationTargetCoordinate.longitude,
+      },
+      currentRoutePolyline
+    );
+  }, [navigationTargetCoordinate, currentRoutePolyline]);
+
+  // Fused heading — GPS-course first, route-bearing fallback when stationary,
+  // magnetometer only when the user has explicitly enabled Compass Mode.
+  useDriverHeading(trip?.status ?? null, { routeBearing });
+
   // Navigation Mode (tilted driving camera) starts automatically for active
   // driving legs. Other trip phases stay in overview mode.
-  const isDriving =
-    isNavActiveStatus(trip?.status) &&
-    (navActiveStatus === trip?.status ||
-      (trip?.status === 'accepted' && navActiveStatus === 'driver_arriving'));
+  // Navigation Mode (tilted driving camera) engages for active driving legs.
+  // Derived directly from trip.status (Firestore source of truth) to avoid the
+  // one-render lag that occurred when comparing against a Zustand mirror.
+  const isDriving = getAutomaticNavigationStatus(trip?.status) !== null;
 
   // The leg the driver is currently working: head to pickup until they reach
   // the passenger, then head to destination. Used to frame the overview camera.
@@ -219,11 +234,17 @@ export default function DriveScreen() {
   const legTarget = headingToDestination ? destinationLocation : pickupLocation;
   const overviewCoordinates =
     !isDriving &&
-    isNavActiveStatus(trip?.status) &&
+    trip?.status === 'accepted' &&
     navigationCoordinate &&
     legTarget
       ? [navigationCoordinate, legTarget]
       : null;
+
+  // Engagement-ready coordinate: whatever the freshest, non-null position is.
+  // Prefer the interpolated coord (smooth) but fall back to the raw one so the
+  // Navigation Mode camera can engage on the very first frame instead of
+  // waiting for the interpolator's first published sample.
+  const navEngagementCoordinate = navigationCoordinate ?? rawNavigationCoordinate;
 
   const cameraController = useRideCameraController(mapRef, {
     pickupLocation,
@@ -234,8 +255,11 @@ export default function DriveScreen() {
     overviewCoordinates,
     navigation: {
       enabled: isDriving,
-      coordinate: navigationCoordinate,
-      heading: navHeading,
+      coordinate: navEngagementCoordinate,
+      // Prefer the fused heading; fall back to the route bearing so the
+      // engagement sweep uses a real forward direction instead of 0° while
+      // the first GPS course sample arrives.
+      heading: navHeading ?? routeBearing,
       animationDurationMs: 0,
     },
   });
@@ -279,6 +303,7 @@ export default function DriveScreen() {
         showDestination={destinationLocation != null}
         showDriverRoute={
           !isTripTerminal &&
+          trip?.status !== 'driver_arrived' &&
           (trip?.status === 'accepted' ||
             trip?.status === 'driver_arriving' ||
             trip?.status === 'in_progress')
@@ -288,7 +313,9 @@ export default function DriveScreen() {
           isTripTerminal || isTripInProgress ? null : trip?.route?.polyline ?? null
         }
         driverRoutePolyline={
-          isTripTerminal ? null : driverRouteData?.overviewPolyline ?? null
+          isTripTerminal || trip?.status === 'driver_arrived'
+            ? null
+            : driverRouteData?.overviewPolyline ?? null
         }
         driverRouteProgressCoordinate={navigationCoordinate}
         showRouteStatus={isRerouting}
@@ -330,6 +357,12 @@ export default function DriveScreen() {
       {/* Bottom sheet area */}
       {!isInPip && (
       <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+        {/* Compass Mode toggle — Google Maps parity. Visible whenever the
+            driving camera is engaged so it can be toggled mid-drive without
+            leaving the map. useDriverHeading subscribes/unsubscribes on the
+            same flag, so heading behavior switches immediately. */}
+        <CompassModeToggle visible={isDriving} />
+
         {/* Recenter Camera Button */}
         <RecenterButton
           visible={

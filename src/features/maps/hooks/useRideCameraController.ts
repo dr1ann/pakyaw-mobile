@@ -1,4 +1,6 @@
 import { logger } from '@/lib/logger';
+import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useUiStore } from '@/stores/uiStore';
 import { useEffect, useRef, useState } from 'react';
 import {
   AppState,
@@ -7,8 +9,6 @@ import {
   Platform,
 } from 'react-native';
 import MapView from 'react-native-maps';
-import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useUiStore } from '@/stores/uiStore';
 import {
   NAV_ALTITUDE_M,
   NAV_CAMERA_ANIM_MS,
@@ -26,14 +26,14 @@ export type CameraCommand =
   | { type: 'centerOn'; coordinate: Coordinate }
   | { type: 'follow'; coordinate: Coordinate; heading: number | null }
   | {
-      type: 'navigationFollow';
-      coordinate: Coordinate;
-      heading: number | null;
-      zoom: number;
-      pitch: number;
-      altitude: number;
-      animationDurationMs: number;
-    }
+    type: 'navigationFollow';
+    coordinate: Coordinate;
+    heading: number | null;
+    zoom: number;
+    pitch: number;
+    altitude: number;
+    animationDurationMs: number;
+  }
   | { type: 'overview' };
 
 export type RideCameraInput = {
@@ -72,11 +72,11 @@ export function useRideCameraController(
   inputs: RideCameraInput
 ) {
   const [isMapReady, setIsMapReady] = useState(false);
-  const [userPanned, setUserPanned] = useState(
-    Boolean(inputs.navigation?.enabled && !useActiveTripStore.getState().cameraFollowing)
-  );
+  const cameraFollowing = useActiveTripStore((s) => s.cameraFollowing);
+  const userPanned = !cameraFollowing;
   const queuedCommandRef = useRef<CameraCommand | null>(null);
   const lastExecutedCommandRef = useRef<string>('');
+  const cameraCommandSequenceRef = useRef(0);
   const prevNavEnabledRef = useRef(false);
   // Tracks the JS-side AppState. Camera mutations are gated on this being
   // 'active' so we never call into the native MapView while Android has torn
@@ -104,6 +104,18 @@ export function useRideCameraController(
     }
 
     if (navigation?.enabled && navigation.coordinate) {
+      // On the rising edge of Navigation Mode we want a real camera sweep
+      // (Google-Maps-style tilt/zoom transition) rather than an instant snap,
+      // even if the caller passed `animationDurationMs: 0` for its streaming
+      // updates. `prevNavEnabledRef` was already just flipped by the effect
+      // below on the same tick, so we detect the edge here by looking at
+      // whether it USED to be false. Subsequent commands after the first
+      // successful executeCommand use the caller's duration.
+      const isEngagementFrame = !prevNavEnabledRef.current;
+      const requestedDuration = navigation.animationDurationMs ?? NAV_CAMERA_ANIM_MS;
+      const durationMs = isEngagementFrame
+        ? NAV_CAMERA_ANIM_MS
+        : requestedDuration;
       return {
         type: 'navigationFollow',
         coordinate: navigation.coordinate,
@@ -111,7 +123,7 @@ export function useRideCameraController(
         zoom: navigation.zoom ?? NAV_ZOOM,
         pitch: navigation.pitch ?? NAV_PITCH,
         altitude: navigation.altitude ?? NAV_ALTITUDE_M,
-        animationDurationMs: navigation.animationDurationMs ?? NAV_CAMERA_ANIM_MS,
+        animationDurationMs: durationMs,
       };
     }
 
@@ -169,6 +181,34 @@ export function useRideCameraController(
     return null;
   };
 
+  const logCameraCommand = (phase: 'before' | 'after', command: CameraCommand, sequence: number) => {
+    logger.info(`[RideCameraController] camera.${phase}`, {
+      sequence,
+      timestampMs: Date.now(),
+      isMapReady,
+      cameraFollowing,
+      userPanned,
+      navigationEnabled: Boolean(navigation?.enabled),
+      command,
+    });
+  };
+
+  const logNextFrameCollision = (sequence: number, command: CameraCommand) => {
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0);
+    schedule(() => {
+      logger.info('[RideCameraController] camera.next_frame', {
+        sequence,
+        timestampMs: Date.now(),
+        anotherCommandExecuted: cameraCommandSequenceRef.current !== sequence,
+        latestSequence: cameraCommandSequenceRef.current,
+        command,
+      });
+    });
+  };
+
   const executeCommand = (command: CameraCommand) => {
     const map = mapRef.current;
     if (!map) {
@@ -193,12 +233,23 @@ export function useRideCameraController(
     }
     lastExecutedCommandRef.current = commandKey;
 
+    const sequence = cameraCommandSequenceRef.current + 1;
+    cameraCommandSequenceRef.current = sequence;
+    logCameraCommand('before', command, sequence);
+    logNextFrameCollision(sequence, command);
+
     logger.info('[RideCameraController] Executing command:', command);
 
     switch (command.type) {
       case 'fit': {
         if (command.coordinates.length === 0) return;
         if (command.coordinates.length === 1) {
+          logger.info('[RideCameraController] camera.setCameraOrRegion', {
+            method: 'animateToRegion',
+            sequence,
+            timestampMs: Date.now(),
+            command,
+          });
           map.animateToRegion(
             {
               ...command.coordinates[0],
@@ -208,6 +259,12 @@ export function useRideCameraController(
             1000
           );
         } else {
+          logger.info('[RideCameraController] camera.fitToCoordinates', {
+            sequence,
+            timestampMs: Date.now(),
+            isMapReady,
+            command,
+          });
           map.fitToCoordinates(command.coordinates, {
             edgePadding: {
               top: 120,
@@ -221,6 +278,12 @@ export function useRideCameraController(
         break;
       }
       case 'centerOn': {
+        logger.info('[RideCameraController] camera.setCameraOrRegion', {
+          method: 'animateToRegion',
+          sequence,
+          timestampMs: Date.now(),
+          command,
+        });
         map.animateToRegion(
           {
             ...command.coordinate,
@@ -232,6 +295,12 @@ export function useRideCameraController(
         break;
       }
       case 'follow': {
+        logger.info('[RideCameraController] camera.animateCamera', {
+          sequence,
+          timestampMs: Date.now(),
+          isMapReady,
+          command,
+        });
         map.animateCamera(
           {
             center: command.coordinate,
@@ -257,6 +326,12 @@ export function useRideCameraController(
         // mapPadding shifts the camera anchor inside the viewport, so the same
         // geographic point lands lower on screen without needing to point the
         // camera ahead of the vehicle.
+        logger.info('[RideCameraController] camera.animateCamera', {
+          sequence,
+          timestampMs: Date.now(),
+          isMapReady,
+          command,
+        });
         map.animateCamera(
           {
             center: command.coordinate,
@@ -321,9 +396,9 @@ export function useRideCameraController(
     // user had panned away while in overview. Clear the pan latch on the
     // rising edge so the follow camera isn't suppressed by a stale pan.
     const navEnabled = Boolean(navigation?.enabled);
-    if (navEnabled && !prevNavEnabledRef.current && userPanned) {
-      setUserPanned(false);
+    if (navEnabled && !prevNavEnabledRef.current) {
       useActiveTripStore.getState().setCameraFollowing(true);
+      lastExecutedCommandRef.current = '';
     }
     // On the falling edge (nav has just ended — e.g. trip completed/cancelled
     // disarms Driving Mode) also clear the pan latch so the terminal-phase
@@ -331,12 +406,30 @@ export function useRideCameraController(
     // Without this, panning during in_progress would freeze the camera in
     // place after Complete Trip until the driver tapped recenter.
     if (!navEnabled && prevNavEnabledRef.current && userPanned) {
-      setUserPanned(false);
       useActiveTripStore.getState().setCameraFollowing(true);
     }
-    prevNavEnabledRef.current = navEnabled;
 
+    // IMPORTANT: derive the command BEFORE updating prevNavEnabledRef so
+    // getNextCommand's `isEngagementFrame = !prevNavEnabledRef.current` check
+    // still sees the *previous* value on the rising edge. Overwriting the ref
+    // first would collapse the engagement sweep to the caller's streaming
+    // duration (which is 0 for the driver screen), causing the camera to
+    // appear stuck — the driver would have to press Recenter to acquire focus.
     const command = getNextCommand();
+    logger.info('[RideCameraController] navigation command snapshot', {
+      timestampMs: Date.now(),
+      isMapReady,
+      tripPhase: phase,
+      navigationEnabled: Boolean(navigation?.enabled),
+      navigationCoordinate: navigation?.coordinate,
+      heading: navigation?.heading,
+      routeBearing: inputs.driverHeading ?? null,
+      cameraFollowing,
+      userPanned,
+      lastExecutedCommandRef: lastExecutedCommandRef.current,
+      command,
+    });
+    prevNavEnabledRef.current = navEnabled;
     if (command) {
       if (isMapReady) {
         executeCommand(command);
@@ -373,9 +466,15 @@ export function useRideCameraController(
   const handleMapReady = () => {
     logger.info('[RideCameraController] Map reported ready.');
     setIsMapReady(true);
+    logger.info('[RideCameraController] camera.helper.map_ready', {
+      timestampMs: Date.now(),
+      cameraFollowing,
+      userPanned,
+      navigationEnabled: Boolean(navigation?.enabled),
+      queuedCommand: queuedCommandRef.current,
+    });
     const preserveManualNavigationPan = Boolean(navigation?.enabled && userPanned);
     if (!preserveManualNavigationPan) {
-      setUserPanned(false);
       useActiveTripStore.getState().setCameraFollowing(true);
     }
     const command =
@@ -393,13 +492,22 @@ export function useRideCameraController(
     // first event so we don't spam logs/state updates for the same pan.
     if (userPanned) return;
     logger.info('[RideCameraController] User panned map. Switching to overview.');
-    setUserPanned(true);
+    logger.info('[RideCameraController] camera.helper.user_pan', {
+      timestampMs: Date.now(),
+      cameraFollowing,
+      navigationEnabled: Boolean(navigation?.enabled),
+    });
     useActiveTripStore.getState().setCameraFollowing(false);
   };
 
   const recenter = () => {
     logger.info('[RideCameraController] Recentering camera.');
-    setUserPanned(false);
+    logger.info('[RideCameraController] camera.helper.recenter', {
+      timestampMs: Date.now(),
+      cameraFollowing,
+      userPanned,
+      navigationEnabled: Boolean(navigation?.enabled),
+    });
     useActiveTripStore.getState().setCameraFollowing(true);
     lastExecutedCommandRef.current = '';
   };

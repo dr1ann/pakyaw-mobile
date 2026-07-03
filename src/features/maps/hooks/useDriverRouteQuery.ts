@@ -1,23 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { firestore } from '@/services/firebase/firebase';
-import { getNavigationRoute } from '../services/routingService';
-import { isNavActiveStatus } from '../navigation/navigationHelper';
-import type { NavRoute } from '../navigation/types';
-import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { haversineMeters } from '@/lib/geo';
 import { projectPointOnSegment } from '@/lib/geoProjection';
 import { logger } from '@/lib/logger';
+import { firestore } from '@/services/firebase/firebase';
+import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useAvailabilityStore } from '@/stores/availabilityStore';
+import { useQuery } from '@tanstack/react-query';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import {
-  REROUTE_MIN_MOVE_M,
-  REROUTE_MIN_INTERVAL_MS,
-  OFF_ROUTE_M,
-  OFF_ROUTE_CONFIRMATION_COUNT,
   HEADING_MISMATCH_DEG,
   HEADING_SPEED_THRESHOLD_MS,
+  OFF_ROUTE_CONFIRMATION_COUNT,
+  OFF_ROUTE_M,
+  REROUTE_MIN_INTERVAL_MS,
+  REROUTE_MIN_MOVE_M,
 } from '../navigation/constants';
+import { isNavActiveStatus } from '../navigation/navigationHelper';
+import type { NavRoute } from '../navigation/types';
+import { getNavigationRoute } from '../services/routingService';
 
 type LatLng = { lat: number; lng: number };
 
@@ -110,7 +110,7 @@ export function useDriverRouteQuery(tripId: string | null) {
   const trip = useActiveTripStore((s) => s.trip);
   const gpsHeading = useActiveTripStore((s) => s.gpsHeading);
   const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
-  
+
   // Driver's own live location from availabilityStore
   const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
   const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
@@ -284,9 +284,14 @@ export function useDriverRouteQuery(tripId: string | null) {
     }
   }, [query.error]);
 
-  // Publish to Firestore when to_pickup route is successfully updated
+  // Publish to Firestore whenever a driver navigation route is available.
+  // - During accepted / driver_arriving the polyline represents driver → pickup.
+  // - During in_progress the polyline represents driver → destination and lets
+  //   the passenger see the same live navigation route the driver is following
+  //   (Grab / Uber parity).
   useEffect(() => {
-    if (!tripId || !query.data || !enabled || !isToPickup) return;
+    if (!tripId || !query.data || !enabled) return;
+    if (!isToPickup && !isToDestination) return;
 
     const { overviewPolyline, distanceMeters, durationSeconds } = query.data;
 
@@ -327,7 +332,7 @@ export function useDriverRouteQuery(tripId: string | null) {
     }).catch((err) => {
       logger.error('[useDriverRouteQuery] Failed to publish driverRoute update', { err });
     });
-  }, [query.data, tripId, enabled, isToPickup]);
+  }, [query.data, tripId, enabled, isToPickup, isToDestination]);
 
   return {
     ...query,

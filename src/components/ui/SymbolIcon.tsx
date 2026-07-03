@@ -43,6 +43,7 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   ferry: { ios: 'ferry', android: 'directions_boat', web: 'directions_boat' },
   navigation: { ios: 'navigation', android: 'navigation', web: 'navigation' },
   mappin: { ios: 'mappin', android: 'place', web: 'place' },
+  safari: { ios: 'safari', android: 'explore', web: 'explore' },
 };
 
 export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProps) {

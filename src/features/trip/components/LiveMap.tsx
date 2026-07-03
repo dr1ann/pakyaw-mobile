@@ -1,6 +1,6 @@
+import { Image } from 'expo-image';
 import { useNavigation } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   Platform,
@@ -54,6 +54,7 @@ export type LiveMapProps = {
   readonly onUserPan?: () => void;
   readonly mapRef?: React.RefObject<MapView | null>;
   readonly onMapReady?: () => void;
+  readonly debugTripStatus?: string | null;
 };
 
 const ORMOC_CENTER = {
@@ -62,6 +63,188 @@ const ORMOC_CENTER = {
   latitudeDelta: 0.015,
   longitudeDelta: 0.015,
 };
+
+type DriverRoutePolylineLayerProps = {
+  readonly label: string;
+  readonly coordinates: { latitude: number; longitude: number }[];
+  readonly strokeWidth: number;
+  readonly strokeColor: string;
+  readonly debugTripStatus?: string | null;
+  readonly debugShowDriverRoute?: boolean;
+  readonly debugDriverRoutePolyline?: string | null;
+  readonly debugDecodedDriverRouteLength?: number;
+};
+
+let mountedDriverRoutePolylineLayers = 0;
+let nextDriverRoutePolylineInstanceId = 0;
+
+type LoggedPolylineProps = DriverRoutePolylineLayerProps;
+
+function LoggedPolyline({
+  label,
+  coordinates,
+  strokeWidth,
+  strokeColor,
+  debugTripStatus,
+  debugShowDriverRoute,
+  debugDriverRoutePolyline,
+  debugDecodedDriverRouteLength,
+}: LoggedPolylineProps) {
+  const instanceIdRef = useRef<number | null>(null);
+  const previousCoordinatesRef = useRef(coordinates);
+  const initialSnapshotRef = useRef({
+    label,
+    tripStatus: debugTripStatus,
+    showDriverRoute: debugShowDriverRoute,
+    driverRoutePolyline: debugDriverRoutePolyline,
+    decodedRouteLength: debugDecodedDriverRouteLength,
+    coordinatesLength: coordinates.length,
+  });
+
+  useEffect(() => {
+    if (instanceIdRef.current == null) {
+      nextDriverRoutePolylineInstanceId += 1;
+      instanceIdRef.current = nextDriverRoutePolylineInstanceId;
+    }
+
+    const initialSnapshot = initialSnapshotRef.current;
+
+    logger.info('[LiveMap] Polyline mounted', {
+      label: initialSnapshot.label,
+      instanceId: instanceIdRef.current,
+      tripStatus: initialSnapshot.tripStatus,
+      showDriverRoute: initialSnapshot.showDriverRoute,
+      driverRoutePolyline: initialSnapshot.driverRoutePolyline,
+      decodedRouteLength: initialSnapshot.decodedRouteLength,
+      coordinatesLength: initialSnapshot.coordinatesLength,
+    });
+
+    return () => {
+      logger.info('[LiveMap] Polyline unmounted', {
+        label: initialSnapshot.label,
+        instanceId: instanceIdRef.current,
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.info('[LiveMap] Polyline committed', {
+      label: initialSnapshotRef.current.label,
+      instanceId: instanceIdRef.current,
+      coordinatesLength: coordinates.length,
+      coordinatesRefChanged: previousCoordinatesRef.current !== coordinates,
+      tripStatus: debugTripStatus,
+      showDriverRoute: debugShowDriverRoute,
+      driverRoutePolyline: debugDriverRoutePolyline,
+      decodedRouteLength: debugDecodedDriverRouteLength,
+      strokeWidth,
+      strokeColor,
+    });
+    previousCoordinatesRef.current = coordinates;
+  }, [
+    label,
+    coordinates,
+    strokeWidth,
+    strokeColor,
+    debugTripStatus,
+    debugShowDriverRoute,
+    debugDriverRoutePolyline,
+    debugDecodedDriverRouteLength,
+  ]);
+
+  return (
+    <Polyline
+      coordinates={coordinates}
+      strokeWidth={strokeWidth}
+      strokeColor={strokeColor}
+    />
+  );
+}
+
+function DriverRoutePolylineLayer({
+  label,
+  coordinates,
+  strokeWidth,
+  strokeColor,
+  debugTripStatus,
+  debugShowDriverRoute,
+  debugDriverRoutePolyline,
+  debugDecodedDriverRouteLength,
+}: DriverRoutePolylineLayerProps) {
+  const instanceIdRef = useRef<number>(0);
+  const previousCoordinatesRef = useRef(coordinates);
+  const initialSnapshotRef = useRef({
+    label,
+    tripStatus: debugTripStatus,
+    showDriverRoute: debugShowDriverRoute,
+    driverRoutePolyline: debugDriverRoutePolyline,
+    decodedRouteLength: debugDecodedDriverRouteLength,
+    coordinatesLength: coordinates.length,
+  });
+
+  useEffect(() => {
+    if (instanceIdRef.current == null) {
+      nextDriverRoutePolylineInstanceId += 1;
+      instanceIdRef.current = nextDriverRoutePolylineInstanceId;
+    }
+
+    const initialSnapshot = initialSnapshotRef.current;
+
+    mountedDriverRoutePolylineLayers += 1;
+    logger.info('[LiveMap] driver-route polyline mounted', {
+      label: initialSnapshot.label,
+      instanceId: instanceIdRef.current,
+      tripStatus: initialSnapshot.tripStatus,
+      showDriverRoute: initialSnapshot.showDriverRoute,
+      driverRoutePolyline: initialSnapshot.driverRoutePolyline,
+      decodedRouteLength: initialSnapshot.decodedRouteLength,
+      mountedDriverRoutePolylineLayers,
+      pointCount: initialSnapshot.coordinatesLength,
+    });
+
+    return () => {
+      mountedDriverRoutePolylineLayers = Math.max(0, mountedDriverRoutePolylineLayers - 1);
+      logger.info('[LiveMap] driver-route polyline unmounted', {
+        label: initialSnapshot.label,
+        instanceId: instanceIdRef.current,
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.info('[LiveMap] driver-route polyline committed', {
+      label: initialSnapshotRef.current.label,
+      instanceId: instanceIdRef.current,
+      coordinatesLength: coordinates.length,
+      coordinatesRefChanged: previousCoordinatesRef.current !== coordinates,
+      showDriverRoute: debugShowDriverRoute,
+      driverRoutePolyline: debugDriverRoutePolyline,
+      decodedRouteLength: debugDecodedDriverRouteLength,
+      tripStatus: debugTripStatus,
+    });
+    previousCoordinatesRef.current = coordinates;
+  }, [
+    label,
+    coordinates,
+    debugShowDriverRoute,
+    debugDriverRoutePolyline,
+    debugDecodedDriverRouteLength,
+    debugTripStatus,
+  ]);
+
+  return (
+    <LoggedPolyline
+      label={label}
+      coordinates={coordinates}
+      strokeWidth={strokeWidth}
+      strokeColor={strokeColor}
+      debugTripStatus={debugTripStatus}
+      debugShowDriverRoute={debugShowDriverRoute}
+      debugDriverRoutePolyline={debugDriverRoutePolyline}
+      debugDecodedDriverRouteLength={debugDecodedDriverRouteLength}
+    />
+  );
+}
 
 export function LiveMap({
   driverLocation,
@@ -89,6 +272,7 @@ export function LiveMap({
   onUserPan,
   mapRef: externalMapRef,
   onMapReady,
+  debugTripStatus = null,
 }: LiveMapProps) {
   const localMapRef = useRef<MapView>(null);
   const mapRef = externalMapRef || localMapRef;
@@ -166,28 +350,6 @@ export function LiveMap({
     return unsubscribe;
   }, [navigationObj]);
 
-  // Log mounting and props
-  useEffect(() => {
-    logger.info('[LiveMap] Component rendered / Props updated', {
-      platform: Platform.OS,
-      hasOwnLocation: !!ownLocation,
-      ownLocation,
-      hasDriverLocation: !!driverLocation,
-      driverLocation,
-      hasPickupLocation: !!pickupLocation,
-      pickupLocation,
-      hasDestinationLocation: !!destinationLocation,
-      destinationLocation,
-      showDestination,
-      hasDriverRoutePolyline: !!driverRoutePolyline,
-      showDriverRoute,
-    });
-
-    if (Platform.OS === 'web') {
-      logger.warn('[LiveMap] Web platform detected. react-native-maps does not have native support on web. The map might render as a blank or transparent view.');
-    }
-  }, [ownLocation, driverLocation, pickupLocation, destinationLocation, showDestination, driverRoutePolyline, showDriverRoute]);
-
   // §9.1, P4, I6: LiveMap is controlled and presentational.
   // All camera logic removed — the controller owns camera behavior.
 
@@ -236,15 +398,50 @@ export function LiveMap({
     [decodedDriverRouteLatLng]
   );
 
+  // Log mounting and props
+  useEffect(() => {
+    logger.info('[LiveMap] Component rendered / Props updated', {
+      platform: Platform.OS,
+      tripStatus: debugTripStatus,
+      hasOwnLocation: !!ownLocation,
+      ownLocation,
+      hasDriverLocation: !!driverLocation,
+      driverLocation,
+      hasPickupLocation: !!pickupLocation,
+      pickupLocation,
+      hasDestinationLocation: !!destinationLocation,
+      destinationLocation,
+      showDestination,
+      hasDriverRoutePolyline: !!driverRoutePolyline,
+      showDriverRoute,
+      decodedDriverRouteLength: decodedDriverRouteCoords?.length ?? 0,
+      mountedDriverRoutePolylineLayers,
+    });
+
+    if (Platform.OS === 'web') {
+      logger.warn('[LiveMap] Web platform detected. react-native-maps does not have native support on web. The map might render as a blank or transparent view.');
+    }
+  }, [
+    debugTripStatus,
+    ownLocation,
+    driverLocation,
+    pickupLocation,
+    destinationLocation,
+    showDestination,
+    driverRoutePolyline,
+    showDriverRoute,
+    decodedDriverRouteCoords,
+  ]);
+
   const driverRouteProgressLatitude = driverRouteProgressCoordinate?.latitude ?? null;
   const driverRouteProgressLongitude = driverRouteProgressCoordinate?.longitude ?? null;
   const driverRouteProgressLatLng = React.useMemo<LatLng | null>(
     () =>
       driverRouteProgressLatitude !== null && driverRouteProgressLongitude !== null
         ? {
-            lat: driverRouteProgressLatitude,
-            lng: driverRouteProgressLongitude,
-          }
+          lat: driverRouteProgressLatitude,
+          lng: driverRouteProgressLongitude,
+        }
         : null,
     [driverRouteProgressLatitude, driverRouteProgressLongitude]
   );
@@ -277,6 +474,43 @@ export function LiveMap({
       decodedDriverRouteCoords == null &&
       (driverLocation != null || ownLocation != null) &&
       (pickupLocation != null || destinationLocation != null));
+
+  const renderedDriverRoutePolylineCount =
+    Number(
+      showDriverRoute &&
+      trimmedDriverRoute != null &&
+      trimmedDriverRoute.consumed.length >= 2,
+    ) +
+    Number(
+      showDriverRoute &&
+      trimmedDriverRoute != null &&
+      trimmedDriverRoute.remaining.length >= 2,
+    ) +
+    Number(
+      showDriverRoute &&
+      trimmedDriverRoute == null &&
+      decodedDriverRouteCoords != null,
+    );
+
+  useEffect(() => {
+    logger.info('[LiveMap] driver-route polyline render state', {
+      tripStatus: debugTripStatus,
+      showDriverRoute,
+      driverRoutePolyline,
+      decodedDriverRouteLength: decodedDriverRouteCoords?.length ?? 0,
+      renderedDriverRoutePolylineCount,
+      hasTrimmedDriverRoute: trimmedDriverRoute != null,
+      hasDecodedDriverRouteCoords: decodedDriverRouteCoords != null,
+      mountedDriverRoutePolylineLayers,
+    });
+  }, [
+    debugTripStatus,
+    showDriverRoute,
+    driverRoutePolyline,
+    renderedDriverRoutePolylineCount,
+    trimmedDriverRoute,
+    decodedDriverRouteCoords,
+  ]);
 
   // Driver navigation polyline styling depends on the leg the driver is on.
   // Pre-pickup (driver → pickup) is rendered in violet to distinguish it from
@@ -314,10 +548,10 @@ export function LiveMap({
       pickupLocation || driverLocation || ownLocation || (showDestination ? destinationLocation : null);
     return firstCoord
       ? {
-          ...firstCoord,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }
+        ...firstCoord,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      }
       : ORMOC_CENTER;
   }, [pickupLocation, destinationLocation, showDestination, driverLocation, ownLocation]);
 
@@ -373,6 +607,7 @@ export function LiveMap({
         {/* Passenger Route Polyline */}
         {decodedRouteCoords != null && (
           <Polyline
+            key={`passenger-route-${routePolyline ? routePolyline.length : 0}`}
             coordinates={decodedRouteCoords}
             strokeWidth={4}
             strokeColor={colors.blue.primary}
@@ -384,24 +619,42 @@ export function LiveMap({
             for the live-snapped navigation route, with the booking polyline
             suppressed by the caller to avoid drawing the same line twice). */}
         {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.consumed.length >= 2 && (
-          <Polyline
-            coordinates={trimmedDriverRoute.consumed}
+          <DriverRoutePolylineLayer
+            key={`driver-route-consumed-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
+            label="consumed"
+            coordinates={[...trimmedDriverRoute.consumed]}
             strokeWidth={4}
             strokeColor={driverRouteConsumedColor}
+            debugTripStatus={debugTripStatus}
+            debugShowDriverRoute={showDriverRoute}
+            debugDriverRoutePolyline={driverRoutePolyline}
+            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
           />
         )}
         {showDriverRoute && trimmedDriverRoute != null && trimmedDriverRoute.remaining.length >= 2 && (
-          <Polyline
-            coordinates={trimmedDriverRoute.remaining}
+          <DriverRoutePolylineLayer
+            key={`driver-route-remaining-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
+            label="remaining"
+            coordinates={[...trimmedDriverRoute.remaining]}
             strokeWidth={5}
             strokeColor={driverRouteRemainingColor}
+            debugTripStatus={debugTripStatus}
+            debugShowDriverRoute={showDriverRoute}
+            debugDriverRoutePolyline={driverRoutePolyline}
+            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
           />
         )}
         {showDriverRoute && trimmedDriverRoute == null && decodedDriverRouteCoords != null && (
-          <Polyline
+          <DriverRoutePolylineLayer
+            key={`driver-route-fallback-${driverRoutePolyline ? driverRoutePolyline.length : 0}`}
+            label="fallback"
             coordinates={decodedDriverRouteCoords}
             strokeWidth={4}
             strokeColor={driverRouteRemainingColor}
+            debugTripStatus={debugTripStatus}
+            debugShowDriverRoute={showDriverRoute}
+            debugDriverRoutePolyline={driverRoutePolyline}
+            debugDecodedDriverRouteLength={decodedDriverRouteCoords?.length ?? 0}
           />
         )}
 

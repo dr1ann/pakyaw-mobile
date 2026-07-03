@@ -33,6 +33,13 @@ export type ActiveTripState = {
   readonly navSession: NavigationSession | null;
   readonly cameraFollowing: boolean;
 
+  // User-controlled preference: use magnetometer heading (like Google Maps'
+  // "compass mode"). Disabled by default — GPS Course (course over ground) is
+  // the canonical heading source while moving, and while stationary we hold
+  // the last valid course. The magnetometer subscription is only started when
+  // this flag is true. Persisted so the preference survives app restarts.
+  readonly compassEnabled: boolean;
+
   setTripId: (tripId: string) => void;
   setTrip: (trip: TripDoc) => void;
   clearTrip: () => void;
@@ -47,12 +54,13 @@ export type ActiveTripState = {
   setNavSession: (session: NavigationSession | null) => void;
   updateNavSession: (updates: Partial<NavigationSession>) => void;
   setCameraFollowing: (cameraFollowing: boolean) => void;
+  setCompassEnabled: (compassEnabled: boolean) => void;
   resetNav: () => void;
 };
 
 export type PersistedActiveTripState = Pick<
   ActiveTripState,
-  'tripId' | 'navStepIndex' | 'navActiveStatus' | 'navSession' | 'cameraFollowing'
+  'tripId' | 'navStepIndex' | 'navActiveStatus' | 'navSession' | 'cameraFollowing' | 'compassEnabled'
 >;
 
 const initialNavState = {
@@ -63,6 +71,8 @@ const initialNavState = {
   navActiveStatus: null,
   navSession: null,
   cameraFollowing: true,
+  // Note: compassEnabled is intentionally NOT reset when the trip ends — it is
+  // a user preference, not per-trip navigation state.
 };
 
 function isTerminalTripStatus(status: TripStatus | null | undefined): boolean {
@@ -78,6 +88,7 @@ export function getPersistedActiveTripState(
     navActiveStatus: state.navActiveStatus,
     navSession: state.navSession,
     cameraFollowing: state.cameraFollowing,
+    compassEnabled: state.compassEnabled,
   };
 }
 
@@ -93,6 +104,7 @@ export function migratePersistedActiveTripState(
       navActiveStatus: null,
       navSession: null,
       cameraFollowing: true,
+      compassEnabled: false,
     };
   }
 
@@ -104,6 +116,22 @@ export function migratePersistedActiveTripState(
       navActiveStatus: prev.navActiveStatus ?? null,
       navSession: null,
       cameraFollowing: true,
+      compassEnabled: false,
+    };
+  }
+
+  if (fromVersion < 4) {
+    // v3 → v4: compassEnabled added. Default to false so drivers upgrading
+    // from a build that used the always-on magnetometer land on the new
+    // GPS-course-first behavior, matching Google Maps' default.
+    const prev = (persistedState ?? {}) as Partial<PersistedActiveTripState>;
+    return {
+      tripId: prev.tripId ?? null,
+      navStepIndex: prev.navStepIndex ?? 0,
+      navActiveStatus: prev.navActiveStatus ?? null,
+      navSession: prev.navSession ?? null,
+      cameraFollowing: prev.cameraFollowing ?? true,
+      compassEnabled: false,
     };
   }
 
@@ -116,6 +144,7 @@ export const useActiveTripStore = create<ActiveTripState>()(
       tripId: null,
       trip: null,
       driverLocation: null,
+      compassEnabled: false,
       ...initialNavState,
 
       setTripId: (tripId) => set({ tripId }),
@@ -161,16 +190,19 @@ export const useActiveTripStore = create<ActiveTripState>()(
           return { navSession: { ...state.navSession, ...updates } };
         }),
       setCameraFollowing: (cameraFollowing) => set({ cameraFollowing }),
+      setCompassEnabled: (compassEnabled) => set({ compassEnabled }),
       resetNav: () => set(initialNavState),
     }),
     {
       name: ACTIVE_TRIP_NAV_STORAGE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: getPersistedActiveTripState,
-      version: 3,
+      version: 4,
       migrate: migratePersistedActiveTripState,
         // v1 → v2: navActiveStatus added to the persisted slice. Older stored
         // payloads have no value for it, so default to null (overview camera).
+        // v3 → v4: compassEnabled added. Defaults to false — Google Maps-style
+        // GPS-course-first heading is the new default; compass is opt-in.
     },
   ),
 );

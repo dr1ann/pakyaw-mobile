@@ -14,6 +14,7 @@
  */
 
 import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
+import { useInterpolatedCoordinate } from '@/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -42,6 +43,7 @@ import { LiveMap } from '@/features/trip/components/LiveMap';
 import { useActiveTrip } from '@/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
 import type { TripStatus } from '@/features/trip/types';
+import { haversineMeters } from '@/lib/geo';
 import { getDistanceToStepEnd } from '@/lib/geoProjection';
 import { logger } from '@/lib/logger';
 import { decodePolyline } from '@/lib/maps/decodePolyline';
@@ -94,6 +96,20 @@ export default function RideScreen() {
   useActiveTrip();
   useDriverLocation();
 
+  // Smooth the passenger-facing driver marker between GPS updates so it does
+  // not teleport across the map as new Firestore snapshots arrive.
+  const interpolatedDriverLocation = useInterpolatedCoordinate(driverLocation);
+
+  // Distance from the driver's current position to the trip pickup — used by
+  // the in-trip pickup marker fade-out (Grab / Uber parity).
+  const driverDistanceFromPickup = useMemo(() => {
+    if (!driverLocation || !trip?.pickup?.coords) return null;
+    return haversineMeters(
+      { lat: driverLocation.latitude, lng: driverLocation.longitude },
+      trip.pickup.coords
+    );
+  }, [driverLocation, trip?.pickup?.coords]);
+
   // Render Selector: resolves which facts feed the map based on the phase
   const mapData = useMemo(() => {
     if (phase === 'booking' || phase === 'connecting') {
@@ -116,26 +132,119 @@ export default function RideScreen() {
         driverLocation: null,
         showDriverRoute: false,
         driverRoutePolyline: null,
-      };
-    } else {
-      // active or terminal phase
-      const isTerminal = phase === 'terminal';
-      return {
-        pickupLocation: !isTerminal && trip?.pickup?.coords
-          ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-          : null,
-        destinationLocation: !isTerminal && trip?.destination?.coords
-          ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-          : null,
-        routePolyline: !isTerminal ? (trip?.route?.polyline ?? null) : null,
-        driverLocation: !isTerminal && driverLocation
-          ? { latitude: driverLocation.latitude, longitude: driverLocation.longitude }
-          : null,
-        showDriverRoute: !isTerminal && (trip?.status === 'accepted' || trip?.status === 'driver_arriving'),
-        driverRoutePolyline: !isTerminal ? (trip?.driverRoute?.polyline ?? null) : null,
+        driverRouteVariant: 'pickup' as const,
+        driverRouteProgressCoordinate: null,
       };
     }
-  }, [phase, draft.pickup, draft.destination, draft.route, trip, driverLocation]);
+
+    if (phase === 'terminal') {
+      return {
+        pickupLocation: null,
+        destinationLocation: null,
+        routePolyline: null,
+        driverLocation: null,
+        showDriverRoute: false,
+        driverRoutePolyline: null,
+        driverRouteVariant: 'pickup' as const,
+        driverRouteProgressCoordinate: null,
+      };
+    }
+
+    // Active phase — visualization is driven entirely by trip.status and the
+    // live driver location so restoration reconstructs the exact same picture.
+    const tripStatus = trip?.status;
+    const isPrePickup =
+      tripStatus === 'accepted' || tripStatus === 'driver_arriving';
+    const isArrived = tripStatus === 'driver_arrived';
+    const isInTrip = tripStatus === 'in_progress';
+
+    const pickupCoord = trip?.pickup?.coords
+      ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
+      : null;
+    const destinationCoord = trip?.destination?.coords
+      ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
+      : null;
+    const driverCoord = interpolatedDriverLocation
+      ? {
+          latitude: interpolatedDriverLocation.latitude,
+          longitude: interpolatedDriverLocation.longitude,
+        }
+      : null;
+
+    // Pickup marker visibility:
+    //   - Pre-pickup & arrived: always visible.
+    //   - In-trip: keep visible briefly after start, then remove once the
+    //     driver has clearly departed the pickup (Grab / Uber behavior). Using
+    //     driver-position (not a wall-clock timer) means restoration lands on
+    //     the right state without persisting extra local state.
+    const PICKUP_FADE_DISTANCE_M = 150;
+    const shouldShowPickup =
+      isPrePickup ||
+      isArrived ||
+      (isInTrip &&
+        (driverDistanceFromPickup == null ||
+          driverDistanceFromPickup < PICKUP_FADE_DISTANCE_M));
+
+    // Route polyline selection:
+    //   - Pre-pickup: driver → pickup (live navigation route from driver).
+    //   - Arrived: no polyline — driver is at pickup.
+    //   - In-trip: driver → destination (live navigation route). Falls back
+    //     to the static booking route (trip.route.polyline) only until the
+    //     first live update arrives, so the passenger always sees a route.
+    const liveDriverRoute = trip?.driverRoute?.polyline ?? null;
+    let showDriverRoute = false;
+    let driverRoutePolyline: string | null = null;
+    let routePolyline: string | null = null;
+    let driverRouteVariant: 'pickup' | 'trip' = 'pickup';
+
+    if (isPrePickup) {
+      showDriverRoute = liveDriverRoute != null;
+      driverRoutePolyline = liveDriverRoute;
+      driverRouteVariant = 'pickup';
+      // Do not draw the static pickup→destination booking route yet — the
+      // driver-facing pre-pickup leg is what the passenger cares about.
+      routePolyline = null;
+    } else if (isArrived) {
+      // Driver has reached pickup — no polyline is drawn.
+      showDriverRoute = false;
+      driverRoutePolyline = null;
+      routePolyline = null;
+    } else if (isInTrip) {
+      driverRouteVariant = 'trip';
+      if (liveDriverRoute != null) {
+        showDriverRoute = true;
+        driverRoutePolyline = liveDriverRoute;
+        routePolyline = null;
+      } else {
+        // Live driver-navigation route hasn't landed yet after the transition
+        // to in_progress. Show the static booking route briefly so the map
+        // isn't blank; the trimming logic below still shrinks it toward the
+        // destination as the driver moves.
+        showDriverRoute = false;
+        driverRoutePolyline = null;
+        routePolyline = trip?.route?.polyline ?? null;
+      }
+    }
+
+    return {
+      pickupLocation: shouldShowPickup ? pickupCoord : null,
+      destinationLocation: destinationCoord,
+      routePolyline,
+      driverLocation: driverCoord,
+      showDriverRoute,
+      driverRoutePolyline,
+      driverRouteVariant,
+      driverRouteProgressCoordinate: driverCoord,
+    };
+  }, [
+    phase,
+    draft.pickup,
+    draft.destination,
+    draft.route,
+    trip,
+    interpolatedDriverLocation,
+    driverDistanceFromPickup,
+  ]);
 
   const cameraController = useRideCameraController(mapRef, {
     pickupLocation: mapData.pickupLocation,
@@ -275,8 +384,8 @@ export default function RideScreen() {
   };
 
   function handleDismissTerminal() {
-    useActiveTripStore.getState().clearTrip();
     useBookingDraftStore.getState().reset();
+    useActiveTripStore.getState().clearTrip();
   }
 
   const status = trip?.status ?? (tripId ? 'request' : null);
@@ -344,6 +453,8 @@ export default function RideScreen() {
         routePolyline={mapData.routePolyline}
         driverRoutePolyline={mapData.driverRoutePolyline}
         showDriverRoute={mapData.showDriverRoute}
+        driverRouteVariant={mapData.driverRouteVariant}
+        driverRouteProgressCoordinate={mapData.driverRouteProgressCoordinate}
         bottomPadding={isMinimized ? 160 : 320}
         onMapReady={cameraController.onMapReady}
         onUserPan={cameraController.onUserPan}

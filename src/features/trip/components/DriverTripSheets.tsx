@@ -26,10 +26,16 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const { mutate: transition, isPending } = useTripTransition();
 
   function handleStartNavigation() {
-    if (trip) {
-      useActiveTripStore.getState().setNavActiveStatus('driver_arriving');
-      transition({ tripId: trip.id, status: 'driver_arriving' });
-    }
+    if (!trip) return;
+    // Pessimistic transition: fire the Firestore write and let the incoming
+    // snapshot flip trip.status → 'driver_arriving', which the driver screen
+    // then mirrors into navActiveStatus via getAutomaticNavigationStatus.
+    // Previously navActiveStatus was set predictively here, which armed the
+    // Navigation Mode camera before Firestore had confirmed the transition —
+    // producing a temporary inconsistent state on slow networks (camera
+    // tilted, but sheet still showing "Trip accepted"). The button's own
+    // isPending spinner covers the round-trip.
+    transition({ tripId: trip.id, status: 'driver_arriving' });
   }
 
   if (compact) {

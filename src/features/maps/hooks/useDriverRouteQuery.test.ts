@@ -217,7 +217,7 @@ describe('useDriverRouteQuery', () => {
       pickup: { coords: { lat: 10.0, lng: 124.0 } },
     };
     stateValue = { lat: 10.05, lng: 124.05 };
-    
+
     // Simulate last fetch was 30 seconds ago
     refValues[0].current = Date.now() - 30_000;
 

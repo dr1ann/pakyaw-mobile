@@ -67,26 +67,26 @@ function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
     cancelReason: (data.cancelReason as string) ?? null,
     route: data.route
       ? {
-          distanceMeters: data.route.distanceMeters as number,
-          durationSeconds: data.route.durationSeconds as number,
-          polyline: data.route.polyline as string,
-          fetchedAt: (data.route.fetchedAt as Timestamp) ?? null,
-        }
+        distanceMeters: data.route.distanceMeters as number,
+        durationSeconds: data.route.durationSeconds as number,
+        polyline: data.route.polyline as string,
+        fetchedAt: (data.route.fetchedAt as Timestamp) ?? null,
+      }
       : null,
     driverRoute: data.driverRoute
       ? {
-          polyline: data.driverRoute.polyline as string,
-          distanceMeters: data.driverRoute.distanceMeters as number,
-          durationSeconds: data.driverRoute.durationSeconds as number,
-          updatedAt: (data.driverRoute.updatedAt as Timestamp) ?? null,
-        }
+        polyline: data.driverRoute.polyline as string,
+        distanceMeters: data.driverRoute.distanceMeters as number,
+        durationSeconds: data.driverRoute.durationSeconds as number,
+        updatedAt: (data.driverRoute.updatedAt as Timestamp) ?? null,
+      }
       : null,
     tripProgress: data.tripProgress
       ? {
-          remainingMeters: data.tripProgress.remainingMeters as number,
-          etaSeconds: data.tripProgress.etaSeconds as number,
-          updatedAt: (data.tripProgress.updatedAt as Timestamp) ?? null,
-        }
+        remainingMeters: data.tripProgress.remainingMeters as number,
+        etaSeconds: data.tripProgress.etaSeconds as number,
+        updatedAt: (data.tripProgress.updatedAt as Timestamp) ?? null,
+      }
       : null,
     serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
   };

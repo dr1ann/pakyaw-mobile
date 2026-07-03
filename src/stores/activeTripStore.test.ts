@@ -27,10 +27,11 @@ describe('activeTripStore', () => {
       navActiveStatus: null,
       navSession: null,
       cameraFollowing: true,
+      compassEnabled: false,
     });
   });
 
-  it('persists the active trip id, current navigation step, arm state, session, and camera follow state', () => {
+  it('persists the active trip id, current navigation step, arm state, session, camera follow state, and compass preference', () => {
     const navSession = {
       startedAt: 100,
       lastForegroundAt: 200,
@@ -48,6 +49,7 @@ describe('activeTripStore', () => {
       navActiveStatus: 'in_progress',
       navSession,
       cameraFollowing: false,
+      compassEnabled: true,
     } as ActiveTripState;
 
     expect(getPersistedActiveTripState(state)).toEqual({
@@ -56,6 +58,7 @@ describe('activeTripStore', () => {
       navActiveStatus: 'in_progress',
       navSession,
       cameraFollowing: false,
+      compassEnabled: true,
     });
   });
 
@@ -75,7 +78,7 @@ describe('activeTripStore', () => {
     expect(state.driverLocation).toBeNull();
   });
 
-  it('migrates v2 persisted navigation state to v3 defaults', () => {
+  it('migrates v2 persisted navigation state to v4 defaults', () => {
     expect(
       migratePersistedActiveTripState(
         {
@@ -91,6 +94,7 @@ describe('activeTripStore', () => {
       navActiveStatus: 'in_progress',
       navSession: null,
       cameraFollowing: true,
+      compassEnabled: false,
     });
   });
 

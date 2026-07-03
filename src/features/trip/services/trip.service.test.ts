@@ -5,8 +5,8 @@ import {
   IllegalTransitionError,
   TripNotFoundError,
 } from '@/features/trip/errors';
-import { ALLOWED_TRANSITIONS, CANCELLABLE_STATUSES } from '@/features/trip/types';
 import type { TripStatus } from '@/features/trip/types';
+import { ALLOWED_TRANSITIONS, CANCELLABLE_STATUSES } from '@/features/trip/types';
 
 // ─── Mock Firestore ──────────────────────────────────────────────────────────
 

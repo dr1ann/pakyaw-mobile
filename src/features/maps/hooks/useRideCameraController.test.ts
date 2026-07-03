@@ -5,6 +5,26 @@ import { useUiStore } from '@/stores/uiStore';
 const mockUseState = vi.fn();
 const mockUseEffect = vi.fn();
 const mockUseRef = vi.fn();
+let mockCameraFollowing = true;
+const mockSetCameraFollowing = vi.fn((cameraFollowing: boolean) => {
+  mockCameraFollowing = cameraFollowing;
+});
+
+vi.mock('@/stores/activeTripStore', () => ({
+  useActiveTripStore: Object.assign(
+    (selector: any) =>
+      selector({
+        cameraFollowing: mockCameraFollowing,
+        setCameraFollowing: mockSetCameraFollowing,
+      }),
+    {
+      getState: () => ({
+        cameraFollowing: mockCameraFollowing,
+        setCameraFollowing: mockSetCameraFollowing,
+      }),
+    }
+  ),
+}));
 
 vi.mock('react', async (importOriginal) => {
   const original = await importOriginal<typeof import('react')>();
@@ -42,8 +62,6 @@ describe('useRideCameraController', () => {
   let capturedEffects: any[] = [];
   let isMapReady = false;
   const setIsMapReady = vi.fn();
-  let userPanned = false;
-  const setUserPanned = vi.fn();
   let queuedCommandRef = { current: null };
   let lastExecutedCommandRef = { current: '' };
   let prevNavEnabledRef = { current: false };
@@ -54,20 +72,16 @@ describe('useRideCameraController', () => {
     capturedEffect = null;
     capturedEffects = [];
     isMapReady = false;
-    userPanned = false;
+    mockCameraFollowing = true;
+    mockSetCameraFollowing.mockClear();
     queuedCommandRef = { current: null };
     lastExecutedCommandRef = { current: '' };
     prevNavEnabledRef = { current: false };
     appStateRef = { current: 'active' };
     useUiStore.getState().resetPip();
 
-    let stateCallCount = 0;
     mockUseState.mockImplementation((init) => {
-      const count = stateCallCount++;
-      if (count === 0) {
-        return [isMapReady, setIsMapReady];
-      }
-      return [userPanned, setUserPanned];
+      return [isMapReady, setIsMapReady];
     });
 
     mockUseEffect.mockImplementation((effect) => {
@@ -80,7 +94,8 @@ describe('useRideCameraController', () => {
       const count = refCallCount++;
       if (count === 0) return queuedCommandRef;
       if (count === 1) return lastExecutedCommandRef;
-      if (count === 2) return prevNavEnabledRef;
+      if (count === 2) return { current: 0 };
+      if (count === 3) return prevNavEnabledRef;
       return appStateRef;
     });
   });
@@ -114,7 +129,7 @@ describe('useRideCameraController', () => {
 
     const controller = useRideCameraController(mapRef as any, inputs);
     controller.onUserPan();
-    expect(setUserPanned).toHaveBeenCalledWith(true);
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(false);
   });
 
   it('resets user panned when recenter is called', () => {
@@ -129,7 +144,7 @@ describe('useRideCameraController', () => {
 
     const controller = useRideCameraController(mapRef as any, inputs);
     controller.recenter();
-    expect(setUserPanned).toHaveBeenCalledWith(false);
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(true);
   });
 
   it('queues command if map is not ready', () => {
@@ -222,7 +237,7 @@ describe('useRideCameraController', () => {
   });
 
   it('reframes the route when a remounted map is ready after user pan state', () => {
-    userPanned = true;
+    mockCameraFollowing = false;
     const fitToCoordinatesMock = vi.fn();
     const mapRef = { current: { fitToCoordinates: fitToCoordinatesMock } };
     const inputs = {
@@ -236,7 +251,7 @@ describe('useRideCameraController', () => {
     const controller = useRideCameraController(mapRef as any, inputs);
     controller.onMapReady();
 
-    expect(setUserPanned).toHaveBeenCalledWith(false);
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(true);
     expect(fitToCoordinatesMock).toHaveBeenCalledWith(
       [inputs.pickupLocation, inputs.destinationLocation],
       {
@@ -308,7 +323,41 @@ describe('useRideCameraController', () => {
     capturedEffect();
 
     expect(animateCameraMock).toHaveBeenCalledOnce();
-    expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 0 });
+    expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 600 });
+  });
+
+  it('reacquires navigation camera even when the same command was executed in a prior booking', () => {
+    isMapReady = true;
+    const animateCameraMock = vi.fn();
+    const mapRef = { current: { animateCamera: animateCameraMock } };
+    const driverCoordinate = { latitude: 11.0, longitude: 124.0 };
+    const expectedCommand = {
+      type: 'navigationFollow',
+      coordinate: driverCoordinate,
+      heading: 0,
+      zoom: 19.1,
+      pitch: 50,
+      altitude: 180,
+      animationDurationMs: 600,
+    };
+    lastExecutedCommandRef.current = `${JSON.stringify(expectedCommand)}_pad_320`;
+    const inputs = {
+      pickupLocation: null,
+      destinationLocation: { latitude: 11.1, longitude: 124.1 },
+      driverLocation: driverCoordinate,
+      ownLocation: driverCoordinate,
+      phase: 'active' as const,
+      navigation: {
+        enabled: true,
+        coordinate: driverCoordinate,
+        heading: 0,
+      },
+    };
+
+    useRideCameraController(mapRef as any, inputs);
+    capturedEffect();
+
+    expect(animateCameraMock).toHaveBeenCalledOnce();
   });
 
   it('does not execute navigation camera commands while Android PiP is active', () => {
@@ -454,7 +503,7 @@ describe('useRideCameraController', () => {
 
   it('clears the user-pan latch on the falling edge of navigation', () => {
     isMapReady = true;
-    userPanned = true;
+    mockCameraFollowing = false;
     prevNavEnabledRef = { current: true };
     const animateToRegionMock = vi.fn();
     const mapRef = { current: { animateToRegion: animateToRegionMock } };
@@ -477,6 +526,6 @@ describe('useRideCameraController', () => {
 
     // Falling edge from nav-enabled → nav-disabled clears the pan latch so the
     // terminal-phase command isn't suppressed by a stale pan from in_progress.
-    expect(setUserPanned).toHaveBeenCalledWith(false);
+    expect(mockSetCameraFollowing).toHaveBeenCalledWith(true);
   });
 });
