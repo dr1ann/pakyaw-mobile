@@ -1,3 +1,7 @@
-fix: remove passenger sign-in link from DriverSignInForm
+fix: move navigation_arrow.svg into shared package
+
+Metro bundler cannot resolve require() paths that traverse outside
+the package boundary. Moved the asset into packages/shared/assets/
+and updated the require path accordingly.
 
 Co-authored-by: CommandCodeBot <noreply@commandcode.ai>
