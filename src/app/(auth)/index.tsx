@@ -38,41 +38,15 @@ export default function WelcomeScreen() {
         </View>
         <Text style={styles.appName}>
           Welcome to{' '}
-          <Text style={{ color: COLORS.bluePrimary }}>Pakyaw</Text>
+          <Text style={{ color: COLORS.greenPrimary }}>Pakyaw Driver</Text>
         </Text>
         <Text style={styles.tagline}>
-          Your reliable ride, on demand — around Ormoc City.
+          Sign in to start accepting rides in Ormoc City.
         </Text>
       </View>
 
       {/* Actions */}
       <View style={styles.actions}>
-        <Link href="/sign-up" asChild>
-          <Pressable
-            style={styles.btnPrimary}
-            accessibilityRole="button"
-            testID="welcome-sign-up"
-          >
-            <Text style={styles.btnPrimaryLabel}>Create account</Text>
-          </Pressable>
-        </Link>
-
-        <Link href="/sign-in" asChild>
-          <Pressable
-            style={styles.btnSecondary}
-            accessibilityRole="button"
-            testID="welcome-sign-in"
-          >
-            <Text style={styles.btnSecondaryLabel}>I already have an account</Text>
-          </Pressable>
-        </Link>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Are you a driver?</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
         <Link href="/driver-sign-in" asChild>
           <Pressable
             style={styles.btnDriver}

@@ -1,0 +1,9 @@
+extract: move shared code to @pakyaw/shared package
+
+- Created packages/shared/ with ~57 EXTRACT files
+- Resolved cross-boundary deps: Place, DriverDoc, route schemas
+- Updated ~113 import paths across codebase
+- Deleted debug artifacts (screen.png, window_dump.xml, tsc_errors.txt)
+- Deleted dev showcase (components.tsx)
+
+Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

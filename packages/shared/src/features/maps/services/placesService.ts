@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { env } from '@/services/env';
-import { ORMOC_SERVICE_AREA } from '@/lib/serviceArea/ormoc';
+import { ORMOC_SERVICE_AREA } from '@pakyaw/shared/constants/serviceArea';
 import { logger } from '@pakyaw/shared/lib/logger';
 import type { Place } from '@pakyaw/shared/types/place';
 

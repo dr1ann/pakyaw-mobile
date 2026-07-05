@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { env } from '@/services/env';
-import { routeResponseSchema, navRouteResponseSchema } from '@/features/booking/validation/bookingSchema';
+import { routeResponseSchema, navRouteResponseSchema } from '@pakyaw/shared/schemas/routing';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import type { NavRoute, NavStep, Maneuver } from '../navigation/types';

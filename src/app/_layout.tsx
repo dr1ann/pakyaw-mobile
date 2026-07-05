@@ -15,7 +15,6 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export const unstable_settings = {
   '(auth)': { initialRouteName: 'index' },
-  '(passenger)': { initialRouteName: 'index' },
   '(driver)': { initialRouteName: 'index' },
 };
 
@@ -42,10 +41,6 @@ function AppNavigator() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!authed}>
           <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-
-        <Stack.Protected guard={authed && role === 'passenger'}>
-          <Stack.Screen name="(passenger)" />
         </Stack.Protected>
 
         <Stack.Protected guard={authed && role === 'driver'}>
