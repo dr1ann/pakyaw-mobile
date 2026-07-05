@@ -1,21 +1,3 @@
-passenger-app: remove driver-only files
-
-Removed ~50 driver-only source files, docs, native modules, and figma assets.
-- Deleted entire driver-availability feature (components, hooks, services, types)
-- Deleted driver route screens and layout
-- Deleted matching feature (IncomingRequestCard, useAcceptTrip, useIncomingRequests, matching.service)
-- Deleted driver-only trip component (DriverTripSheets)
-- Deleted driver-only hooks (useDriverHeading, useDriverRouteQuery, useManeuverProgress, useVoiceGuidance, useTripProgressPublisher)
-- Deleted driver-only maps components (NavigationBanner, PipNavigationView, CompassModeToggle, RecenterButton)
-- Deleted driver-only navigation hooks (useNavigationLifecycle, usePictureInPicture)
-- Deleted driver stores (availabilityStore, uiStore)
-- Deleted driver utilities (throttle)
-- Deleted driver auth components (DriverSignInForm, useDriverSignIn)
-- Deleted expo-pip native module and PiP plugin
-- Deleted driver figma designs and architecture doc
-- Removed PiP plugin from app.json
-- Fixed root layout to remove driver route guard
-- Fixed auth welcome screen to remove driver links
-- Made uiStore import conditional in useRideCameraController (shared code)
+fix: correct asset path in LiveMap.tsx for shared package location
 
 Co-authored-by: CommandCodeBot <noreply@commandcode.ai>
