@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getPredictions } from '../services/placesService';
+import { getPredictions } from '@pakyaw/shared/features/maps/services/placesService';
 
 /**
  * Hook for Ormoc-restricted Places Autocomplete with built-in 250ms debouncing (Phase 12).

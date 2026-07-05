@@ -5,7 +5,7 @@ import { EmptyState } from '@pakyaw/shared/components/ui/EmptyState';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useTripHistory } from '../hooks/useTripHistory';
 import { TripHistoryCard } from './TripHistoryCard';
-import type { TripHistoryItem } from '../types';
+import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 
 export type TripHistoryListProps = {
   readonly uid: string;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SymbolIcon } from '../../../components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 
 type HomeSheetProps = {

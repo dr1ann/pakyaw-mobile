@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRoute, type RouteResult } from '../services/routingService';
+import { getRoute, type RouteResult } from '@pakyaw/shared/features/maps/services/routingService';
 import type { Place } from '@pakyaw/shared/types/place';
 
 type UseRouteQueryProps = {

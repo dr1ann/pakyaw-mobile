@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { SymbolIcon } from '../../components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors } from '../../constants/theme';
 import { usePassengerLocationPublisher } from '@/features/booking/hooks/usePassengerLocationPublisher';
 

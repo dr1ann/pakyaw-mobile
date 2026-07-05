@@ -4,7 +4,7 @@ import { Card } from '@pakyaw/shared/components/ui/Card';
 import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import type { TripHistoryItem } from '../types';
+import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import type { Timestamp } from 'firebase/firestore';
 
 export type TripHistoryCardProps = {

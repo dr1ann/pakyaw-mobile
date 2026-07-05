@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 
-import { listForPassenger } from '../services/history.service';
-import type { HistoryCursor } from '../types';
+import { listForPassenger } from '@pakyaw/shared/features/trip-history/services/history.service';
+import type { HistoryCursor } from '@pakyaw/shared/features/trip-history/types';
 
 export function useTripHistory(uid: string | null) {
   return useInfiniteQuery({
