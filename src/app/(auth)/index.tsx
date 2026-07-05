@@ -66,22 +66,6 @@ export default function WelcomeScreen() {
             <Text style={styles.btnSecondaryLabel}>I already have an account</Text>
           </Pressable>
         </Link>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Are you a driver?</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Link href="/driver-sign-in" asChild>
-          <Pressable
-            style={styles.btnDriver}
-            accessibilityRole="button"
-            testID="welcome-driver-signin"
-          >
-            <Text style={styles.btnDriverLabel}>Driver sign-in</Text>
-          </Pressable>
-        </Link>
       </View>
     </View>
   );

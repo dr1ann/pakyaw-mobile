@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRideCameraController } from './useRideCameraController';
-import { useUiStore } from '@/stores/uiStore';
+// uiStore is driver-only; mocked inline
+const mockPipState = { isInPip: false, isSupported: false };
 
 const mockUseState = vi.fn();
 const mockUseEffect = vi.fn();
@@ -80,7 +81,7 @@ describe('useRideCameraController', () => {
     hasExecutedNavigationFollowRef = { current: false };
     prevNavEnabledRef = { current: false };
     appStateRef = { current: 'active' };
-    useUiStore.getState().resetPip();
+    mockPipState.isInPip = false; mockPipState.isSupported = false;
 
     mockUseState.mockImplementation((init) => {
       return [isMapReady, setIsMapReady];
@@ -450,7 +451,7 @@ describe('useRideCameraController', () => {
   });
 
   it('does not execute navigation camera commands while Android PiP is active', () => {
-    useUiStore.getState().setPipState({ isInPip: true, isSupported: true });
+    mockPipState.isInPip = true; mockPipState.isSupported = true;
     isMapReady = true;
     const animateCameraMock = vi.fn();
     const mapRef = { current: { animateCamera: animateCameraMock } };

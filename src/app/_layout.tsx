@@ -6,7 +6,6 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useSession, useSessionBootstrap } from '@pakyaw/shared/features/auth/hooks/useSession';
-import '@/features/driver-availability/services/backgroundLocationTask';
 import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
@@ -16,7 +15,6 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 export const unstable_settings = {
   '(auth)': { initialRouteName: 'index' },
   '(passenger)': { initialRouteName: 'index' },
-  '(driver)': { initialRouteName: 'index' },
 };
 
 function AppNavigator() {
@@ -46,10 +44,6 @@ function AppNavigator() {
 
         <Stack.Protected guard={authed && role === 'passenger'}>
           <Stack.Screen name="(passenger)" />
-        </Stack.Protected>
-
-        <Stack.Protected guard={authed && role === 'driver'}>
-          <Stack.Screen name="(driver)" />
         </Stack.Protected>
       </Stack>
     </View>

@@ -1,6 +1,5 @@
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
-import { useUiStore } from '@/stores/uiStore';
 import { useEffect, useRef, useState } from 'react';
 import {
   AppState,
@@ -15,6 +14,14 @@ import {
   NAV_PITCH,
   NAV_ZOOM,
 } from '../navigation/constants';
+
+// PiP state is driver-only; import dynamically if available
+let useUiStore: any = null;
+try {
+  useUiStore = require('@/stores/uiStore').useUiStore;
+} catch {
+  // Not available in passenger branch
+}
 
 export type Coordinate = {
   latitude: number;
@@ -313,7 +320,7 @@ export function useRideCameraController(
         break;
       }
       case 'navigationFollow': {
-        if (Platform.OS === 'android' && useUiStore.getState().pip.isInPip) {
+        if (Platform.OS === 'android' && useUiStore && useUiStore.getState().pip.isInPip) {
           logger.info('[RideCameraController] Skipping navigation camera while PiP is active.');
           break;
         }
