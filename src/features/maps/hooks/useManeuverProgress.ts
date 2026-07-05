@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
-import type { NavRoute } from '../navigation/types';
+import type { NavRoute } from '@pakyaw/shared/features/maps/navigation/types';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
 import { getDistanceToStepEnd, getMinDistanceToPolyline } from '@pakyaw/shared/lib/geoProjection';
 

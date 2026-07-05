@@ -14,10 +14,10 @@ import {
   OFF_ROUTE_M,
   REROUTE_MIN_INTERVAL_MS,
   REROUTE_MIN_MOVE_M,
-} from '../navigation/constants';
-import { isNavActiveStatus } from '../navigation/navigationHelper';
-import type { NavRoute } from '../navigation/types';
-import { getNavigationRoute } from '../services/routingService';
+} from '@pakyaw/shared/features/maps/navigation/constants';
+import { isNavActiveStatus } from '@pakyaw/shared/features/maps/navigation/navigationHelper';
+import type { NavRoute } from '@pakyaw/shared/features/maps/navigation/types';
+import { getNavigationRoute } from '@pakyaw/shared/features/maps/services/routingService';
 
 type LatLng = { lat: number; lng: number };
 

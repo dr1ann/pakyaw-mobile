@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as Speech from 'expo-speech';
-import type { NavStep } from '../navigation/types';
+import type { NavStep } from '@pakyaw/shared/features/maps/navigation/types';
 
 const SOON_DISTANCE_M = 250;
 const NOW_DISTANCE_M = 60;

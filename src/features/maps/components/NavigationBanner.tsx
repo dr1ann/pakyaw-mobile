@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { getManeuverIconName } from '../navigation/maneuverIcon';
-import type { NavStep } from '../navigation/types';
+import { getManeuverIconName } from '@pakyaw/shared/features/maps/navigation/maneuverIcon';
+import type { NavStep } from '@pakyaw/shared/features/maps/navigation/types';
 
 export type NavigationBannerProps = {
   readonly currentStep: NavStep | null;

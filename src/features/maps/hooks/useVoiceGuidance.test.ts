@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { NavStep } from '../navigation/types';
+import type { NavStep } from '@pakyaw/shared/features/maps/navigation/types';
 import {
   buildVoiceInstruction,
   formatVoiceDistance,

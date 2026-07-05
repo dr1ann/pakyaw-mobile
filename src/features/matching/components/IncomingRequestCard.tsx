@@ -27,7 +27,7 @@ import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
 import type { IncomingRequest } from '@/features/matching/types';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { SymbolIcon } from '../../../components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 
 type IncomingRequestCardProps = {
   request: IncomingRequest;

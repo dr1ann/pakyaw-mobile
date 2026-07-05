@@ -5,8 +5,8 @@ import { logger } from '@pakyaw/shared/lib/logger';
 import {
   HEADING_GPS_COURSE_DISABLE_SPEED_MS,
   HEADING_SPEED_THRESHOLD_MS,
-} from '../navigation/constants';
-import { isNavActiveStatus } from '../navigation/navigationHelper';
+} from '@pakyaw/shared/features/maps/navigation/constants';
+import { isNavActiveStatus } from '@pakyaw/shared/features/maps/navigation/navigationHelper';
 
 const SMOOTHING_FACTOR = 0.25; // Shortest-arc low-pass smoothing factor
 export type HeadingSource = 'gps' | 'compass' | 'route' | null;

@@ -10,7 +10,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { SymbolIcon } from '../../../components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 
 type PowerButtonProps = {
   /** Current availability state — determines colour, label, and loading text. */

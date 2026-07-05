@@ -39,7 +39,7 @@ vi.mock('@/services/firebase/firebase', () => ({
   firestore: {},
 }));
 
-vi.mock('@/lib/logger', () => ({
+vi.mock('@pakyaw/shared/lib/logger', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -70,11 +70,11 @@ function setupMocks(tripData: Record<string, unknown> | null, driverData?: Recor
 }
 
 describe('trip.service — transition()', () => {
-  let transition: typeof import('@/features/trip/services/trip.service').transition;
+  let transition: typeof import('@pakyaw/shared/features/trip/services/trip.service').transition;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mod = await import('@/features/trip/services/trip.service');
+    const mod = await import('@pakyaw/shared/features/trip/services/trip.service');
     transition = mod.transition;
   });
 
@@ -181,11 +181,11 @@ describe('trip.service — transition()', () => {
 });
 
 describe('trip.service — cancel()', () => {
-  let cancel: typeof import('@/features/trip/services/trip.service').cancel;
+  let cancel: typeof import('@pakyaw/shared/features/trip/services/trip.service').cancel;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mod = await import('@/features/trip/services/trip.service');
+    const mod = await import('@pakyaw/shared/features/trip/services/trip.service');
     cancel = mod.cancel;
   });
 
@@ -308,11 +308,11 @@ describe('CANCELLABLE_STATUSES constant', () => {
 });
 
 describe('trip.service — publishTripProgress()', () => {
-  let publishTripProgress: typeof import('@/features/trip/services/trip.service').publishTripProgress;
+  let publishTripProgress: typeof import('@pakyaw/shared/features/trip/services/trip.service').publishTripProgress;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mod = await import('@/features/trip/services/trip.service');
+    const mod = await import('@pakyaw/shared/features/trip/services/trip.service');
     publishTripProgress = mod.publishTripProgress;
   });
 
