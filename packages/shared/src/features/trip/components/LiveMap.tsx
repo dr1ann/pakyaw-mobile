@@ -664,7 +664,7 @@ export function LiveMap({
             {showNavigationArrow ? (
               <View style={[styles.navigationArrow, { alignItems: 'center', justifyContent: 'center' }]}>
                 <Image
-                  source={require('../../../../../assets/images/navigation_arrow.svg')}
+                  source={require('../../../../assets/images/navigation_arrow.svg')}
                   style={{ width: arrowSize, height: arrowSize }}
                   contentFit="contain"
                 />
