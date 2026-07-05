@@ -96,13 +96,6 @@ export function DriverSignInForm() {
             loading={signInMutation.isPending}
             testID="driver-signin-submit"
           />
-
-          <View style={styles.linkRow}>
-            <Text style={styles.linkText}>Not a driver? </Text>
-            <Link href="/sign-in" style={styles.link}>
-              Passenger sign-in
-            </Link>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
