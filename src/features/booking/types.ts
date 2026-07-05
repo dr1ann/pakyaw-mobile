@@ -8,17 +8,7 @@
 
 import type { FieldValue } from 'firebase/firestore';
 
-import type { LatLng } from '@/lib/geo';
-
-/**
- * A named place the passenger can pick as pickup or destination.
- * Saved-place entries and ad-hoc free-text entries share this shape.
- */
-export type Place = {
-  readonly label: string;
-  readonly address?: string;
-  readonly coords: LatLng | null;
-};
+import type { Place } from '@pakyaw/shared/types/place';
 
 /**
  * Input accepted by booking.service.createTrip.

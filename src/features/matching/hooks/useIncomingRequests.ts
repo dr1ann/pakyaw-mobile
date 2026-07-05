@@ -14,10 +14,10 @@
 import { useEffect } from 'react';
 
 import { subscribeIncoming } from '@/features/matching/services/matching.service';
-import { geohashOf } from '@/lib/geo';
-import { logger } from '@/lib/logger';
+import { geohashOf } from '@pakyaw/shared/lib/geo';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 const GEOHASH_PRECISION = 5;
 

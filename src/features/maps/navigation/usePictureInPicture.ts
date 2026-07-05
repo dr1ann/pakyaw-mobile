@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { useUiStore } from '@/stores/uiStore';
 import * as Pip from '../../../../modules/expo-pip/src/ExpoPipModule';
 

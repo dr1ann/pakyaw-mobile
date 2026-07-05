@@ -25,7 +25,7 @@ import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LocationLoader } from '@/components/ui/LocationLoader';
+import { LocationLoader } from '@pakyaw/shared/components/ui/LocationLoader';
 import { colors, shadow, spacing } from '@/constants/theme';
 import { OfflineSheet } from '@/features/driver-availability/components/OfflineSheet';
 import { OnlineSheet } from '@/features/driver-availability/components/OnlineSheet';
@@ -45,17 +45,17 @@ import {
   DriverEnRouteSheet,
   DriverInTripSheet,
 } from '@/features/trip/components/DriverTripSheets';
-import { LiveMap } from '@/features/trip/components/LiveMap';
-import { useActiveTrip } from '@/features/trip/hooks/useActiveTrip';
+import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
+import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
-import type { TripStatus } from '@/features/trip/types';
-import { logger } from '@/lib/logger';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import type { TripStatus } from '@pakyaw/shared/features/trip/types';
+import { logger } from '@pakyaw/shared/lib/logger';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useDriverRouteQuery } from '@/features/maps/hooks/useDriverRouteQuery';
 import { useDriverHeading } from '@/features/maps/hooks/useDriverHeading';
-import { useInterpolatedCoordinate } from '@/features/maps/hooks/useInterpolatedCoordinate';
-import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
+import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
+import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useRideCameraController';
 import { useManeuverProgress } from '@/features/maps/hooks/useManeuverProgress';
 import { useVoiceGuidance } from '@/features/maps/hooks/useVoiceGuidance';
 import { NavigationBanner } from '@/features/maps/components/NavigationBanner';
@@ -64,11 +64,11 @@ import { RecenterButton } from '@/features/maps/components/RecenterButton';
 import { CompassModeToggle } from '@/features/maps/components/CompassModeToggle';
 import {
   getAutomaticNavigationStatus,
-} from '@/features/maps/navigation/navigationHelper';
+} from '@pakyaw/shared/features/maps/navigation/navigationHelper';
 import { useNavigationLifecycle } from '@/features/maps/navigation/useNavigationLifecycle';
 import { usePictureInPicture } from '@/features/maps/navigation/usePictureInPicture';
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
-import { getBearingAlongPolyline, snapPointToPolyline } from '@/lib/geoProjection';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import { getBearingAlongPolyline, snapPointToPolyline } from '@pakyaw/shared/lib/geoProjection';
 import { useUiStore } from '@/stores/uiStore';
 
 export default function DriveScreen() {

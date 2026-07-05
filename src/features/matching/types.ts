@@ -5,7 +5,7 @@
  * Lifecycle states beyond 'accepted' belong to later phases.
  */
 
-import type { Place } from '@/features/booking/types';
+import type { Place } from '@pakyaw/shared/types/place';
 
 /**
  * A trip request surfaced to nearby drivers via the geohash-prefix subscription.

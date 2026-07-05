@@ -12,7 +12,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing, typography } from '@/constants/theme';
 import { PowerButton } from '@/features/driver-availability/components/PowerButton';
-import type { Availability } from '@/features/driver-availability/types';
+import type { Availability } from '@pakyaw/shared/types/driver';
 
 type OnlineSheetProps = {
   availability: Availability;

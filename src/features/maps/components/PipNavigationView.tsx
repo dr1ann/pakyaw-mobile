@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, shadow } from '@/constants/theme';
-import { getManeuverIconName } from '@/features/maps/navigation/maneuverIcon';
-import type { NavStep } from '@/features/maps/navigation/types';
+import { getManeuverIconName } from '@pakyaw/shared/features/maps/navigation/maneuverIcon';
+import type { NavStep } from '@pakyaw/shared/features/maps/navigation/types';
 
 export type PipNavigationViewProps = {
   readonly currentStep: NavStep | null;

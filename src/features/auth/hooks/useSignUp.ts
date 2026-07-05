@@ -4,10 +4,10 @@ import { useState } from 'react';
 import {
   createPassenger,
   createUserDoc,
-} from '@/features/auth/services/auth.service';
-import type { RiderType } from '@/features/auth/types';
-import type { SignUpProfile } from '@/features/auth/validation/schemas';
-import { useSessionStore } from '@/stores/sessionStore';
+} from '@pakyaw/shared/features/auth/services/auth.service';
+import type { RiderType } from '@pakyaw/shared/features/auth/types';
+import type { SignUpProfile } from '@pakyaw/shared/features/auth/validation/schemas';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 export type SignUpStep = 'credentials' | 'profile' | 'riderType' | 'review';
 

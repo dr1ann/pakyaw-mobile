@@ -1,4 +1,4 @@
-import type { Place } from '@/features/booking/types';
+import type { Place } from '@pakyaw/shared/types/place';
 
 export const SAVED_PICKUP_PLACES: readonly Place[] = [
   { label: 'Home', address: 'Your saved home address', coords: { lat: 14.599512, lng: 120.984222 } },

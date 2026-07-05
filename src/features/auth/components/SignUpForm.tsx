@@ -19,9 +19,9 @@ import {
   signUpProfileSchema,
   type SignUpCredentials,
   type SignUpProfile,
-} from '@/features/auth/validation/schemas';
+} from '@pakyaw/shared/features/auth/validation/schemas';
 import { useSignUp } from '@/features/auth/hooks/useSignUp';
-import type { RiderType } from '@/features/auth/types';
+import type { RiderType } from '@pakyaw/shared/features/auth/types';
 
 // ---------------------------------------------------------------------------
 // Design tokens (Phase 4 will consolidate these into theme.ts)

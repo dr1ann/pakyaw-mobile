@@ -26,7 +26,7 @@ import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
 import type { IncomingRequest } from '@/features/matching/types';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { SymbolIcon } from '../../../components/ui/SymbolIcon';
 
 type IncomingRequestCardProps = {

@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { DRIVER_LAST_BACKGROUND_LOCATION_KEY } from '@/features/driver-availability/services/location.service';
 import { useNavigationLifecycle } from './useNavigationLifecycle';
 

@@ -1,8 +1,8 @@
-import { haversineMeters } from '@/lib/geo';
-import { projectPointOnSegment } from '@/lib/geoProjection';
-import { logger } from '@/lib/logger';
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { projectPointOnSegment } from '@pakyaw/shared/lib/geoProjection';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { firestore } from '@/services/firebase/firebase';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useQuery } from '@tanstack/react-query';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';

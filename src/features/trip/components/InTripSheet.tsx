@@ -7,9 +7,9 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
-import { StatusPill } from '@/components/ui/StatusPill';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 export function InTripSheet({
   remainingDistanceMeters,

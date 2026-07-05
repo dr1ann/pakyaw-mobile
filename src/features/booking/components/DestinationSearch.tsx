@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { SAVED_DESTINATION_PLACES } from '@/features/booking/constants';
-import type { Place } from '@/features/booking/types';
+import type { Place } from '@pakyaw/shared/types/place';
 
 export type DestinationSearchProps = {
   value: Place | null;

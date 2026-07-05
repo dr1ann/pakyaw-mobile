@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, shadow } from '@/constants/theme';
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { getManeuverIconName } from '../navigation/maneuverIcon';
 import type { NavStep } from '../navigation/types';
 

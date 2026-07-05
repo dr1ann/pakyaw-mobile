@@ -1,8 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Screen } from '@/components/ui/Screen';
+import { Screen } from '@pakyaw/shared/components/ui/Screen';
 import { colors, spacing, typography } from '@/constants/theme';
-import { useSession } from '@/features/auth/hooks/useSession';
+import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import { TripHistoryList } from '@/features/trip-history/components/TripHistoryList';
 
 export default function ActivityScreen() {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import type { NavRoute } from '../navigation/types';
-import { haversineMeters } from '@/lib/geo';
-import { getDistanceToStepEnd, getMinDistanceToPolyline } from '@/lib/geoProjection';
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { getDistanceToStepEnd, getMinDistanceToPolyline } from '@pakyaw/shared/lib/geoProjection';
 
 const MIN_SPEED_SAMPLES = 3;
 const MAX_SPEED_SAMPLES = 8;

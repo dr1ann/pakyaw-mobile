@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getUserDoc,
   signInDriver,
-} from '@/features/auth/services/auth.service';
-import { useSessionStore } from '@/stores/sessionStore';
+} from '@pakyaw/shared/features/auth/services/auth.service';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 export function useDriverSignIn() {
   const setSession = useSessionStore((s) => s.setSession);

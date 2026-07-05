@@ -18,8 +18,8 @@ import {
   View,
 } from 'react-native';
 
-import { Button } from '@/components/ui/Button';
-import { Sheet } from '@/components/ui/Sheet';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Sheet } from '@pakyaw/shared/components/ui/Sheet';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
   PREFLIGHT_ITEMS,

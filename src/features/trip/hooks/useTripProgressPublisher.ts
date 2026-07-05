@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-import { publishTripProgress } from '@/features/trip/services/trip.service';
-import type { TripStatus } from '@/features/trip/types';
-import { logger } from '@/lib/logger';
+import { publishTripProgress } from '@pakyaw/shared/features/trip/services/trip.service';
+import type { TripStatus } from '@pakyaw/shared/features/trip/types';
+import { logger } from '@pakyaw/shared/lib/logger';
 
 const PROGRESS_PUBLISH_INTERVAL_MS = 10_000;
 const PROGRESS_ACTIVE_STATUSES: readonly TripStatus[] = [

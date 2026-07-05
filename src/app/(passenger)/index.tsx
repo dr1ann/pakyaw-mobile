@@ -13,8 +13,8 @@
  *     - Status-driven active sheets (Searching, Matched, En Route, Arrived, etc.)
  */
 
-import { useRideCameraController } from '@/features/maps/hooks/useRideCameraController';
-import { useInterpolatedCoordinate } from '@/features/maps/hooks/useInterpolatedCoordinate';
+import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useRideCameraController';
+import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -22,33 +22,33 @@ import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } 
 import MapView from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { LocationLoader } from '@/components/ui/LocationLoader';
+import { LocationLoader } from '@pakyaw/shared/components/ui/LocationLoader';
 import { colors, shadow } from '@/constants/theme';
-import { useSession } from '@/features/auth/hooks/useSession';
-import { getUserDoc } from '@/features/auth/services/auth.service';
-import type { UserDoc } from '@/features/auth/types';
+import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
+import { getUserDoc } from '@pakyaw/shared/features/auth/services/auth.service';
+import type { UserDoc } from '@pakyaw/shared/features/auth/types';
 import { BookingSheet } from '@/features/booking/components/BookingSheet';
 import { HomeSheet } from '@/features/booking/components/HomeSheet';
 import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
-import { reverseGeocode } from '@/features/maps/services/placesService';
+import { reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
 import { ArrivedSheet } from '@/features/trip/components/ArrivedSheet';
-import { CancelledSheet } from '@/features/trip/components/CancelledSheet';
-import { CompletedSheet } from '@/features/trip/components/CompletedSheet';
+import { CancelledSheet } from '@pakyaw/shared/features/trip/components/CancelledSheet';
+import { CompletedSheet } from '@pakyaw/shared/features/trip/components/CompletedSheet';
 import { DriverMatchedSheet } from '@/features/trip/components/DriverMatchedSheet';
 import { EnRouteSheet } from '@/features/trip/components/EnRouteSheet';
 import { InTripSheet } from '@/features/trip/components/InTripSheet';
-import { LiveMap } from '@/features/trip/components/LiveMap';
-import { useActiveTrip } from '@/features/trip/hooks/useActiveTrip';
+import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
+import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
-import type { TripStatus } from '@/features/trip/types';
-import { haversineMeters } from '@/lib/geo';
-import { getDistanceToStepEnd } from '@/lib/geoProjection';
-import { logger } from '@/lib/logger';
-import { decodePolyline } from '@/lib/maps/decodePolyline';
+import type { TripStatus } from '@pakyaw/shared/features/trip/types';
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { getDistanceToStepEnd } from '@pakyaw/shared/lib/geoProjection';
+import { logger } from '@pakyaw/shared/lib/logger';
+import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
 // Enable LayoutAnimation for Android

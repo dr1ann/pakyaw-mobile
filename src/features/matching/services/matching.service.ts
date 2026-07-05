@@ -28,8 +28,8 @@ import {
 
 import { AcceptTripError, TripAlreadyTakenError } from '@/features/matching/errors';
 import type { IncomingRequest } from '@/features/matching/types';
-import { geohashNeighbors } from '@/lib/geo';
-import { logger } from '@/lib/logger';
+import { geohashNeighbors } from '@pakyaw/shared/lib/geo';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { firestore } from '@/services/firebase/firebase';
 
 // '' is a high BMP sentinel. [prefix, prefix+'') matches every

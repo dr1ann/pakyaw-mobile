@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Card } from '@/components/ui/Card';
-import { RouteConnector } from '@/components/ui/RouteConnector';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { Card } from '@pakyaw/shared/components/ui/Card';
+import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import type { TripHistoryItem } from '../types';
 import type { Timestamp } from 'firebase/firestore';

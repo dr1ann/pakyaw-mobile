@@ -7,8 +7,8 @@ import {
   DRIVER_LAST_BACKGROUND_LOCATION_KEY,
   type LastBackgroundLocation,
 } from '@/features/driver-availability/services/location.service';
-import { logger } from '@/lib/logger';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { logger } from '@pakyaw/shared/lib/logger';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 
 type UseNavigationLifecycleParams = {

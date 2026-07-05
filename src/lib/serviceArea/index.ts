@@ -1,5 +1,5 @@
-import type { LatLng } from '@/lib/geo';
-import type { Place } from '@/features/booking/types';
+import type { LatLng } from '@pakyaw/shared/lib/geo';
+import type { Place } from '@pakyaw/shared/types/place';
 import { ORMOC_SERVICE_AREA } from './ormoc';
 
 export class ServiceAreaError extends Error {

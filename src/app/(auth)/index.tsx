@@ -9,7 +9,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link, Redirect } from 'expo-router';
 
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 const COLORS = {
   ink900: '#0E1726',

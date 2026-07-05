@@ -7,11 +7,11 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components/ui/Button';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
-import { useCancelTrip } from '@/features/trip/hooks/useTripActions';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 export function DriverMatchedSheet() {
   const trip = useActiveTripStore((s) => s.trip);

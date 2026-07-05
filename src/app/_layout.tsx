@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useSession, useSessionBootstrap } from '@/features/auth/hooks/useSession';
+import { useSession, useSessionBootstrap } from '@pakyaw/shared/features/auth/hooks/useSession';
 import '@/features/driver-availability/services/backgroundLocationTask';
 import { persistOptions, queryClient } from '@/services/query/queryClient';
-import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 

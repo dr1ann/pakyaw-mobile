@@ -20,10 +20,10 @@ import { FirebaseError } from 'firebase/app';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useRef } from 'react';
 
-import { DRIVER_LOCATION_ACTIVE_STATUSES } from '@/features/trip/types';
-import { logger } from '@/lib/logger';
-import { useActiveTripStore } from '@/stores/activeTripStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { DRIVER_LOCATION_ACTIVE_STATUSES } from '@pakyaw/shared/features/trip/types';
+import { logger } from '@pakyaw/shared/lib/logger';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { firestore } from '@/services/firebase/firebase';
 
 export function useDriverLocation(): void {

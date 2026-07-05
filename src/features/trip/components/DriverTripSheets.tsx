@@ -8,11 +8,11 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components/ui/Button';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
-import { useTripTransition } from '@/features/trip/hooks/useTripActions';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useTripTransition } from '@pakyaw/shared/features/trip/hooks/useTripActions';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 // ── DriverAcceptedSheet ─────────────────────────────────────────────────────
 // Shown when status is 'accepted'. Driver just accepted, about to head out.

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
 import { clamp, MIN_SEATS } from '@/lib/seatModel';
-import type { Place } from '@/features/booking/types';
-import type { LatLng } from '@/lib/geo';
+import type { Place } from '@pakyaw/shared/types/place';
+import type { LatLng } from '@pakyaw/shared/lib/geo';
 
 /**
  * The accepted booking route, owned by the Booking Draft Store (§6.2, §13.2).

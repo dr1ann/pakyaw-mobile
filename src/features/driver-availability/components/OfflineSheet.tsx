@@ -10,7 +10,7 @@
 
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components/ui/Button';
+import { Button } from '@pakyaw/shared/components/ui/Button';
 import { colors, spacing, typography } from '@/constants/theme';
 import { PowerButton } from '@/features/driver-availability/components/PowerButton';
 

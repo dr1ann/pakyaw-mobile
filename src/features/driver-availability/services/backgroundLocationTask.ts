@@ -2,10 +2,10 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { shouldEmit } from '@/lib/throttle';
 import { auth } from '@/services/firebase/firebase';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import {
   DRIVER_BACKGROUND_LOCATION_TASK,
   DRIVER_BACKGROUND_LOCATION_UID_KEY,

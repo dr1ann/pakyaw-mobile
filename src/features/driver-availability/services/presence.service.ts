@@ -18,7 +18,7 @@
 import { doc, type FieldValue, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { PresenceWriteError } from '@/features/driver-availability/errors';
-import { logger } from '@/lib/logger';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { firestore } from '@/services/firebase/firebase';
 
 type GoOnlinePayload = {

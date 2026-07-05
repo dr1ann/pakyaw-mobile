@@ -2,9 +2,9 @@ import { useMutation } from '@tanstack/react-query';
 
 import { createTrip } from '@/features/booking/services/booking.service';
 import type { CreateBookingInput } from '@/features/booking/types';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useBookingDraftStore } from '@/stores/bookingDraftStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 export function useCreateBooking() {
   const setTripId = useActiveTripStore((s) => s.setTripId);

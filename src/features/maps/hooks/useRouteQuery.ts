@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRoute, type RouteResult } from '../services/routingService';
-import type { Place } from '@/features/booking/types';
+import type { Place } from '@pakyaw/shared/types/place';
 
 type UseRouteQueryProps = {
   readonly pickup: Place | null;

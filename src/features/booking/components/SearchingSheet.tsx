@@ -1,11 +1,11 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@/components/ui/Button';
-import { Sheet } from '@/components/ui/Sheet';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Sheet } from '@pakyaw/shared/components/ui/Sheet';
 import { colors, spacing, typography } from '@/constants/theme';
 
-import { useCancelTrip } from '@/features/trip/hooks/useTripActions';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 export function SearchingSheet() {
   const trip = useActiveTripStore((s) => s.trip);

@@ -1,4 +1,4 @@
-import { haversineMeters, type LatLng } from '@/lib/geo';
+import { haversineMeters, type LatLng } from '@pakyaw/shared/lib/geo';
 
 export const THROTTLE_MIN_INTERVAL_MS = 4_000;
 export const THROTTLE_MIN_DISTANCE_M = 25;

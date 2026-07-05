@@ -19,9 +19,9 @@ import {
   goOnline as serviceGoOnline,
 } from '@/features/driver-availability/services/presence.service';
 import { PreflightNotPassedError } from '@/features/driver-availability/errors';
-import { logger } from '@/lib/logger';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 /**
  * Returns a TanStack Query mutation that sets the driver online.

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { colors, shadow, spacing } from '@/constants/theme';
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 
 export type RecenterButtonProps = {
   readonly visible: boolean;

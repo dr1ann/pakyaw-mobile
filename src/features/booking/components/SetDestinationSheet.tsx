@@ -1,9 +1,9 @@
-import { SymbolIcon } from '@/components/ui/SymbolIcon';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import type { Place } from '@/features/booking/types';
+import type { Place } from '@pakyaw/shared/types/place';
 import { useOrmocPlacesAutocomplete } from '@/features/maps/hooks/useOrmocPlacesAutocomplete';
-import { getPlaceDetails, reverseGeocode } from '@/features/maps/services/placesService';
-import { logger } from '@/lib/logger';
+import { getPlaceDetails, reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { useLocationStore } from '@/stores/locationStore';
 import { useState } from 'react';

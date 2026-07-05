@@ -20,7 +20,7 @@
 
 import { create } from 'zustand';
 
-import type { Availability } from '@/features/driver-availability/types';
+import type { Availability } from '@pakyaw/shared/types/driver';
 import type { IncomingRequest } from '@/features/matching/types';
 
 export type AvailabilityState = {

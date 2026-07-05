@@ -22,8 +22,8 @@ import {
 import { BookingOfflineError, BookingWriteError } from '@/features/booking/errors';
 import type { CreateBookingInput, TripCreateData } from '@/features/booking/types';
 import { createTripSchema } from '@/features/booking/validation/bookingSchema';
-import { geohashOf } from '@/lib/geo';
-import { logger } from '@/lib/logger';
+import { geohashOf } from '@pakyaw/shared/lib/geo';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { clamp } from '@/lib/seatModel';
 import { assertInServiceArea, TripDistanceTooShortError } from '@/lib/serviceArea';
 import { firestore } from '@/services/firebase/firebase';

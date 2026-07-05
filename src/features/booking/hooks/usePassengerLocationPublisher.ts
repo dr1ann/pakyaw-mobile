@@ -3,8 +3,8 @@ import { AppState, type AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import { useSegments } from 'expo-router';
 import { useLocationStore } from '@/stores/locationStore';
-import { useSessionStore } from '@/stores/sessionStore';
-import { logger } from '@/lib/logger';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { logger } from '@pakyaw/shared/lib/logger';
 
 export function usePassengerLocationPublisher() {
   const uid = useSessionStore((s) => s.uid);

@@ -17,10 +17,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, type FieldValue, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import { LocationPermissionError } from '@/features/driver-availability/errors';
-import type { DriverLocation } from '@/features/driver-availability/types';
-import type { LatLng } from '@/lib/geo';
-import { geohashOf } from '@/lib/geo';
-import { logger } from '@/lib/logger';
+import type { DriverLocation } from '@pakyaw/shared/types/driver';
+import type { LatLng } from '@pakyaw/shared/lib/geo';
+import { geohashOf } from '@pakyaw/shared/lib/geo';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { shouldEmit } from '@/lib/throttle';
 import { firestore } from '@/services/firebase/firebase';
 

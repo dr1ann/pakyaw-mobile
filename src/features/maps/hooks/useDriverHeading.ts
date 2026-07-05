@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
-import { useActiveTripStore } from '@/stores/activeTripStore';
-import { logger } from '@/lib/logger';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+import { logger } from '@pakyaw/shared/lib/logger';
 import {
   HEADING_GPS_COURSE_DISABLE_SPEED_MS,
   HEADING_SPEED_THRESHOLD_MS,

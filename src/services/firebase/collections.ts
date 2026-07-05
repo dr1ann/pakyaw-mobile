@@ -7,8 +7,8 @@ import {
 } from 'firebase/firestore';
 
 import { firestore } from '@/services/firebase/firebase';
-import type { UserDoc } from '@/features/auth/types';
-import type { DriverDoc } from '@/features/driver-availability/types';
+import type { UserDoc } from '@pakyaw/shared/features/auth/types';
+import type { DriverDoc } from '@pakyaw/shared/types/driver';
 
 // TODO(phase-6+): replace TripDoc unknown payload with concrete domain type.
 export type TripDoc = { readonly id: string; readonly data: unknown };

@@ -9,13 +9,13 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useSession } from '@/features/auth/hooks/useSession';
-import { useSignOut } from '@/features/auth/hooks/useSignOut';
-import { getUserDoc } from '@/features/auth/services/auth.service';
-import type { UserDoc } from '@/features/auth/types';
-import { Avatar } from '@/components/ui/Avatar';
-import { Card } from '@/components/ui/Card';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
+import { useSignOut } from '@pakyaw/shared/features/auth/hooks/useSignOut';
+import { getUserDoc } from '@pakyaw/shared/features/auth/services/auth.service';
+import type { UserDoc } from '@pakyaw/shared/features/auth/types';
+import { Avatar } from '@pakyaw/shared/components/ui/Avatar';
+import { Card } from '@pakyaw/shared/components/ui/Card';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function DriverAccountScreen() {

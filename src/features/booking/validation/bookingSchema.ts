@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { LatLng } from '@/lib/geo';
+import type { LatLng } from '@pakyaw/shared/lib/geo';
 import { MIN_ROUTE_DISTANCE_METERS, MAX_ROUTE_DISTANCE_METERS } from '@/lib/serviceArea';
 
 export const latLngSchema: z.ZodType<LatLng> = z

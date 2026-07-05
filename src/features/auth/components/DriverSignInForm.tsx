@@ -15,11 +15,11 @@ import { Link } from 'expo-router';
 import {
   driverSignInSchema,
   type DriverSignInFields,
-} from '@/features/auth/validation/schemas';
+} from '@pakyaw/shared/features/auth/validation/schemas';
 import { useDriverSignIn } from '@/features/auth/hooks/useDriverSignIn';
-import { Button } from '@/components/ui/Button';
-import { Field } from '@/components/ui/Field';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Field } from '@pakyaw/shared/components/ui/Field';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export function DriverSignInForm() {

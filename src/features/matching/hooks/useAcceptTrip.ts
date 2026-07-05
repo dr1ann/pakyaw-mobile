@@ -20,7 +20,7 @@ import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { TripAlreadyTakenError } from '@/features/matching/errors';
 import { acceptTrip } from '@/features/matching/services/matching.service';
 import type { AcceptTripInput } from '@/features/matching/types';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 
 export function useAcceptTrip(): UseMutationResult<

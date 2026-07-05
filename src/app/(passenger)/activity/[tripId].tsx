@@ -2,12 +2,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Timestamp } from 'firebase/firestore';
 
-import { Card } from '@/components/ui/Card';
-import { RouteConnector } from '@/components/ui/RouteConnector';
-import { Screen } from '@/components/ui/Screen';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { Card } from '@pakyaw/shared/components/ui/Card';
+import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
+import { Screen } from '@pakyaw/shared/components/ui/Screen';
+import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useTripDetail } from '@/features/trip-history/hooks/useTripDetail';
+import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
 
 export default function TripDetailScreen() {
   const router = useRouter();

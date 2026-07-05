@@ -31,10 +31,10 @@ import {
   stopBackgroundPublishing,
   stopPublishing,
 } from '@/features/driver-availability/services/location.service';
-import { logger } from '@/lib/logger';
+import { logger } from '@pakyaw/shared/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
-import { useSessionStore } from '@/stores/sessionStore';
-import { useActiveTripStore } from '@/stores/activeTripStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useUiStore } from '@/stores/uiStore';
 
 export type UseLocationPublisherResult = {

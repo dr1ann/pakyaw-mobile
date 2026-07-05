@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { EmptyState } from '@/components/ui/EmptyState';
+import { EmptyState } from '@pakyaw/shared/components/ui/EmptyState';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useTripHistory } from '../hooks/useTripHistory';
 import { TripHistoryCard } from './TripHistoryCard';
