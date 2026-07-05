@@ -5,28 +5,27 @@
  * Domain errors are shown inline. Raw Firebase codes never appear.
  */
 
-import React from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
+import { useForm, useWatch } from 'react-hook-form';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
+import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useSignIn } from '@/features/auth/hooks/useSignIn';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Field } from '@pakyaw/shared/components/ui/Field';
 import {
   signInSchema,
   type SignInFields,
 } from '@pakyaw/shared/features/auth/validation/schemas';
-import { useSignIn } from '@/features/auth/hooks/useSignIn';
-import { Button } from '@pakyaw/shared/components/ui/Button';
-import { Field } from '@pakyaw/shared/components/ui/Field';
-import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export function SignInForm() {
   const signIn = useSignIn();
@@ -112,13 +111,6 @@ export function SignInForm() {
             <Text style={styles.linkText}>{"Don't have an account? "}</Text>
             <Link href="/sign-up" style={styles.link}>
               Sign up
-            </Link>
-          </View>
-
-          <View style={styles.linkRow}>
-            <Text style={styles.linkText}>Are you a driver? </Text>
-            <Link href="/driver-sign-in" style={styles.link}>
-              Driver sign-in
             </Link>
           </View>
         </View>
