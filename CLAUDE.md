@@ -6,7 +6,7 @@
 - Expo (SDK 56 — see [AGENTS.md](AGENTS.md))
 - TypeScript (strict)
 - Expo Router
-- NativeWind v4
+- Vanilla React Native Stylesheet (using custom design tokens in `theme.ts`)
 
 ## State Management
 
