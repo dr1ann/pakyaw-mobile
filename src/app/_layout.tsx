@@ -9,6 +9,7 @@ import { useSession, useSessionBootstrap } from '@pakyaw/shared/features/auth/ho
 import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { signOutUser } from '@pakyaw/shared/features/auth/services/auth.service';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -22,6 +23,14 @@ function AppNavigator() {
 
   const { status, role } = useSession();
   const authed = status === 'authenticated';
+
+  useEffect(() => {
+    if (status === 'authenticated' && role !== 'passenger') {
+      console.log('[DEBUG] Non-passenger user authenticated on passenger app. Signing out...');
+      signOutUser().catch((err) => console.error('Auto-signout failed:', err));
+      useSessionStore.getState().clear();
+    }
+  }, [status, role]);
 
   const onLayoutRootView = useCallback(async () => {
     if (status !== 'loading') {

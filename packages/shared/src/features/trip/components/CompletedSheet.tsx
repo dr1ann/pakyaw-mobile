@@ -15,15 +15,56 @@ type CompletedSheetProps = {
   onDismiss: () => void;
 };
 
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+
 export function CompletedSheet({ onDismiss }: CompletedSheetProps) {
+  const trip = useActiveTripStore((s: any) => s.trip);
+
   return (
     <View style={styles.container}>
-      <StatusPill label="Completed" tone="success" dot />
-      <Text style={styles.title}>Trip completed</Text>
+      <View style={styles.header}>
+        <StatusPill label="Completed" tone="success" dot />
+        <Text style={styles.tripId}>Trip #{trip?.id.slice(-6).toUpperCase() ?? '------'}</Text>
+      </View>
+
+      <Text style={styles.title}>Digital Receipt</Text>
       <Text style={styles.subtitle}>
-        You&apos;ve arrived at your destination. Thank you for riding with
-        Pakyaw!
+        Thank you for riding with Pakyaw! Here are the details of your completed trip.
       </Text>
+
+      {/* Receipt Card */}
+      <View style={styles.receiptCard}>
+        <View style={styles.receiptRow}>
+          <Text style={styles.receiptLabel}>Total Fare</Text>
+          <Text style={styles.receiptTotal}>
+            ₱{trip?.fare?.toFixed(2) ?? '0.00'}
+          </Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.receiptRow}>
+          <Text style={styles.receiptLabel}>Pickup</Text>
+          <Text style={styles.receiptValue} numberOfLines={1}>
+            {trip?.pickup?.label ?? 'N/A'}
+          </Text>
+        </View>
+
+        <View style={styles.receiptRow}>
+          <Text style={styles.receiptLabel}>Destination</Text>
+          <Text style={styles.receiptValue} numberOfLines={1}>
+            {trip?.destination?.label ?? 'N/A'}
+          </Text>
+        </View>
+
+        <View style={styles.receiptRow}>
+          <Text style={styles.receiptLabel}>Passengers</Text>
+          <Text style={styles.receiptValue}>
+            {trip?.passengerCount ?? 1} {trip?.passengerCount === 1 ? 'person' : 'people'}
+          </Text>
+        </View>
+      </View>
+
       <Button label="Done" onPress={onDismiss} />
     </View>
   );
@@ -45,5 +86,54 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     color: colors.ink[500],
     lineHeight: typography.lineHeight.body,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[2],
+  },
+  tripId: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[400],
+    letterSpacing: 1,
+  },
+  receiptCard: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: 16,
+    padding: spacing[4],
+    gap: spacing[3],
+    marginTop: spacing[2],
+    marginBottom: spacing[4],
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing[4],
+  },
+  receiptLabel: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[500],
+    flex: 1,
+  },
+  receiptValue: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    flex: 2,
+    textAlign: 'right',
+  },
+  receiptTotal: {
+    fontSize: typography.size.h3,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing[1],
   },
 });

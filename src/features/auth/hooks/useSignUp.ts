@@ -19,6 +19,9 @@ interface SignUpState {
   phone: string;
   riderType: RiderType;
   uid: string | null;
+  birthday: string;
+  gender: string;
+  address: string;
 }
 
 const INITIAL_STATE: SignUpState = {
@@ -29,6 +32,9 @@ const INITIAL_STATE: SignUpState = {
   phone: '',
   riderType: 'regular',
   uid: null,
+  birthday: '',
+  gender: '',
+  address: '',
 };
 
 export function useSignUp() {
@@ -68,7 +74,7 @@ export function useSignUp() {
   // Step 3 — create user document and sign session in
   const createProfileMutation = useMutation({
     mutationFn: async () => {
-      const { uid, email, firstName, lastName, phone, riderType } = formData;
+      const { uid, email, firstName, lastName, phone, riderType, birthday, gender, address } = formData;
       if (!uid) throw new Error('No uid — sign-up credentials step was skipped.');
       await createUserDoc(uid, {
         uid,
@@ -79,6 +85,9 @@ export function useSignUp() {
         phone,
         phoneVerified: false,
         riderType,
+        birthday,
+        gender,
+        address,
       });
       return uid;
     },

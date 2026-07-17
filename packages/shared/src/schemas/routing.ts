@@ -22,6 +22,14 @@ export const routeResponseSchema = z
                   value: z.number().int().nonnegative(),
                   text: z.string().optional(),
                 }),
+                start_location: z.object({
+                  lat: z.number(),
+                  lng: z.number(),
+                }),
+                end_location: z.object({
+                  lat: z.number(),
+                  lng: z.number(),
+                }),
               })
             )
             .min(1),

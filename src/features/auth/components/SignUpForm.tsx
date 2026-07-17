@@ -199,6 +199,9 @@ export function SignUpForm() {
   const profFirstName = useWatch({ control: profileForm.control, name: 'firstName', defaultValue: '' });
   const profLastName = useWatch({ control: profileForm.control, name: 'lastName', defaultValue: '' });
   const profPhone = useWatch({ control: profileForm.control, name: 'phone', defaultValue: '' });
+  const profBirthday = useWatch({ control: profileForm.control, name: 'birthday', defaultValue: '' });
+  const profGender = useWatch({ control: profileForm.control, name: 'gender', defaultValue: '' });
+  const profAddress = useWatch({ control: profileForm.control, name: 'address', defaultValue: '' });
 
   const stepIndex = (['credentials', 'profile', 'riderType', 'review'] as const).indexOf(step);
 
@@ -372,6 +375,63 @@ export function SignUpForm() {
               />
             </Field>
 
+            <Field
+              label="Birthday"
+              error={profileForm.formState.errors.birthday?.message}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  profileForm.formState.errors.birthday ? styles.inputError : null,
+                ]}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={COLORS.ink400}
+                onChangeText={(t) =>
+                  profileForm.setValue('birthday', t, { shouldValidate: true })
+                }
+                value={profBirthday}
+                testID="signup-birthday-input"
+              />
+            </Field>
+
+            <Field
+              label="Gender"
+              error={profileForm.formState.errors.gender?.message}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  profileForm.formState.errors.gender ? styles.inputError : null,
+                ]}
+                placeholder="Male / Female / Other"
+                placeholderTextColor={COLORS.ink400}
+                onChangeText={(t) =>
+                  profileForm.setValue('gender', t, { shouldValidate: true })
+                }
+                value={profGender}
+                testID="signup-gender-input"
+              />
+            </Field>
+
+            <Field
+              label="Address"
+              error={profileForm.formState.errors.address?.message}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  profileForm.formState.errors.address ? styles.inputError : null,
+                ]}
+                placeholder="123 Street, City"
+                placeholderTextColor={COLORS.ink400}
+                onChangeText={(t) =>
+                  profileForm.setValue('address', t, { shouldValidate: true })
+                }
+                value={profAddress}
+                testID="signup-address-input"
+              />
+            </Field>
+
             <PrimaryButton
               label="Continue"
               onPress={profileForm.handleSubmit((values) => saveProfile(values))}
@@ -430,6 +490,9 @@ export function SignUpForm() {
                 value={`${formData.firstName} ${formData.lastName}`}
               />
               <ReviewRow label="Mobile" value={formData.phone} />
+              <ReviewRow label="Birthday" value={formData.birthday || 'N/A'} />
+              <ReviewRow label="Gender" value={formData.gender || 'N/A'} />
+              <ReviewRow label="Address" value={formData.address || 'N/A'} />
               <ReviewRow
                 label="Rider type"
                 value={

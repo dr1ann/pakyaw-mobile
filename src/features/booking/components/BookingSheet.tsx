@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator, Switch } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
@@ -6,6 +7,15 @@ import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { useCreateBooking } from '@/features/booking/hooks/useCreateBooking';
 import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftStore';
 import { logger } from '@pakyaw/shared/lib/logger';
+import { computeFare, computeSharedFare } from '@/lib/fare';
+import { SurchargeType } from '@/lib/fare/types';
+import { useFareConfig } from '@/features/booking/hooks/useFareConfig';
+import { RideModeSelector } from './RideModeSelector';
+import { OnboardingModal } from './OnboardingModal';
+import { HopOnRadar } from './HopOnRadar';
+import { useNearbySharedRides } from '../hooks/useNearbySharedRides';
+import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
+import { useJoinSharedRide } from '../hooks/useJoinSharedRide';
 
 type BookingSheetProps = {
   readonly onSearchPickup?: () => void;
@@ -26,8 +36,64 @@ export function BookingSheet({
   const setPassengerCount = useBookingDraftStore((s) => s.setPassengerCount);
   const setDestination = useBookingDraftStore((s) => s.setDestination);
   const setRoute = useBookingDraftStore((s) => s.setRoute);
+  const setRideMode = useBookingDraftStore((s) => s.setRideMode);
+
+  const [onboardingVisible, setOnboardingVisible] = useState(true);
+
+  // When mode changes, show the onboarding modal again
+  React.useEffect(() => {
+    setOnboardingVisible(true);
+  }, [draft.rideMode]);
 
   const { mutate, isPending } = useCreateBooking();
+  const { data: fareConfig, isLoading: isLoadingFare } = useFareConfig();
+  
+  const { rides: nearbyRides, loading: loadingRides } = useNearbySharedRides(draft);
+  const { mutate: joinRide, isPending: isJoining } = useJoinSharedRide();
+
+  const routeIsCurrent = routeMatchesInputs(draft);
+  const currentRoute = routeIsCurrent ? draft.route : null;
+
+  const fareOutput = React.useMemo(() => {
+    if (!currentRoute || !fareConfig) {
+      return null;
+    }
+    const distanceKm = currentRoute.distanceMeters / 1000;
+    const surcharges: SurchargeType[] = [];
+    
+    // Automatic Special Trip Detection
+    const threshold = fareConfig.specialTripThresholdMeters || 50;
+    if ((currentRoute.pickupSnapDistanceMeters ?? 0) > threshold) {
+      surcharges.push(SurchargeType.SPECIAL_TRIP_PICKUP);
+    }
+    if ((currentRoute.dropoffSnapDistanceMeters ?? 0) > threshold) {
+      surcharges.push(SurchargeType.SPECIAL_TRIP_DROPOFF);
+    }
+    
+    if (draft.rideMode === 'shared' || draft.rideMode === 'hopon') {
+      return computeSharedFare(
+        {
+          distanceKm,
+          billedSeats: draft.passengerCount,
+          riderType: 'regular',
+          surcharges,
+        },
+        fareConfig
+      );
+    }
+
+    return computeFare(
+      {
+        distanceKm,
+        billedSeats: draft.passengerCount,
+        riderType: 'regular',
+        surcharges,
+      },
+      fareConfig
+    );
+  }, [currentRoute, draft.passengerCount, fareConfig, draft.rideMode]);
+
+  const estimatedFare = fareOutput?.totalFare ?? null;
 
   function handleBack() {
     logger.info('[BookingSheet] Back button tapped, clearing destination');
@@ -50,6 +116,7 @@ export function BookingSheet({
     }
 
     const payload = {
+      mode: draft.rideMode === 'private' ? 'solo' : 'shared',
       pickup: draft.pickup,
       destination: draft.destination,
       passengerCount: draft.passengerCount,
@@ -58,15 +125,35 @@ export function BookingSheet({
         durationSeconds: draft.route.durationSeconds,
         polyline: draft.route.polyline,
       },
-    };
+      fare: estimatedFare ?? undefined,
+    } as any;
 
     logger.info('[BookingSheet] Submitting trip booking request', payload);
     mutate(payload);
   }
 
-  // Only treat the route as usable when it was computed for the current inputs.
-  const routeIsCurrent = routeMatchesInputs(draft);
-  const currentRoute = routeIsCurrent ? draft.route : null;
+  function handleJoinHopOn(ride: SharedRideDoc) {
+    if (!draft.pickup || !draft.destination || !draft.route) {
+      logger.error('[BookingSheet] Join tapped but pickup, destination, or route is missing');
+      return;
+    }
+    if (!routeMatchesInputs(draft)) return;
+
+    const payload = {
+      sharedRideId: ride.id,
+      mode: 'shared' as const,
+      pickup: draft.pickup,
+      destination: draft.destination,
+      passengerCount: draft.passengerCount,
+      route: {
+        distanceMeters: draft.route.distanceMeters,
+        durationSeconds: draft.route.durationSeconds,
+        polyline: draft.route.polyline,
+      },
+      fare: estimatedFare ?? undefined,
+    };
+    joinRide(payload);
+  }
 
   const isRouteTooShort = !!currentRoute && currentRoute.distanceMeters < 50;
 
@@ -82,6 +169,12 @@ export function BookingSheet({
 
   return (
     <View style={styles.container} testID="booking-sheet">
+      <OnboardingModal
+        mode={draft.rideMode}
+        isVisible={onboardingVisible}
+        onClose={() => setOnboardingVisible(false)}
+      />
+
       {/* Route Header Card */}
       <View style={[styles.routeCard, shadow.card]}>
         <Pressable
@@ -132,8 +225,10 @@ export function BookingSheet({
                 {draft.destination?.label || 'Select Destination'}
               </Text>
             </View>
-            {isRouteTooShort && (
+            {isRouteTooShort ? (
               <SymbolIcon name="exclamationmark.triangle.fill" size={16} tintColor={colors.danger} />
+            ) : (
+              <Text style={styles.changeTextSmall}>CHANGE</Text>
             )}
           </Pressable>
 
@@ -195,75 +290,151 @@ export function BookingSheet({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <RideModeSelector selectedMode={draft.rideMode} onSelectMode={setRideMode} />
+
         {/* Mode Label */}
-        <View style={styles.modeContainer}>
-          <View style={styles.modeBadge}>
-            <Text style={styles.modeText}>Pakyaw (Solo)</Text>
-          </View>
-          <Text style={styles.modeSubText}>
-            Capacity buyout · min 4 seats. Driver gets the full base rate.
-          </Text>
-        </View>
-
-        {/* Stepper & Toggles Group */}
-        <View style={styles.formGroup}>
-          {/* Passenger Stepper */}
-          <View style={styles.formRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.rowTitle}>Passengers boarding</Text>
-              <Text style={styles.rowSubtitle}>Min 4-seat buyout enforced</Text>
+        {draft.rideMode === 'private' && (
+          <View style={styles.modeContainer}>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeText}>Pakyaw (Private)</Text>
             </View>
-            <View style={styles.stepperContainer}>
-              <Pressable
-                onPress={() => setPassengerCount(draft.passengerCount - 1)}
-                disabled={draft.passengerCount <= 1}
-                style={({ pressed }) => [
-                  styles.stepperButton,
-                  draft.passengerCount <= 1 && styles.stepperDisabled,
-                  pressed && styles.stepperPressed,
-                ]}
-                accessibilityLabel="Decrease passenger count"
-              >
-                <Text style={styles.stepperButtonText}>−</Text>
-              </Pressable>
-              <Text style={styles.stepperValue}>{draft.passengerCount}</Text>
-              <Pressable
-                onPress={() => setPassengerCount(draft.passengerCount + 1)}
-                disabled={draft.passengerCount >= 6}
-                style={({ pressed }) => [
-                  styles.stepperButton,
-                  draft.passengerCount >= 6 && styles.stepperDisabled,
-                  pressed && styles.stepperPressed,
-                ]}
-                accessibilityLabel="Increase passenger count"
-              >
-                <Text style={styles.stepperButtonText}>+</Text>
-              </Pressable>
-            </View>
-          </View>
-
-        </View>
-
-        {/* Placeholder Details Container */}
-        <View style={styles.detailsContainer}>
-          <Text style={styles.detailsHeader}>HOW THIS IS CALCULATED</Text>
-          <View style={styles.placeholderCard}>
-            <SymbolIcon name="info.circle" size={16} tintColor={colors.ink[500]} style={styles.infoIcon} />
-            <Text style={styles.placeholderText}>
-              Rate details will be calculated and displayed upon driver confirmation. No amount is required to request.
+            <Text style={styles.modeSubText}>
+              Capacity buyout · min 4 seats. Driver gets the full base rate.
             </Text>
           </View>
-          {/* Skeleton Loader representing the rows */}
-          <View style={styles.skeletonContainer}>
-            <View style={styles.skeletonRow}>
-              <View style={[styles.skeletonPill, { width: '60%' }]} />
-              <View style={[styles.skeletonPill, { width: '20%' }]} />
+        )}
+        
+        {draft.rideMode === 'shared' && (
+          <View style={styles.modeContainer}>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeText}>Shared Ride</Text>
             </View>
-            <View style={styles.skeletonRow}>
-              <View style={[styles.skeletonPill, { width: '40%' }]} />
-              <View style={[styles.skeletonPill, { width: '15%' }]} />
+            <Text style={styles.modeSubText}>
+              Cover 1-3 seats. Pay per seat + pickup fee. Remaining seats stay open for others along your route.
+            </Text>
+          </View>
+        )}
+
+        {draft.rideMode === 'hopon' && (
+          <View style={styles.modeContainer}>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeText}>Hop-On Radar</Text>
+            </View>
+            <Text style={styles.modeSubText}>
+              Find nearby active shared rides heading your way. Join instantly and save!
+            </Text>
+          </View>
+        )}
+
+        {draft.rideMode === 'hopon' ? (
+          <HopOnRadar
+            rides={nearbyRides}
+            loading={loadingRides}
+            onJoinRide={handleJoinHopOn}
+          />
+        ) : (
+          <View style={styles.formGroup}>
+            {/* Passenger Stepper */}
+            <View style={styles.formRow}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.rowTitle}>Passengers boarding</Text>
+                <Text style={styles.rowSubtitle}>
+                  {draft.rideMode === 'private' ? 'Min 4-seat buyout enforced' : 'How many seats do you need?'}
+                </Text>
+              </View>
+              <View style={styles.stepperContainer}>
+                <Pressable
+                  onPress={() => setPassengerCount(draft.passengerCount - 1)}
+                  disabled={draft.passengerCount <= 1}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    draft.passengerCount <= 1 && styles.stepperDisabled,
+                    pressed && styles.stepperPressed,
+                  ]}
+                  accessibilityLabel="Decrease passenger count"
+                >
+                  <Text style={styles.stepperButtonText}>−</Text>
+                </Pressable>
+                <Text style={styles.stepperValue}>{draft.passengerCount}</Text>
+                <Pressable
+                  onPress={() => setPassengerCount(draft.passengerCount + 1)}
+                  disabled={draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    (draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6) && styles.stepperDisabled,
+                    pressed && styles.stepperPressed,
+                  ]}
+                  accessibilityLabel="Increase passenger count"
+                >
+                  <Text style={styles.stepperButtonText}>+</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
+        )}
+
+        {/* Estimated Fare Container */}
+        <View style={styles.detailsContainer}>
+          <Text style={styles.detailsHeader}>HOW THIS IS CALCULATED</Text>
+          {estimatedFare === null || isLoadingFare ? (
+            <>
+              <View style={styles.placeholderCard}>
+                <SymbolIcon name="info.circle" size={16} tintColor={colors.ink[500]} style={styles.infoIcon} />
+                <Text style={styles.placeholderText}>
+                  Fetching live fare configurations from Admin Portal...
+                </Text>
+              </View>
+              {/* Skeleton Loader representing the rows */}
+              <View style={styles.skeletonContainer}>
+                <View style={styles.skeletonRow}>
+                  <View style={[styles.skeletonPill, { width: '60%' }]} />
+                  <View style={[styles.skeletonPill, { width: '20%' }]} />
+                </View>
+                <View style={styles.skeletonRow}>
+                  <View style={[styles.skeletonPill, { width: '40%' }]} />
+                  <View style={[styles.skeletonPill, { width: '15%' }]} />
+                </View>
+              </View>
+            </>
+          ) : (
+            <View style={styles.fareCard}>
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Base Rate (4 Seats Buyout)</Text>
+                <Text style={styles.fareValue}>₱{fareOutput?.breakdown.baseFare.toFixed(2)}</Text>
+              </View>
+              {fareOutput?.breakdown.distanceSurcharge ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Distance Surcharge</Text>
+                  <Text style={styles.fareValue}>₱{fareOutput?.breakdown.distanceSurcharge.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {fareOutput?.breakdown.nightSurcharge ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Night Differential</Text>
+                  <Text style={styles.fareValue}>₱{fareOutput?.breakdown.nightSurcharge.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {fareOutput?.breakdown.bookingFee ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Platform Booking Fee</Text>
+                  <Text style={styles.fareValue}>₱{fareOutput?.breakdown.bookingFee.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              {fareOutput?.breakdown.specialTripSurcharge ? (
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Special Trip Surcharge</Text>
+                  <Text style={styles.fareValue}>₱{fareOutput?.breakdown.specialTripSurcharge.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              
+              <View style={styles.divider} />
+              
+              <View style={styles.fareRow}>
+                <Text style={styles.fareLabel}>Total Estimated Fare</Text>
+                <Text style={styles.fareValueLarge}>₱{estimatedFare?.toFixed(2)}</Text>
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -577,6 +748,47 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border.subtle,
     borderRadius: radius.sm,
     opacity: 0.5,
+  },
+  fareCard: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[4],
+    gap: spacing[2],
+    marginVertical: spacing[2],
+  },
+  fareRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fareLabel: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[700],
+  },
+  fareValue: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[900],
+  },
+  fareValueLarge: {
+    fontSize: typography.size.h3,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  changeText: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  changeTextSmall: {
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginVertical: spacing[2],
   },
   pickupBar: {
     flexDirection: 'row',

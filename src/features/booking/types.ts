@@ -15,6 +15,7 @@ import type { Place } from '@pakyaw/shared/types/place';
  * passengerCount is the raw UI value; the service re-derives billedSeats.
  */
 export type CreateBookingInput = {
+  readonly mode?: 'private' | 'shared';
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
@@ -23,6 +24,7 @@ export type CreateBookingInput = {
     readonly durationSeconds: number;
     readonly polyline: string;
   };
+  readonly fare?: number;
 };
 
 /**
@@ -31,16 +33,19 @@ export type CreateBookingInput = {
  * written by this phase.
  */
 export type TripCreateData = {
-  readonly mode: 'solo';
+  readonly mode: 'solo' | 'shared';
   readonly passengerId: string;
   readonly driverId: null;
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
   readonly billedSeats: number;
+  readonly seatsCovered?: number;
   readonly status: 'request';
   readonly geohash: string;
   readonly requestedAt: FieldValue;
+  readonly createdTime: FieldValue;
+  readonly fare?: number;
   readonly route: {
     readonly distanceMeters: number;
     readonly durationSeconds: number;

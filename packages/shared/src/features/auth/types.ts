@@ -27,6 +27,9 @@ export interface UserDoc {
   phoneVerified: boolean; // set true after SMS OTP (FR-1.1.3)
   email: string | null; // passengers sign up with email; driver may be null
   riderType: RiderType; // FR-1.1.4 — STORED ONLY, not priced in MVP
+  birthday?: string;
+  gender?: string;
+  address?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

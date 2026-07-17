@@ -16,11 +16,14 @@ export class RoutingError extends Error {
     Object.setPrototypeOf(this, RoutingError.prototype);
   }
 }
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
 
 export type RouteResult = {
   readonly distanceMeters: number;
   readonly durationSeconds: number;
   readonly polyline: string;
+  readonly pickupSnapDistanceMeters: number;
+  readonly dropoffSnapDistanceMeters: number;
 };
 
 /**
@@ -66,10 +69,22 @@ export async function getRoute(
     const route = parsed.data.routes[0];
     const leg = route.legs[0];
 
+    const pickupSnapDistanceMeters = haversineMeters(
+      pickupCoords,
+      { lat: leg.start_location.lat, lng: leg.start_location.lng }
+    );
+
+    const dropoffSnapDistanceMeters = haversineMeters(
+      destinationCoords,
+      { lat: leg.end_location.lat, lng: leg.end_location.lng }
+    );
+
     return {
       distanceMeters: leg.distance.value,
       durationSeconds: leg.duration.value,
       polyline: route.overview_polyline.points,
+      pickupSnapDistanceMeters,
+      dropoffSnapDistanceMeters,
     };
   } catch (err) {
     logger.error('[routingService] getRoute failed', { err });

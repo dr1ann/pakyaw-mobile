@@ -18,11 +18,13 @@ import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/us
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, UIManager, View } from 'react-native';
+import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, Text, UIManager, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { LocationLoader } from '@pakyaw/shared/components/ui/LocationLoader';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, shadow } from '@/constants/theme';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import { getUserDoc } from '@pakyaw/shared/features/auth/services/auth.service';
@@ -66,10 +68,11 @@ export default function RideScreen() {
   const setRoute = useBookingDraftStore((s) => s.setRoute);
 
   const { uid } = useSession();
-  const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | null>(null);
+  const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | 'pin_pickup' | 'pin_destination' | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [pickupDragKey, setPickupDragKey] = useState(0);
   const [destinationDragKey, setDestinationDragKey] = useState(0);
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const deviceLocation = useLocationStore((s) => s.location);
   const permissionStatus = useLocationStore((s) => s.permissionStatus);
@@ -383,6 +386,73 @@ export default function RideScreen() {
     setIsMinimized((prev) => !prev);
   };
 
+  const handleMapRegionChangeComplete = (region: { latitude: number; longitude: number }) => {
+    setIsGeocoding(true);
+    if (searchMode === 'pin_pickup') {
+      setPickup({
+        coords: { lat: region.latitude, lng: region.longitude },
+        label: 'Pin Drop Location',
+      });
+      void (async () => {
+        try {
+          const place = await reverseGeocode(region.latitude, region.longitude);
+          if (place && searchMode === 'pin_pickup') {
+            setPickup(place);
+          }
+        } catch (err) {
+          logger.error('[RideScreen] Failed to reverse-geocode map center pickup', err);
+        } finally {
+          setIsGeocoding(false);
+        }
+      })();
+    } else if (searchMode === 'pin_destination') {
+      setDestination({
+        coords: { lat: region.latitude, lng: region.longitude },
+        label: 'Pin Drop Location',
+      });
+      void (async () => {
+        try {
+          const place = await reverseGeocode(region.latitude, region.longitude);
+          if (place && searchMode === 'pin_destination') {
+            setDestination(place);
+          }
+        } catch (err) {
+          logger.error('[RideScreen] Failed to reverse-geocode map center destination', err);
+        } finally {
+          setIsGeocoding(false);
+        }
+      })();
+    } else {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleConfirmPinning = () => {
+    if (isGeocoding) return;
+    
+    const currentPlace = searchMode === 'pin_pickup' ? draft.pickup : draft.destination;
+    
+    if (!currentPlace || !currentPlace.coords) {
+      Alert.alert('Error', 'Please select a valid location.');
+      return;
+    }
+    
+    const isWater = 
+      currentPlace.label === 'Pin Drop Location' ||
+      /bay|sea|ocean|river|lake|canal|strait|gulf|creek|swamp/i.test(currentPlace.label) ||
+      /bay|sea|ocean|river|lake|canal|strait|gulf|creek|swamp/i.test(currentPlace.address || '');
+
+    if (isWater) {
+      Alert.alert(
+        'Invalid Location',
+        'You cannot pin a location in the water (ocean, river, or bay). Please drag the pin to a land road.'
+      );
+      return;
+    }
+    
+    setSearchMode(null);
+  };
+
   function handleDismissTerminal() {
     useBookingDraftStore.getState().reset();
     useActiveTripStore.getState().clearTrip();
@@ -443,11 +513,12 @@ export default function RideScreen() {
         mapRef={mapRef}
         ownLocation={deviceLocation}
         driverLocation={mapData.driverLocation}
-        pickupLocation={mapData.pickupLocation}
-        destinationLocation={mapData.destinationLocation}
+        pickupLocation={searchMode === 'pin_pickup' ? null : mapData.pickupLocation}
+        destinationLocation={searchMode === 'pin_destination' ? null : mapData.destinationLocation}
         showDestination={true}
-        onPickupDragEnd={phase === 'booking' ? handlePickupDragEnd : undefined}
-        onDestinationDragEnd={phase === 'booking' ? handleDestinationDragEnd : undefined}
+        onPickupDragEnd={undefined}
+        onDestinationDragEnd={undefined}
+        onRegionChangeComplete={handleMapRegionChangeComplete}
         pickupKey={pickupDragKey}
         destinationKey={destinationDragKey}
         routePolyline={mapData.routePolyline}
@@ -460,10 +531,26 @@ export default function RideScreen() {
         onUserPan={cameraController.onUserPan}
       />
 
+      {/* Center Pin Overlay for Map Pinning */}
+      {(searchMode === 'pin_pickup' || searchMode === 'pin_destination') && (
+        <View style={styles.centerPinContainer} pointerEvents="none">
+          <View style={styles.centerPinBubble}>
+            <Text style={styles.centerPinBubbleText} numberOfLines={1}>
+              {searchMode === 'pin_pickup' ? draft.pickup?.label || 'Pin Pickup Here' : draft.destination?.label || 'Pin Destination Here'}
+            </Text>
+          </View>
+          <SymbolIcon 
+            name="mappin" 
+            size={36} 
+            tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary} 
+          />
+        </View>
+      )}
+
       {/* Bottom Sheet Overlays */}
       {status === null ? (
         // Booking Flow sheets
-        searchMode ? (
+        (searchMode === 'pickup' || searchMode === 'destination') ? (
           // Full-screen search overlay.
           <Modal
             visible
@@ -474,8 +561,43 @@ export default function RideScreen() {
             <SafeAreaProvider>
               <SafeAreaView style={styles.fullscreenSearch}>
                 <SetDestinationSheet
-                  mode={searchMode}
+                  mode={searchMode === 'pickup' || searchMode === 'pin_pickup' ? 'pickup' : 'destination'}
                   onClose={() => setSearchMode(null)}
+                  onChooseOnMap={(coords) => {
+                     const isPickup = searchMode === 'pickup';
+                     const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
+                     
+                     if (isPickup) {
+                       setPickup({
+                         label: 'Pin Drop Location',
+                         address: 'Drag pin to exact location',
+                         coords,
+                       });
+                     } else {
+                       setDestination({
+                         label: 'Pin Drop Location',
+                         address: 'Drag pin to exact location',
+                         coords,
+                       });
+                     }
+                     setSearchMode(targetMode);
+                     setIsMinimized(false);
+                     
+                     setIsGeocoding(true);
+                     void (async () => {
+                       try {
+                         const place = await reverseGeocode(coords.lat, coords.lng);
+                         if (place) {
+                           if (isPickup) setPickup(place);
+                           else setDestination(place);
+                         }
+                       } catch (err) {
+                         logger.error('[RideScreen] Failed initial pin drop geocoding', err);
+                       } finally {
+                         setIsGeocoding(false);
+                       }
+                     })();
+                  }}
                   onSelect={(place) => {
                     if (searchMode === 'pickup') {
                       setPickup(place);
@@ -489,6 +611,21 @@ export default function RideScreen() {
               </SafeAreaView>
             </SafeAreaProvider>
           </Modal>
+        ) : searchMode === 'pin_pickup' || searchMode === 'pin_destination' ? (
+          // Map Pinning UI
+          <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+            <View style={[styles.bookingSheetCard, shadow.float, { height: 'auto', alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 }]}>
+               <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 16, color: colors.ink[900] }}>
+                 Drag the map or pin to set {searchMode === 'pin_pickup' ? 'pickup' : 'destination'}
+               </Text>
+               <Button
+                 label="Confirm Location"
+                 onPress={handleConfirmPinning}
+                 loading={isGeocoding}
+                 style={{ width: '100%' }}
+               />
+            </View>
+          </SafeAreaView>
         ) : draft.destination ? (
           // Figma-aligned Booking options sheet
           <SafeAreaView edges={['bottom']} style={styles.bookingSheetArea} pointerEvents="box-none">
@@ -617,5 +754,33 @@ const styles = StyleSheet.create({
   fullscreenSearch: {
     flex: 1,
     backgroundColor: colors.surface.card,
+  },
+  centerPinContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -75 }, { translateY: -60 }],
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 150,
+  },
+  centerPinBubble: {
+    backgroundColor: colors.ink[900],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    maxWidth: 140,
+  },
+  centerPinBubbleText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

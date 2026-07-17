@@ -71,12 +71,13 @@ const SAVED_PLACES: readonly SavedPlace[] = [
 ];
 
 type SetDestinationSheetProps = {
+  readonly mode: 'pickup' | 'destination';
   readonly onClose: () => void;
   readonly onSelect: (place: Place) => void;
-  readonly mode?: 'pickup' | 'destination';
+  readonly onChooseOnMap: (coords: { lat: number; lng: number }) => void;
 };
 
-export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }: SetDestinationSheetProps) {
+export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = 'destination' }: SetDestinationSheetProps) {
   const [query, setQuery] = useState('');
   
   const { data: predictions = [], isLoading } = useOrmocPlacesAutocomplete(query);
@@ -168,6 +169,16 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
     }
   }
 
+  function handleChooseOnMap() {
+    logger.info('[SetDestinationSheet] Choose on Map selected');
+    const state = useLocationStore.getState();
+    const loc = state.location;
+    const coords = loc 
+      ? { lat: loc.latitude, lng: loc.longitude }
+      : { lat: 11.005074, lng: 124.611750 }; 
+    onChooseOnMap(coords);
+  }
+
   const validSavedPlaces = SAVED_PLACES.filter((p) => isInServiceArea(p.coords));
   const validSuggestedPlaces = SUGGESTED_PLACES.filter((p) => isInServiceArea(p.coords));
 
@@ -239,6 +250,22 @@ export function SetDestinationSheet({ onClose, onSelect, mode = 'destination' }:
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
         >
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Map Options</Text>
+            <Pressable
+              onPress={handleChooseOnMap}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            >
+              <View style={styles.iconContainer}>
+                <SymbolIcon name="map.fill" size={20} tintColor={colors.blue.primary} />
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={styles.rowLabel}>Choose on Map</Text>
+                <Text style={styles.rowSublabel}>Drag pin to exact location</Text>
+              </View>
+            </Pressable>
+          </View>
+
           {mode === 'pickup' && (
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>Current Location</Text>

@@ -1,4 +1,4 @@
-export const MIN_SEATS = 4;
+export const MIN_SEATS = 1;
 export const MAX_SEATS = 6;
 
 export function clamp(passengerCount: number): number {

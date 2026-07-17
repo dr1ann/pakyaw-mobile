@@ -16,6 +16,8 @@ export type AcceptedRoute = {
   readonly distanceMeters: number;
   readonly durationSeconds: number;
   readonly polyline: string;
+  readonly pickupSnapDistanceMeters?: number;
+  readonly dropoffSnapDistanceMeters?: number;
   readonly source?: {
     readonly pickup: LatLng;
     readonly destination: LatLng;
@@ -23,6 +25,7 @@ export type AcceptedRoute = {
 };
 
 export type BookingDraft = {
+  readonly rideMode: 'private' | 'shared' | 'hopon';
   readonly pickup: Place | null;
   readonly destination: Place | null;
   readonly passengerCount: number;
@@ -31,6 +34,7 @@ export type BookingDraft = {
 
 export type BookingDraftState = {
   readonly draft: BookingDraft;
+  setRideMode: (mode: 'private' | 'shared' | 'hopon') => void;
   setPickup: (pickup: Place | null) => void;
   setDestination: (destination: Place | null) => void;
   setPassengerCount: (count: number) => void;
@@ -39,6 +43,7 @@ export type BookingDraftState = {
 };
 
 const emptyDraft: BookingDraft = {
+  rideMode: 'private',
   pickup: null,
   destination: null,
   passengerCount: MIN_SEATS,
@@ -47,6 +52,10 @@ const emptyDraft: BookingDraft = {
 
 export const useBookingDraftStore = create<BookingDraftState>((set) => ({
   draft: emptyDraft,
+  setRideMode: (rideMode) =>
+    set((state) => ({
+      draft: { ...state.draft, rideMode, passengerCount: rideMode === 'shared' ? 1 : state.draft.passengerCount },
+    })),
   setPickup: (pickup) =>
     set((state) => ({
       draft: { ...state.draft, pickup },

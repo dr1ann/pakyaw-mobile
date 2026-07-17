@@ -65,6 +65,7 @@ function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
     cancelledAt: (data.cancelledAt as Timestamp) ?? null,
     cancelledBy: (data.cancelledBy as CancelledBy) ?? null,
     cancelReason: (data.cancelReason as string) ?? null,
+    fare: data.fare as number | undefined,
     route: data.route
       ? {
         distanceMeters: data.route.distanceMeters as number,

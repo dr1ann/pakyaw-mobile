@@ -90,16 +90,19 @@ export async function createTrip(
   const geohash = geohashOf(validated.pickup.coords, 7);
 
   const data: TripCreateData = {
-    mode: 'solo',
+    mode: input.mode || 'solo',
     passengerId,
     driverId: null,
     pickup: validated.pickup,
     destination: validated.destination,
     passengerCount: validated.passengerCount,
-    billedSeats,
+    billedSeats: input.mode === 'shared' ? input.passengerCount : billedSeats,
+    ...(input.mode === 'shared' && { seatsCovered: input.passengerCount }),
     status: 'request',
     geohash,
     requestedAt: serverTimestamp(),
+    createdTime: serverTimestamp(),
+    ...(input.fare !== undefined && { fare: input.fare }),
     route: validated.route,
     serviceAreaId: 'ormoc',
   };

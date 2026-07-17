@@ -25,6 +25,9 @@ export const signUpProfileSchema = z.object({
       /^\+639\d{9}$/,
       'Enter a valid Philippine mobile number starting with +639.',
     ),
+  birthday: z.string().min(1, 'Birthday is required.'),
+  gender: z.string().min(1, 'Gender is required.'),
+  address: z.string().min(1, 'Address is required.'),
 });
 
 export type SignUpProfile = z.infer<typeof signUpProfileSchema>;

@@ -139,14 +139,31 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     
     // Find the most specific named feature or street number/name
     const routeComponent = addressComponents.find((c) => c.types.includes('route'));
-    const sublocalityComponent = addressComponents.find((c) => c.types.includes('sublocality') || c.types.includes('neighborhood'));
+    const sublocalityComponent = addressComponents.find((c) => 
+      c.types.includes('sublocality') || 
+      c.types.includes('neighborhood') || 
+      c.types.includes('administrative_area_level_5') // Usually Barangay in PH
+    );
     
     if (routeComponent && sublocalityComponent) {
-      label = `${routeComponent.long_name}, ${sublocalityComponent.long_name}`;
+      label = `${routeComponent.short_name}, ${sublocalityComponent.short_name}`;
     } else if (sublocalityComponent) {
       label = sublocalityComponent.long_name;
-    } else if (topResult.formatted_address) {
-      label = topResult.formatted_address.split(',')[0];
+    } else if (routeComponent) {
+      label = routeComponent.long_name;
+    } else {
+      const nonPlusCode = addressComponents.find(c => !c.types.includes('plus_code') && !c.long_name.includes('+'));
+      if (nonPlusCode) {
+        label = nonPlusCode.long_name;
+      } else if (topResult.formatted_address) {
+        label = topResult.formatted_address.split(',')[0];
+      }
+    }
+
+    // Fallback if we accidentally grabbed a Plus Code
+    if (label.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/)) {
+      const brgy = addressComponents.find((c) => c.types.includes('administrative_area_level_5'));
+      label = brgy ? brgy.long_name : 'Unnamed Road';
     }
 
     return {
