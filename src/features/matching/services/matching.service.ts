@@ -48,6 +48,9 @@ function mapDocToIncomingRequest(
   const passengerCount = data.passengerCount;
   const billedSeats = data.billedSeats;
   const route = data.route;
+  const mode = data.mode;
+  const seatsCovered = data.seatsCovered;
+  const fare = data.fare;
 
   if (
     typeof passengerId !== 'string' ||
@@ -63,11 +66,14 @@ function mapDocToIncomingRequest(
   return {
     tripId: snap.id,
     passengerId,
+    mode,
     pickup,
     destination,
     passengerCount,
     billedSeats,
+    seatsCovered,
     route,
+    fare,
   };
 }
 

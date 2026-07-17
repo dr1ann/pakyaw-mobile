@@ -10,7 +10,7 @@
  *           remains claimable by other drivers.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   LayoutAnimation,
@@ -20,6 +20,7 @@ import {
   Text,
   UIManager,
   View,
+  Vibration,
 } from 'react-native';
 
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
@@ -41,6 +42,26 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const driverUid = useSessionStore((s) => s.uid);
   const acceptMutation = useAcceptTrip();
   const [isMinimized, setIsMinimized] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(15);
+
+  useEffect(() => {
+    // Notify driver when a request appears
+    Vibration.vibrate([0, 500, 200, 500]);
+    
+    // Set up countdown
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleDecline();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [request.tripId]); // Reset countdown on new request
 
   const isPending = acceptMutation.isPending;
   const disabled = isPending || driverUid == null;
@@ -73,11 +94,13 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     <View style={[styles.card, shadow.float]} testID="incoming-request-card">
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>NEW REQUEST</Text>
+          <View style={[styles.badge, request.mode === 'shared' ? styles.badgeShared : styles.badgePrivate]}>
+            <Text style={[styles.badgeText, request.mode === 'shared' ? styles.badgeTextShared : styles.badgeTextPrivate]}>
+              {request.mode === 'shared' ? 'SHARED RIDE' : 'PAKYAW PRIVATE'}
+            </Text>
           </View>
           <Text style={styles.seats}>
-            {request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
+            {request.mode === 'shared' ? request.seatsCovered : request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
             {isMinimized && tripDistanceKm && ` · ${tripDistanceKm} km`}
           </Text>
         </View>
@@ -137,7 +160,19 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
               <Text style={styles.infoLabel}>Trip duration</Text>
               <Text style={styles.infoValue}>{durationText}</Text>
             </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Estimated Fare</Text>
+              <Text style={styles.infoValue}>{request.fare != null ? `₱${request.fare.toFixed(2)}` : '—'}</Text>
+            </View>
           </View>
+          {request.mode === 'shared' && (
+            <View style={styles.sharedNotice}>
+              <SymbolIcon name="person.3.fill" size={14} tintColor={colors.blue.primary} style={{ marginTop: 2 }} />
+              <Text style={styles.sharedNoticeText}>
+                This is a shared ride. After pickup, other passengers may hop on along your route.
+              </Text>
+            </View>
+          )}
         </>
       )}
 
@@ -174,7 +209,12 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
           {isPending ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <Text style={styles.acceptLabel}>Accept</Text>
+            <View style={styles.acceptButtonContent}>
+              <Text style={styles.acceptLabel}>Accept</Text>
+              <View style={styles.countdownPill}>
+                <Text style={styles.countdownText}>{timeLeft}s</Text>
+              </View>
+            </View>
           )}
         </Pressable>
       </View>
@@ -212,16 +252,26 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   badge: {
-    backgroundColor: colors.blue.tint,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1],
     borderRadius: radius.pill,
   },
+  badgeShared: {
+    backgroundColor: colors.blue.tint,
+  },
+  badgePrivate: {
+    backgroundColor: colors.green.tint,
+  },
   badgeText: {
     fontSize: typography.size.label,
     fontWeight: typography.weight.bold,
-    color: colors.blue.primary,
     letterSpacing: typography.letterSpacing.label,
+  },
+  badgeTextShared: {
+    color: colors.blue.primary,
+  },
+  badgeTextPrivate: {
+    color: colors.green.primary,
   },
   seats: {
     fontSize: typography.size.bodySmall,
@@ -288,10 +338,26 @@ const styles = StyleSheet.create({
   acceptButton: {
     backgroundColor: colors.green.primary,
   },
+  acceptButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
   acceptLabel: {
     fontSize: typography.size.body,
     fontWeight: typography.weight.bold,
     color: colors.white,
+  },
+  countdownPill: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  countdownText: {
+    color: colors.white,
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
   },
   actionPressed: {
     opacity: 0.85,
@@ -319,5 +385,20 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     color: colors.ink[900],
     fontWeight: typography.weight.bold,
+  },
+  sharedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.blue.tint,
+    padding: spacing[3],
+    borderRadius: radius.md,
+    gap: spacing[2],
+  },
+  sharedNoticeText: {
+    flex: 1,
+    fontSize: typography.size.bodySmall,
+    color: colors.blue.primary,
+    fontWeight: typography.weight.medium,
+    lineHeight: 18,
   },
 });

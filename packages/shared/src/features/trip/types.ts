@@ -26,7 +26,7 @@ export type TripStatus =
  */
 export type TripDoc = {
   readonly id: string;
-  readonly mode: 'solo';
+  readonly mode: 'solo' | 'shared';
   readonly status: TripStatus;
   readonly passengerId: string;
   readonly driverId: string | null;
@@ -41,6 +41,13 @@ export type TripDoc = {
   readonly cancelledAt: Timestamp | null;
   readonly cancelledBy: CancelledBy | null;
   readonly cancelReason: string | null;
+  readonly fare?: number;
+
+  // Shared Ride Fields
+  readonly sharedRideId?: string | null;
+  readonly seatsCovered?: number;
+  readonly pickupFee?: number;
+  readonly techFee?: number;
 
   // Phase 12 - route, driverToPickup, and serviceAreaId (optional for backward compatibility)
   readonly route?: {
@@ -61,6 +68,35 @@ export type TripDoc = {
     readonly updatedAt: Timestamp | null;
   } | null;
   readonly serviceAreaId?: 'ormoc' | null;
+};
+
+export type SharedRideStatus = 'active' | 'completing' | 'completed';
+
+export type SharedRidePassenger = {
+  readonly tripId: string;
+  readonly passengerId: string;
+  readonly seatsCovered: number;
+  readonly pickup: Place;
+  readonly destination: Place;
+  readonly status: 'active' | 'dropped_off';
+};
+
+export type SharedRideDoc = {
+  readonly id: string;
+  readonly driverId: string;
+  readonly status: SharedRideStatus;
+  readonly maxSeats: number;
+  readonly seatsBooked: number;
+  readonly routePolyline: string;
+  readonly routeOrigin: { readonly lat: number; readonly lng: number };
+  readonly routeDestination: { readonly lat: number; readonly lng: number };
+  readonly routeGeohash: string;
+  readonly routeHeadingDeg: number;
+  readonly corridorThresholdMeters: number;
+  readonly tripIds: readonly string[];
+  readonly passengers: readonly SharedRidePassenger[];
+  readonly createdAt: Timestamp | null;
+  readonly completedAt: Timestamp | null;
 };
 
 /**
