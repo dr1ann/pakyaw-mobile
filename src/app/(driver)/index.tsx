@@ -20,7 +20,7 @@
  *   active trip (on_trip)   → Trip status sheets (Phase 8E)
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -93,6 +93,8 @@ export default function DriveScreen() {
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
+  const optimisticNavEngaged = useActiveTripStore((s) => s.optimisticNavEngaged);
+  const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
 
   // Fetch driver navigation route leg/polyline locally
   const {
@@ -227,6 +229,15 @@ export default function DriveScreen() {
   // one-render lag that occurred when comparing against a Zustand mirror.
   const isDriving = getAutomaticNavigationStatus(trip?.status) !== null;
 
+  // Once Firestore confirms a nav-active status, the optimistic camera flag
+  // has served its purpose — clear it so the authoritative isDriving drives
+  // everything going forward and the flag can't linger across trips.
+  useEffect(() => {
+    if (isDriving && useActiveTripStore.getState().optimisticNavEngaged) {
+      useActiveTripStore.getState().setOptimisticNavEngaged(false);
+    }
+  }, [isDriving]);
+
   // The leg the driver is currently working: head to pickup until they reach
   // the passenger, then head to destination. Used to frame the overview camera.
   const headingToDestination =
@@ -246,21 +257,35 @@ export default function DriveScreen() {
   // waiting for the interpolator's first published sample.
   const navEngagementCoordinate = navigationCoordinate ?? rawNavigationCoordinate;
 
+  // The Navigation Mode camera engages the instant the driver presses Start
+  // Navigation (optimisticNavEngaged), without waiting for the Firestore
+  // transition round-trip to confirm trip.status. This matches the immediate
+  // response of the recenter/compass paths, which fire the camera off local
+  // GPS synchronously. `isDriving` (authoritative, Firestore-derived) is kept
+  // separate for everything that should wait for confirmation — sheets, voice,
+  // PiP — so only the camera is decoupled from the round-trip.
+  const cameraNavEnabled = isDriving || optimisticNavEngaged;
+
   const cameraController = useRideCameraController(mapRef, {
     pickupLocation,
     destinationLocation,
     driverLocation: navigationCoordinate,
     ownLocation: navigationCoordinate,
-    phase: isOnTrip && !isDriving ? 'terminal' : 'booking',
+    phase: isOnTrip && !cameraNavEnabled ? 'terminal' : 'booking',
     overviewCoordinates,
     navigation: {
-      enabled: isDriving,
+      enabled: cameraNavEnabled,
       coordinate: navEngagementCoordinate,
       // Prefer the fused heading; fall back to the route bearing so the
       // engagement sweep uses a real forward direction instead of 0° while
       // the first GPS course sample arrives.
       heading: navHeading ?? routeBearing,
-      animationDurationMs: 0,
+      speed: gpsSpeed,
+      // Non-zero duration for streaming follow updates so the camera transitions
+      // smoothly when the route polyline resolves and the heading/coordinate
+      // shift from raw-GPS (0°/un-snapped) to fused (route bearing/snapped).
+      // The engagement frame still overrides to NAV_CAMERA_ANIM_MS (600ms).
+      animationDurationMs: 500,
     },
   });
   useNavigationLifecycle({
@@ -297,7 +322,7 @@ export default function DriveScreen() {
       {/* ── Real Map View (full-bleed) ─────────────────────────────────────── */}
       <LiveMap
         mapRef={mapRef}
-        ownLocation={navigationCoordinate}
+        ownLocation={navigationTargetCoordinate}
         pickupLocation={pickupLocation}
         destinationLocation={destinationLocation}
         showDestination={destinationLocation != null}
@@ -317,11 +342,11 @@ export default function DriveScreen() {
             ? null
             : driverRouteData?.overviewPolyline ?? null
         }
-        driverRouteProgressCoordinate={navigationCoordinate}
+        driverRouteProgressCoordinate={navigationTargetCoordinate}
         showRouteStatus={isRerouting}
         routeStatusLabel={isRerouting ? 'Rerouting...' : 'Finding route...'}
-        showNavigationArrow={isDriving}
-        navigationActive={isDriving}
+        showNavigationArrow={cameraNavEnabled}
+        navigationActive={cameraNavEnabled}
         freezeNavigationMapPadding={isInPip}
         onMapReady={cameraController.onMapReady}
         onUserPan={cameraController.onUserPan}

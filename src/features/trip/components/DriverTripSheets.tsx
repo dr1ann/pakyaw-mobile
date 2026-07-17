@@ -27,15 +27,23 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
 
   function handleStartNavigation() {
     if (!trip) return;
-    // Pessimistic transition: fire the Firestore write and let the incoming
-    // snapshot flip trip.status → 'driver_arriving', which the driver screen
-    // then mirrors into navActiveStatus via getAutomaticNavigationStatus.
-    // Previously navActiveStatus was set predictively here, which armed the
-    // Navigation Mode camera before Firestore had confirmed the transition —
-    // producing a temporary inconsistent state on slow networks (camera
-    // tilted, but sheet still showing "Trip accepted"). The button's own
-    // isPending spinner covers the round-trip.
-    transition({ tripId: trip.id, status: 'driver_arriving' });
+    // Optimistically engage the Navigation Mode camera immediately so the
+    // driver sees the camera zoom to their location the instant they press
+    // the button — same immediate response as the recenter/compass paths.
+    // The Firestore transition round-trip (runTransaction → onSnapshot) can
+    // take several seconds; without this optimistic flag, navigation.enabled
+    // stays false until the snapshot arrives, producing an 8-10s camera delay.
+    // The flag is cleared once Firestore confirms the status (DriveScreen
+    // effect) or on transition error (onError below).
+    useActiveTripStore.getState().setOptimisticNavEngaged(true);
+    transition(
+      { tripId: trip.id, status: 'driver_arriving' },
+      {
+        onError: () => {
+          useActiveTripStore.getState().setOptimisticNavEngaged(false);
+        },
+      },
+    );
   }
 
   if (compact) {

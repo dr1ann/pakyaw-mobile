@@ -1,6 +1,6 @@
+import { useUiStore } from '@/stores/uiStore';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
-import { useUiStore } from '@/stores/uiStore';
 import { useEffect, useRef, useState } from 'react';
 import {
   AppState,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import MapView from 'react-native-maps';
 import {
+  HEADING_SPEED_THRESHOLD_MS,
   NAV_ALTITUDE_M,
   NAV_CAMERA_ANIM_MS,
   NAV_PITCH,
@@ -53,6 +54,7 @@ export type RideCameraInput = {
     enabled: boolean;
     coordinate: Coordinate | null;
     heading: number | null;
+    speed?: number | null;
     zoom?: number;
     pitch?: number;
     altitude?: number;
@@ -79,6 +81,13 @@ export function useRideCameraController(
   const cameraCommandSequenceRef = useRef(0);
   const hasExecutedNavigationFollowRef = useRef(false);
   const prevNavEnabledRef = useRef(false);
+  // Last heading applied to the camera during Navigation Mode. While the
+  // driver is stationary (speed below HEADING_SPEED_THRESHOLD_MS) the camera
+  // holds this heading instead of rotating to the route bearing — matching
+  // Google Maps, which only re-orients the map once the vehicle moves. This
+  // prevents the sideways tilt that occurs when the route polyline resolves
+  // and routeBearing suddenly becomes available while the driver hasn't moved.
+  const lastNavHeadingRef = useRef<number | null>(null);
   // Tracks the JS-side AppState. Camera mutations are gated on this being
   // 'active' so we never call into the native MapView while Android has torn
   // down the GL surface (Frustum == null in GoogleMap.getProjection() → NPE).
@@ -116,10 +125,26 @@ export function useRideCameraController(
       const durationMs = isEngagementFrame
         ? NAV_CAMERA_ANIM_MS
         : requestedDuration;
+
+      // Hold the camera heading while the driver is stationary (speed below
+      // threshold). When the route polyline resolves, routeBearing suddenly
+      // becomes available and useDriverHeading publishes it as navHeading —
+      // without this hold the camera would rotate from 0° to the route
+      // bearing, producing the sideways tilt 8-10s after Start Navigation.
+      // The engagement frame always uses the caller's heading so the initial
+      // sweep can orient the map. Once the driver moves (speed ≥ threshold)
+      // the real fused heading takes over and lastNavHeadingRef tracks it.
+      const navSpeed = navigation.speed ?? null;
+      const shouldHoldHeading =
+        !isEngagementFrame &&
+        navSpeed !== null &&
+        navSpeed < HEADING_SPEED_THRESHOLD_MS &&
+        lastNavHeadingRef.current !== null;
+
       return {
         type: 'navigationFollow',
         coordinate: navigation.coordinate,
-        heading: navigation.heading,
+        heading: shouldHoldHeading ? lastNavHeadingRef.current : navigation.heading,
         zoom: navigation.zoom ?? NAV_ZOOM,
         pitch: navigation.pitch ?? NAV_PITCH,
         altitude: navigation.altitude ?? NAV_ALTITUDE_M,
@@ -342,6 +367,9 @@ export function useRideCameraController(
           },
           { duration: command.animationDurationMs }
         );
+        // Track the heading we just applied so the stationary-hold logic in
+        // getNextCommand can reuse it while speed < threshold.
+        lastNavHeadingRef.current = heading;
         hasExecutedNavigationFollowRef.current = true;
         break;
       }
@@ -401,6 +429,7 @@ export function useRideCameraController(
       useActiveTripStore.getState().setCameraFollowing(true);
       lastExecutedCommandRef.current = '';
       hasExecutedNavigationFollowRef.current = false;
+      lastNavHeadingRef.current = null;
     }
     // On the falling edge (nav has just ended — e.g. trip completed/cancelled
     // disarms Driving Mode) also clear the pan latch so the terminal-phase
@@ -412,6 +441,7 @@ export function useRideCameraController(
     }
     if (!navEnabled) {
       hasExecutedNavigationFollowRef.current = false;
+      lastNavHeadingRef.current = null;
     }
 
     // IMPORTANT: derive the command BEFORE updating prevNavEnabledRef so

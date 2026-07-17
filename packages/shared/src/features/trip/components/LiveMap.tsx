@@ -281,7 +281,6 @@ export function LiveMap({
   const [focusKey, setFocusKey] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   const [longitudeDelta, setLongitudeDelta] = useState(0.015);
-  const [navigationMapPadding, setNavigationMapPadding] = useState({ top: 0, right: 0, bottom: 0, left: 0 });
 
   const arrowSize = React.useMemo(() => {
     // We use discrete sizes to prevent too many re-renders while ensuring
@@ -302,38 +301,36 @@ export function LiveMap({
   // marker low (Grab / Google Maps navigation feel) while the road ahead fills
   // the upper view. Only applied during Navigation Mode; overview framing uses
   // unpadded fits so it isn't distorted.
-  useEffect(() => {
-    if (freezeNavigationMapPadding) return;
+  //
+  // Computed inline (via useMemo) rather than state + rAF so the padding is
+  // committed to the native MapView during the render commit phase — BEFORE
+  // the camera controller's useEffect fires the engagement animation. With the
+  // previous state+rAF approach, the padding lagged by one animation frame,
+  // causing the camera to animate to the screen center (zero padding) instead
+  // of the biased navigation anchor position.
+  const lastNavigationMapPaddingRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
 
-    let active = true;
+  const navigationMapPadding = React.useMemo(() => {
+    if (freezeNavigationMapPadding) {
+      return lastNavigationMapPaddingRef.current;
+    }
 
     if (!navigationActive || containerHeight <= 0) {
-      requestAnimationFrame(() => {
-        if (!active) return;
-        setNavigationMapPadding((prev) => {
-          if (prev.top === 0 && prev.right === 0 && prev.bottom === 0 && prev.left === 0) return prev;
-          return { top: 0, right: 0, bottom: 0, left: 0 };
-        });
-      });
-      return;
+      const zero = { top: 0, right: 0, bottom: 0, left: 0 };
+      lastNavigationMapPaddingRef.current = zero;
+      return zero;
     }
 
     const visibleHeight = Math.max(0, containerHeight - navigationBottomInset);
     const anchorOffset = Math.max(0, 2 * navigationDriverScreenAnchor - 1) * visibleHeight;
-    const top = Math.round(anchorOffset);
-    const bottom = Math.round(navigationBottomInset);
-
-    requestAnimationFrame(() => {
-      if (!active) return;
-      setNavigationMapPadding((prev) => {
-        if (prev.top === top && prev.right === 0 && prev.bottom === bottom && prev.left === 0) return prev;
-        return { top, right: 0, bottom, left: 0 };
-      });
-    });
-
-    return () => {
-      active = false;
+    const padding = {
+      top: Math.round(anchorOffset),
+      right: 0,
+      bottom: Math.round(navigationBottomInset),
+      left: 0,
     };
+    lastNavigationMapPaddingRef.current = padding;
+    return padding;
   }, [
     freezeNavigationMapPadding,
     navigationActive,

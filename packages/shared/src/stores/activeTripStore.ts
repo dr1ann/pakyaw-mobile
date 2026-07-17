@@ -40,6 +40,16 @@ export type ActiveTripState = {
   // this flag is true. Persisted so the preference survives app restarts.
   readonly compassEnabled: boolean;
 
+  // Optimistic camera-engagement flag. Set the instant the driver presses
+  // "Start Navigation" so the camera can engage Navigation Mode immediately
+  // off local GPS, without waiting for the Firestore transition round-trip
+  // to confirm trip.status. Cleared once the Firestore snapshot confirms a
+  // nav-active status (isDriving becomes true) or on transition failure.
+  // This flag is NOT persisted — it is purely ephemeral UI state.
+  readonly optimisticNavEngaged: boolean;
+
+  setOptimisticNavEngaged: (engaged: boolean) => void;
+
   setTripId: (tripId: string) => void;
   setTrip: (trip: TripDoc) => void;
   clearTrip: () => void;
@@ -145,8 +155,10 @@ export const useActiveTripStore = create<ActiveTripState>()(
       trip: null,
       driverLocation: null,
       compassEnabled: false,
+      optimisticNavEngaged: false,
       ...initialNavState,
 
+      setOptimisticNavEngaged: (optimisticNavEngaged) => set({ optimisticNavEngaged }),
       setTripId: (tripId) => set({ tripId }),
       setTrip: (trip) =>
         set({
@@ -165,10 +177,11 @@ export const useActiveTripStore = create<ActiveTripState>()(
                 navActiveStatus: null,
                 navSession: null,
                 cameraFollowing: true,
+                optimisticNavEngaged: false,
               }
             : {}),
         }),
-      clearTrip: () => set({ trip: null, tripId: null, driverLocation: null, ...initialNavState }),
+      clearTrip: () => set({ trip: null, tripId: null, driverLocation: null, optimisticNavEngaged: false, ...initialNavState }),
       setDriverLocation: (location) => set({ driverLocation: location }),
       clearDriverLocation: () => set({ driverLocation: null }),
 
