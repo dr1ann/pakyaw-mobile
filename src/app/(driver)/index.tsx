@@ -45,6 +45,8 @@ import {
   DriverEnRouteSheet,
   DriverInTripSheet,
 } from '@/features/trip/components/DriverTripSheets';
+import { SharedRidePanel } from '@/features/shared-ride/components/SharedRidePanel';
+import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRideSession';
 import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
@@ -89,6 +91,8 @@ export default function DriveScreen() {
 
   // Phase 8E: subscribe to active trip document.
   useActiveTrip();
+
+  const { sharedRide, sharedRideId } = useSharedRideSession();
 
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
@@ -398,7 +402,7 @@ export default function DriveScreen() {
         />
 
         <View style={[styles.sheetCard, shadow.float]}>
-          {isOnTrip ? (
+          {isOnTrip || sharedRide != null ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={isTripSheetExpanded ? 'Collapse trip details' : 'Expand trip details'}
@@ -416,7 +420,9 @@ export default function DriveScreen() {
               </View>
             </Pressable>
           ) : null}
-          {isOnTrip ? (
+          {sharedRide != null ? (
+            <SharedRidePanel sharedRide={sharedRide} />
+          ) : isOnTrip ? (
             <DriverTripSheet
               status={trip?.status ?? null}
               onDismiss={handleDismissTerminal}

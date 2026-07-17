@@ -54,6 +54,7 @@ export type LiveMapProps = {
   readonly onUserPan?: () => void;
   readonly mapRef?: React.RefObject<MapView | null>;
   readonly onMapReady?: () => void;
+  readonly onRegionChangeComplete?: (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => void;
   readonly debugTripStatus?: string | null;
 };
 
@@ -272,6 +273,7 @@ export function LiveMap({
   onUserPan,
   mapRef: externalMapRef,
   onMapReady,
+  onRegionChangeComplete,
   debugTripStatus = null,
 }: LiveMapProps) {
   const localMapRef = useRef<MapView>(null);
@@ -603,6 +605,9 @@ export function LiveMap({
           if (details?.isGesture && onUserPan) {
             onUserPan();
           }
+          if (onRegionChangeComplete) {
+            onRegionChangeComplete(region);
+          }
         }}
       >
         {/* Passenger Route Polyline */}
@@ -814,15 +819,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   pickupDot: {
-    backgroundColor: colors.green.primary,
+    backgroundColor: colors.blue.primary,
   },
-  // Destination Marker (Red)
+  // Destination Marker (Orange)
   destinationRing: {
     borderColor: colors.white,
     backgroundColor: colors.white,
     borderWidth: 2,
   },
   destinationDot: {
-    backgroundColor: colors.danger,
+    backgroundColor: colors.amber.primary,
   },
 });

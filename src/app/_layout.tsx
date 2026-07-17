@@ -10,6 +10,7 @@ import '@/features/driver-availability/services/backgroundLocationTask';
 import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { signOutUser } from '@pakyaw/shared/features/auth/services/auth.service';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -23,6 +24,16 @@ function AppNavigator() {
 
   const { status, role } = useSession();
   const authed = status === 'authenticated';
+
+  console.log('[DEBUG] AppNavigator status:', status, 'role:', role, 'authed:', authed);
+
+  useEffect(() => {
+    if (status === 'authenticated' && role !== 'driver') {
+      console.log('[DEBUG] Non-driver user authenticated on driver app. Signing out...');
+      signOutUser().catch((err) => console.error('Auto-signout failed:', err));
+      useSessionStore.getState().clear();
+    }
+  }, [status, role]);
 
   const onLayoutRootView = useCallback(async () => {
     if (status !== 'loading') {
@@ -83,6 +94,9 @@ export default function RootLayout() {
   }, []);
 
   const isReady = storesHydrated && queryRestored;
+
+  console.log('[DEBUG] storesHydrated:', storesHydrated, 'queryRestored:', queryRestored);
+  console.log('[DEBUG] sessionHydrated:', useSessionStore.persist.hasHydrated(), 'activeTripHydrated:', useActiveTripStore.persist.hasHydrated());
 
   return (
     <PersistQueryClientProvider

@@ -14,15 +14,18 @@ import type { Place } from '@pakyaw/shared/types/place';
 export type IncomingRequest = {
   readonly tripId: string;
   readonly passengerId: string;
+  readonly mode?: 'solo' | 'shared' | 'hopon';
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
   readonly billedSeats: number;
+  readonly seatsCovered?: number;
   readonly route?: {
     readonly distanceMeters: number;
     readonly durationSeconds: number;
     readonly polyline: string;
   } | null;
+  readonly fare?: number;
 };
 
 /**
