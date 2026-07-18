@@ -291,12 +291,12 @@ describe('driver route deviation helpers', () => {
       { lat: 10.01, lng: 124.0 },
     ];
 
-    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 2)).toEqual(
+    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 2, null)).toEqual(
       expect.objectContaining({
         headingMismatch: true,
       })
     );
-    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 0)).toEqual(
+    expect(getRouteDeviation({ lat: 10.001, lng: 124.0 }, route, 180, 0, null)).toEqual(
       expect.objectContaining({
         headingMismatch: false,
         headingDeltaDegrees: null,

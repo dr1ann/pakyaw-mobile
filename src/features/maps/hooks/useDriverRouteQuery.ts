@@ -12,6 +12,8 @@ import {
   HEADING_SPEED_THRESHOLD_MS,
   OFF_ROUTE_CONFIRMATION_COUNT,
   OFF_ROUTE_M,
+  POSITION_HISTORY_MAX_AGE_MS,
+  POSITION_HISTORY_MIN_MOVE_M,
   REROUTE_MIN_INTERVAL_MS,
   REROUTE_MIN_MOVE_M,
 } from '@pakyaw/shared/features/maps/navigation/constants';
@@ -45,17 +47,20 @@ export function getRouteDeviation(
   point: LatLng,
   polyline: readonly LatLng[],
   gpsHeading: number | null,
-  gpsSpeed: number | null
+  gpsSpeed: number | null,
+  positionHistoryBearing: number | null
 ): {
   readonly distanceMeters: number;
   readonly headingMismatch: boolean;
   readonly headingDeltaDegrees: number | null;
+  readonly usedPositionHistoryBearing: boolean;
 } {
   if (polyline.length === 0) {
     return {
       distanceMeters: Infinity,
       headingMismatch: false,
       headingDeltaDegrees: null,
+      usedPositionHistoryBearing: false,
     };
   }
   if (polyline.length === 1) {
@@ -63,6 +68,7 @@ export function getRouteDeviation(
       distanceMeters: haversineMeters(point, polyline[0]),
       headingMismatch: false,
       headingDeltaDegrees: null,
+      usedPositionHistoryBearing: false,
     };
   }
 
@@ -78,25 +84,34 @@ export function getRouteDeviation(
     }
   }
 
+  const routeBearing = getBearingDegrees(
+    polyline[closestSegmentIndex],
+    polyline[closestSegmentIndex + 1]
+  );
+
   const hasReliableHeading =
     gpsHeading !== null &&
     gpsHeading !== -1 &&
     Number.isFinite(gpsHeading) &&
     gpsSpeed !== null &&
     gpsSpeed >= HEADING_SPEED_THRESHOLD_MS;
-  const routeBearing = getBearingDegrees(
-    polyline[closestSegmentIndex],
-    polyline[closestSegmentIndex + 1]
-  );
-  const headingDeltaDegrees = hasReliableHeading
-    ? getHeadingDeltaDegrees(gpsHeading, routeBearing)
-    : null;
+
+  let headingDeltaDegrees: number | null = null;
+  let usedPositionHistoryBearing = false;
+
+  if (hasReliableHeading) {
+    headingDeltaDegrees = getHeadingDeltaDegrees(gpsHeading, routeBearing);
+  } else if (positionHistoryBearing !== null) {
+    headingDeltaDegrees = getHeadingDeltaDegrees(positionHistoryBearing, routeBearing);
+    usedPositionHistoryBearing = true;
+  }
 
   return {
     distanceMeters: minDistance,
     headingMismatch:
       headingDeltaDegrees !== null && headingDeltaDegrees >= HEADING_MISMATCH_DEG,
     headingDeltaDegrees,
+    usedPositionHistoryBearing,
   };
 }
 
@@ -143,6 +158,7 @@ export function useDriverRouteQuery(tripId: string | null) {
   const decodedRoutePointsRef = useRef<{ lat: number; lng: number }[]>([]);
   const isFirstMountRef = useRef<boolean>(true);
   const offRouteConfirmationCountRef = useRef<number>(0);
+  const positionHistoryRef = useRef<Array<{ lat: number; lng: number; ts: number }>>([]);
 
   // Reset tracking refs and coordinates inside useEffect when tripId changes (skip initial mount)
   useEffect(() => {
@@ -155,6 +171,7 @@ export function useDriverRouteQuery(tripId: string | null) {
     currentRouteRef.current = null;
     decodedRoutePointsRef.current = [];
     offRouteConfirmationCountRef.current = 0;
+    positionHistoryRef.current = [];
     setIsRerouting(false);
     setQueryCoords(null);
   }, [tripId]);
@@ -167,6 +184,7 @@ export function useDriverRouteQuery(tripId: string | null) {
       }, 0);
       lastFetchTimeRef.current = 0;
       offRouteConfirmationCountRef.current = 0;
+      positionHistoryRef.current = [];
       return;
     }
 
@@ -175,6 +193,23 @@ export function useDriverRouteQuery(tripId: string | null) {
 
       const now = Date.now();
       const currentLive = { lat: lastLatitude, lng: lastLongitude };
+
+      // Maintain position-history buffer for low-speed bearing fallback
+      const history = positionHistoryRef.current;
+      history.push({ lat: lastLatitude, lng: lastLongitude, ts: now });
+      while (history.length > 0 && now - history[0].ts > POSITION_HISTORY_MAX_AGE_MS) {
+        history.shift();
+      }
+
+      // Compute position-history bearing: direction from oldest to newest point
+      let positionHistoryBearing: number | null = null;
+      if (history.length >= 2) {
+        const oldest = history[0];
+        const moved = haversineMeters(oldest, currentLive);
+        if (moved >= POSITION_HISTORY_MIN_MOVE_M) {
+          positionHistoryBearing = getBearingDegrees(oldest, currentLive);
+        }
+      }
 
       if (!queryCoords) {
         logger.info('[useDriverRouteQuery] Initializing query coordinates', { currentLive });
@@ -192,10 +227,13 @@ export function useDriverRouteQuery(tripId: string | null) {
             currentLive,
             decodedPoints,
             gpsHeading,
-            gpsSpeed
+            gpsSpeed,
+            positionHistoryBearing
           );
           const shouldConfirmOffRoute =
             deviation.distanceMeters >= OFF_ROUTE_M || deviation.headingMismatch;
+          // Heading mismatch is a strong directional signal — confirm immediately
+          const confirmationsNeeded = deviation.headingMismatch ? 1 : OFF_ROUTE_CONFIRMATION_COUNT;
 
           if (shouldConfirmOffRoute) {
             offRouteConfirmationCountRef.current += 1;
@@ -203,15 +241,17 @@ export function useDriverRouteQuery(tripId: string | null) {
             offRouteConfirmationCountRef.current = 0;
           }
 
-          if (offRouteConfirmationCountRef.current >= OFF_ROUTE_CONFIRMATION_COUNT) {
+          if (offRouteConfirmationCountRef.current >= confirmationsNeeded) {
             logger.info('[useDriverRouteQuery] Off-route confirmed. Forcing route refresh.', {
               offRouteDist: deviation.distanceMeters,
               headingMismatch: deviation.headingMismatch,
               headingDeltaDegrees: deviation.headingDeltaDegrees,
+              usedPositionHistoryBearing: deviation.usedPositionHistoryBearing,
               confirmations: offRouteConfirmationCountRef.current,
               currentLive,
             });
             offRouteConfirmationCountRef.current = 0;
+            positionHistoryRef.current = [];
             setIsRerouting(true);
             setQueryCoords(currentLive);
             lastFetchTimeRef.current = now;

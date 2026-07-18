@@ -14,3 +14,5 @@ export const REROUTE_MIN_MOVE_M = 60; // distance gate for routine refresh
 export const REROUTE_MIN_INTERVAL_MS = 25_000; // time gate for routine refresh
 export const HEADING_SPEED_THRESHOLD_MS = 1.5; // above this, trust GPS course over magnetometer
 export const HEADING_GPS_COURSE_DISABLE_SPEED_MS = 1.0; // below this, fall back to compass after GPS course was selected
+export const POSITION_HISTORY_MIN_MOVE_M = 8; // minimum movement for position-history bearing fallback
+export const POSITION_HISTORY_MAX_AGE_MS = 5_000; // max age of position samples in history buffer
