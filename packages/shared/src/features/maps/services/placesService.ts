@@ -107,6 +107,12 @@ interface GoogleAddressComponent {
   readonly types: readonly string[];
 }
 
+interface GoogleGeocodingResult {
+  readonly formatted_address: string;
+  readonly address_components: readonly GoogleAddressComponent[];
+  readonly types: readonly string[];
+}
+
 /**
  * Reverse geocode a latitude/longitude pair into a Place description (Phase 12).
  */
@@ -126,12 +132,39 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
       return null;
     }
 
-    const results = data.results || [];
+    const results = (data.results || []) as readonly GoogleGeocodingResult[];
     if (results.length === 0) {
       return null;
     }
 
-    const topResult = results[0];
+    // Preprocess results to remove plus codes from the start of formatted_address and remove plus_code components
+    const cleanedResults: readonly GoogleGeocodingResult[] = results.map((r) => {
+      let formattedAddress = r.formatted_address || '';
+      let addressComponents = r.address_components || [];
+
+      // 1. Remove plus_code from address_components
+      addressComponents = addressComponents.filter((c) => {
+        const types = c.types || [];
+        return !types.includes('plus_code') && !c.long_name.includes('+') && !c.short_name.includes('+');
+      });
+
+      // 2. Remove leading plus code plus any optional trailing comma/space
+      formattedAddress = formattedAddress.replace(/^[A-Z0-9]{4,}\+[A-Z0-9]+(,\s*|\s+)?/i, '').trim();
+
+      return {
+        ...r,
+        formatted_address: formattedAddress,
+        address_components: addressComponents,
+      };
+    });
+
+    // Find the first result that is not a plus code and has a valid formatted address
+    const topResult = cleanedResults.find((r) => {
+      const types = r.types || [];
+      if (types.includes('plus_code')) return false;
+      if (!r.formatted_address) return false;
+      return true;
+    }) || cleanedResults[0];
     
     // Attempt to extract a short name or use the first parts of the address
     const addressComponents = (topResult.address_components || []) as readonly GoogleAddressComponent[];
@@ -161,9 +194,14 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     }
 
     // Fallback if we accidentally grabbed a Plus Code
-    if (label.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/)) {
-      const brgy = addressComponents.find((c) => c.types.includes('administrative_area_level_5'));
-      label = brgy ? brgy.long_name : 'Unnamed Road';
+    if (label.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i)) {
+      const fallbackComponent = addressComponents.find((c) => 
+        c.types.includes('administrative_area_level_5') ||
+        c.types.includes('sublocality') ||
+        c.types.includes('neighborhood') ||
+        c.types.includes('locality')
+      );
+      label = fallbackComponent ? fallbackComponent.long_name : 'Unnamed Road';
     }
 
     return {

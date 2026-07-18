@@ -24,7 +24,7 @@ export function HopOnRadar({ rides, loading, onJoinRide }: HopOnRadarProps) {
   if (rides.length === 0) {
     return (
       <View style={styles.centerContainer}>
-        <SymbolIcon name="radar" size={48} tintColor={colors.ink[300]} />
+        <SymbolIcon name="radar" size={48} tintColor={colors.ink[400]} />
         <Text style={styles.emptyTitle}>No shared rides nearby</Text>
         <Text style={styles.emptySubtitle}>
           There are no active shared rides heading your way right now. Try booking a Shared Ride instead!

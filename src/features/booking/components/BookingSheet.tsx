@@ -16,6 +16,7 @@ import { HopOnRadar } from './HopOnRadar';
 import { useNearbySharedRides } from '../hooks/useNearbySharedRides';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import { useJoinSharedRide } from '../hooks/useJoinSharedRide';
+import type { CreateBookingInput } from '../types';
 
 type BookingSheetProps = {
   readonly onSearchPickup?: () => void;
@@ -115,10 +116,10 @@ export function BookingSheet({
       return;
     }
 
-    const payload = {
-      mode: draft.rideMode === 'private' ? 'solo' : 'shared',
-      pickup: draft.pickup,
-      destination: draft.destination,
+    const payload: CreateBookingInput = {
+      mode: draft.rideMode === 'private' ? 'private' : 'shared',
+      pickup: draft.pickup!,
+      destination: draft.destination!,
       passengerCount: draft.passengerCount,
       route: {
         distanceMeters: draft.route.distanceMeters,
@@ -126,7 +127,7 @@ export function BookingSheet({
         polyline: draft.route.polyline,
       },
       fare: estimatedFare ?? undefined,
-    } as any;
+    };
 
     logger.info('[BookingSheet] Submitting trip booking request', payload);
     mutate(payload);
@@ -139,11 +140,11 @@ export function BookingSheet({
     }
     if (!routeMatchesInputs(draft)) return;
 
-    const payload = {
+    const payload: CreateBookingInput & { readonly sharedRideId: string } = {
       sharedRideId: ride.id,
-      mode: 'shared' as const,
-      pickup: draft.pickup,
-      destination: draft.destination,
+      mode: 'shared',
+      pickup: draft.pickup!,
+      destination: draft.destination!,
       passengerCount: draft.passengerCount,
       route: {
         distanceMeters: draft.route.distanceMeters,
@@ -772,11 +773,6 @@ const styles = StyleSheet.create({
   },
   fareValueLarge: {
     fontSize: typography.size.h3,
-    fontWeight: typography.weight.bold,
-    color: colors.blue.primary,
-  },
-  changeText: {
-    fontSize: typography.size.label,
     fontWeight: typography.weight.bold,
     color: colors.blue.primary,
   },

@@ -561,7 +561,7 @@ export default function RideScreen() {
             <SafeAreaProvider>
               <SafeAreaView style={styles.fullscreenSearch}>
                 <SetDestinationSheet
-                  mode={searchMode === 'pickup' || searchMode === 'pin_pickup' ? 'pickup' : 'destination'}
+                  mode={searchMode === 'pickup' ? 'pickup' : 'destination'}
                   onClose={() => setSearchMode(null)}
                   onChooseOnMap={(coords) => {
                      const isPickup = searchMode === 'pickup';

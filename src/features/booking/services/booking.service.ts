@@ -90,7 +90,7 @@ export async function createTrip(
   const geohash = geohashOf(validated.pickup.coords, 7);
 
   const data: TripCreateData = {
-    mode: input.mode || 'solo',
+    mode: input.mode === 'private' ? 'solo' : (input.mode || 'solo'),
     passengerId,
     driverId: null,
     pickup: validated.pickup,
