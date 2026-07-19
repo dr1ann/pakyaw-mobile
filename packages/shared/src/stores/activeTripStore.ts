@@ -18,7 +18,8 @@ export type ActiveTripState = {
   readonly driverLocation: { latitude: number; longitude: number } | null;
   
   // Ephemeral navigation state (never persisted to Firestore)
-  readonly navHeading: number | null; // fused, smoothed heading
+  readonly navHeading: number | null; // fused, smoothed heading (for camera)
+  readonly arrowRotation: number | null; // raw/instant heading (for marker rotation)
   readonly gpsHeading: number | null; // raw GPS heading
   readonly gpsSpeed: number | null;   // raw GPS speed
   readonly navStepIndex: number;      // current step index in the route
@@ -58,6 +59,7 @@ export type ActiveTripState = {
 
   // Navigation actions
   setNavHeading: (heading: number | null) => void;
+  setArrowRotation: (rotation: number | null) => void;
   setGpsLocation: (lat: number, lng: number, heading: number | null, speed: number | null) => void;
   setNavStepIndex: (index: number) => void;
   setNavActiveStatus: (status: TripStatus | null) => void;
@@ -75,6 +77,7 @@ export type PersistedActiveTripState = Pick<
 
 const initialNavState = {
   navHeading: null,
+  arrowRotation: null,
   gpsHeading: null,
   gpsSpeed: null,
   navStepIndex: 0,
@@ -171,6 +174,7 @@ export const useActiveTripStore = create<ActiveTripState>()(
           ...(isTerminalTripStatus(trip.status)
             ? {
                 navHeading: null,
+                arrowRotation: null,
                 gpsHeading: null,
                 gpsSpeed: null,
                 navStepIndex: 0,
@@ -186,6 +190,7 @@ export const useActiveTripStore = create<ActiveTripState>()(
       clearDriverLocation: () => set({ driverLocation: null }),
 
       setNavHeading: (navHeading) => set({ navHeading }),
+      setArrowRotation: (arrowRotation) => set({ arrowRotation }),
       setGpsLocation: (lat, lng, heading, speed) => set({
         gpsHeading: heading,
         gpsSpeed: speed,

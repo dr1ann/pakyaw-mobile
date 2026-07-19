@@ -95,7 +95,23 @@ export default function DriveScreen() {
   const { sharedRide, sharedRideId } = useSharedRideSession();
 
   const navHeading = useActiveTripStore((s) => s.navHeading);
+  const arrowRotation = useActiveTripStore((s) => s.arrowRotation);
   const navStepIndex = useActiveTripStore((s) => s.navStepIndex);
+
+  // Marker rotation compensates for the lag between the camera heading
+  // (animated, 500ms) and the actual road direction (instant arrowRotation).
+  // React-native-maps marker rotation is in screen space for billboard markers:
+  // rotation={0} = "up" on screen, which equals camera heading on the map.
+  // To point the arrow to the actual road direction, we rotate it by the
+  // difference between the road heading and the animated camera heading.
+  const navigationArrowRotation = useMemo(() => {
+    if (arrowRotation == null || navHeading == null) return 0;
+    let delta = arrowRotation - navHeading;
+    // Normalize to shortest arc [-180, 180)
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return delta;
+  }, [arrowRotation, navHeading]);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
   const optimisticNavEngaged = useActiveTripStore((s) => s.optimisticNavEngaged);
   const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
@@ -205,7 +221,7 @@ export default function DriveScreen() {
       : null;
   }, [rawNavigationCoordinate, currentRoutePolyline]);
   const navigationTargetCoordinate = snappedNavigationCoordinate ?? rawNavigationCoordinate;
-  const navigationCoordinate = useInterpolatedCoordinate(navigationTargetCoordinate);
+  const navigationCoordinate = useInterpolatedCoordinate(navigationTargetCoordinate, gpsSpeed, navHeading);
 
   // Route bearing at the driver's current position on the polyline. Used as
   // a stationary heading fallback so the arrow keeps pointing down the road
@@ -350,6 +366,7 @@ export default function DriveScreen() {
         showRouteStatus={isRerouting}
         routeStatusLabel={isRerouting ? 'Rerouting...' : 'Finding route...'}
         showNavigationArrow={cameraNavEnabled}
+        navigationArrowRotation={navigationArrowRotation}
         navigationActive={cameraNavEnabled}
         freezeNavigationMapPadding={isInPip}
         onMapReady={cameraController.onMapReady}

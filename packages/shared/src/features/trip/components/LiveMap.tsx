@@ -47,6 +47,9 @@ export type LiveMapProps = {
   readonly pickupKey?: string | number;
   readonly destinationKey?: string | number;
   readonly showNavigationArrow?: boolean;
+  /** Pre-computed marker rotation in degrees, relative to camera heading.
+   *  Formula: arrowHeading - cameraHeading (shortest arc). Pass 0 when aligned. */
+  readonly navigationArrowRotation?: number;
   readonly navigationActive?: boolean;
   readonly navigationBottomInset?: number;
   readonly navigationDriverScreenAnchor?: number;
@@ -266,6 +269,7 @@ export function LiveMap({
   pickupKey,
   destinationKey,
   showNavigationArrow = false,
+  navigationArrowRotation = 0,
   navigationActive = false,
   navigationBottomInset = 320,
   navigationDriverScreenAnchor = NAV_DRIVER_SCREEN_ANCHOR,
@@ -658,9 +662,10 @@ export function LiveMap({
 
         {ownLocation && (
           <Marker
-            key={`own-location-${showNavigationArrow ? arrowSize : 'dot'}`}
+            key={`own-location-${showNavigationArrow ? `${arrowSize}-${navigationArrowRotation}` : 'dot'}`}
             coordinate={ownLocation}
             anchor={{ x: 0.5, y: 0.5 }}
+            rotation={showNavigationArrow ? navigationArrowRotation : undefined}
             testID="own-location-marker"
           >
             {showNavigationArrow ? (

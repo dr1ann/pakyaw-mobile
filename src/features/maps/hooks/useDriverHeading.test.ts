@@ -4,14 +4,18 @@ import { selectHeadingSource, useDriverHeading } from './useDriverHeading';
 let mockGpsHeading: number | null = null;
 let mockGpsSpeed: number | null = null;
 let mockCompassEnabled = false;
+let mockArrowRotation: number | null = null;
 const mockSetNavHeading = vi.fn();
+const mockSetArrowRotation = vi.fn();
 
 vi.mock('@/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({
     gpsHeading: mockGpsHeading,
     gpsSpeed: mockGpsSpeed,
     compassEnabled: mockCompassEnabled,
+    arrowRotation: mockArrowRotation,
     setNavHeading: mockSetNavHeading,
+    setArrowRotation: mockSetArrowRotation,
   }),
 }));
 
@@ -23,6 +27,23 @@ vi.mock('expo-location', () => ({
     headingCallback = cb;
     return Promise.resolve({ remove: vi.fn() });
   }),
+}));
+
+const mockDeviceMotion = {
+  isAvailableAsync: vi.fn().mockResolvedValue(false),
+  setUpdateInterval: vi.fn(),
+  addListener: vi.fn(() => ({ remove: vi.fn() })),
+};
+
+vi.mock('expo-modules-core', () => ({
+  requireOptionalNativeModule: vi.fn((name: string) => {
+    if (name === 'ExponentDeviceMotion') return {};
+    return null;
+  }),
+}));
+
+vi.mock('expo-sensors', () => ({
+  DeviceMotion: mockDeviceMotion,
 }));
 
 vi.mock('react', async (importOriginal) => {
@@ -42,6 +63,7 @@ describe('useDriverHeading', () => {
     mockGpsHeading = null;
     mockGpsSpeed = null;
     mockCompassEnabled = false;
+    mockArrowRotation = null;
     mockCapturedEffects.length = 0;
     headingCallback = null;
   });
@@ -50,8 +72,6 @@ describe('useDriverHeading', () => {
     useDriverHeading('accepted');
     mockCapturedEffects.forEach((eff) => eff());
 
-    // With the new default, the compass subscription is gated behind
-    // compassEnabled=true. When off, watchHeadingAsync must not be called.
     expect(headingCallback).toBeNull();
   });
 
@@ -71,6 +91,7 @@ describe('useDriverHeading', () => {
       hasCompassHeading: true,
       compassEnabled: true,
       hasRouteBearing: false,
+      hasGyro: false,
     })).toBe('compass');
 
     expect(selectHeadingSource({
@@ -80,6 +101,7 @@ describe('useDriverHeading', () => {
       hasCompassHeading: true,
       compassEnabled: true,
       hasRouteBearing: false,
+      hasGyro: false,
     })).toBe('gps');
   });
 
@@ -91,6 +113,7 @@ describe('useDriverHeading', () => {
       hasCompassHeading: true,
       compassEnabled: true,
       hasRouteBearing: false,
+      hasGyro: false,
     })).toBe('gps');
 
     expect(selectHeadingSource({
@@ -100,13 +123,11 @@ describe('useDriverHeading', () => {
       hasCompassHeading: true,
       compassEnabled: true,
       hasRouteBearing: false,
+      hasGyro: false,
     })).toBe('compass');
   });
 
   it('falls back to route bearing (not compass) when stationary and compass is disabled', () => {
-    // Default Google Maps parity: no compass, moving below release speed →
-    // pick the bearing of the current route segment so the arrow keeps
-    // pointing down the road instead of freezing.
     expect(selectHeadingSource({
       previousSource: 'gps',
       gpsHeading: 90,
@@ -114,6 +135,7 @@ describe('useDriverHeading', () => {
       hasCompassHeading: true,
       compassEnabled: false,
       hasRouteBearing: true,
+      hasGyro: false,
     })).toBe('route');
   });
 
@@ -125,6 +147,7 @@ describe('useDriverHeading', () => {
       hasCompassHeading: false,
       compassEnabled: false,
       hasRouteBearing: false,
+      hasGyro: false,
     })).toBeNull();
   });
 });
