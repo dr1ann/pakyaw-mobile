@@ -56,7 +56,6 @@
 
 # Architecture
 
-- Follow [docs/architecture.md](docs/architecture.md) and [docs/design_system.md](docs/design_system.md). They are the source of truth for structure and visual tokens.
 - Thin route/controller layer; business logic lives inside feature services.
 - Use Zod for every external input boundary (forms, network, storage, environment variables).
 - TanStack Query owns server state.

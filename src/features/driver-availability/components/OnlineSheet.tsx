@@ -8,10 +8,12 @@
  * remains visible beneath it in drive.tsx.
  */
 
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing, typography } from '@/constants/theme';
 import { PowerButton } from '@/features/driver-availability/components/PowerButton';
+import { reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
 import type { Availability } from '@pakyaw/shared/types/driver';
 
 type OnlineSheetProps = {
@@ -30,6 +32,47 @@ export function OnlineSheet({
   lastLongitude,
 }: OnlineSheetProps) {
   const isOnTrip = availability === 'on_trip';
+  const [addressText, setAddressText] = useState<string>('Detecting location…');
+  const lastGeocodedCoords = useRef<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (lastLatitude === null || lastLongitude === null) {
+      return;
+    }
+
+    if (lastGeocodedCoords.current) {
+      const latDiff = Math.abs(lastLatitude - lastGeocodedCoords.current.lat);
+      const lngDiff = Math.abs(lastLongitude - lastGeocodedCoords.current.lng);
+      if (latDiff < 0.00015 && lngDiff < 0.00015) {
+        return;
+      }
+    }
+
+    let isMounted = true;
+
+    void (async () => {
+      try {
+        const place = await reverseGeocode(lastLatitude, lastLongitude);
+        if (!isMounted) return;
+
+        if (place) {
+          const formatted = place.address || place.label;
+          setAddressText(formatted);
+          lastGeocodedCoords.current = { lat: lastLatitude, lng: lastLongitude };
+        } else {
+          setAddressText('Address unavailable');
+        }
+      } catch {
+        if (isMounted) {
+          setAddressText('Address unavailable');
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lastLatitude, lastLongitude]);
 
   return (
     <View style={styles.container}>
@@ -55,12 +98,12 @@ export function OnlineSheet({
           : 'Waiting for nearby ride requests…'}
       </Text>
 
-      {/* Last known location — placeholder map data */}
+      {/* Last known location */}
       {(lastLatitude !== null || lastLongitude !== null) && (
         <View style={styles.coordsCard}>
           <Text style={styles.coordsLabel}>CURRENT LOCATION</Text>
-          <Text style={styles.coordsValue}>
-            {lastLatitude?.toFixed(6) ?? '—'}, {lastLongitude?.toFixed(6) ?? '—'}
+          <Text style={styles.coordsValue} numberOfLines={2}>
+            {addressText}
           </Text>
         </View>
       )}

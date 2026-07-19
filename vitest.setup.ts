@@ -9,3 +9,16 @@ process.env.EXPO_PUBLIC_FIREBASE_APP_ID =
   process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '1:test';
 process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? 'AIzaSy_test_key';
+
+import { vi } from 'vitest';
+
+vi.mock('react-native', () => ({}));
+vi.mock('expo-constants', () => ({
+  default: {
+    expoConfig: {
+      extra: {
+        googleMapsApiKey: 'test-key',
+      },
+    },
+  },
+}));

@@ -25,7 +25,6 @@ export function useSharedRideSession() {
 
   useEffect(() => {
     if (!sharedRideId) {
-      setSharedRide(null);
       return;
     }
 
@@ -37,7 +36,10 @@ export function useSharedRideSession() {
       }
     });
 
-    return () => unsubSharedRide();
+    return () => {
+      unsubSharedRide();
+      setSharedRide(null);
+    };
   }, [sharedRideId]);
 
   return { sharedRide, sharedRideId };
