@@ -35,7 +35,16 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
     // stays false until the snapshot arrives, producing an 8-10s camera delay.
     // The flag is cleared once Firestore confirms the status (DriveScreen
     // effect) or on transition error (onError below).
+    //
+    // Clear the pan latch here too (same as recenter does) so the camera
+    // controller's effect sees userPanned=false from the very first render
+    // after the optimistic flag flips. Without this, a stale pan latch from
+    // the user panning during the 'accepted' phase suppresses the engagement
+    // — the effect's rising-edge setCameraFollowing(true) call updates the
+    // store but the effect closure still has userPanned=true, and subsequent
+    // re-renders hit the command-dedup check before the engagement can fire.
     useActiveTripStore.getState().setOptimisticNavEngaged(true);
+    useActiveTripStore.getState().setCameraFollowing(true);
     transition(
       { tripId: trip.id, status: 'driver_arriving' },
       {
