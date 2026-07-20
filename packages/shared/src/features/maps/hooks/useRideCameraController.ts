@@ -134,12 +134,27 @@ export function useRideCameraController(
       // The engagement frame always uses the caller's heading so the initial
       // sweep can orient the map. Once the driver moves (speed ≥ threshold)
       // the real fused heading takes over and lastNavHeadingRef tracks it.
+      //
+      // IMPORTANT: Only hold when the new heading is close to the last one.
+      // A large delta while stationary indicates a position correction
+      // (stale GPS → fresh GPS, common on mobile data), not idle noise.
+      // In that case we allow the camera to update so it faces the correct
+      // direction instead of staying locked to the wrong initial heading.
       const navSpeed = navigation.speed ?? null;
+      const newHeading = navigation.heading;
+      const lastHeading = lastNavHeadingRef.current;
+      let headingDeltaDeg = 0;
+      if (lastHeading !== null && newHeading != null && Number.isFinite(newHeading)) {
+        let diff = Math.abs(newHeading - lastHeading);
+        if (diff > 180) diff = 360 - diff;
+        headingDeltaDeg = diff;
+      }
       const shouldHoldHeading =
         !isEngagementFrame &&
         navSpeed !== null &&
         navSpeed < HEADING_SPEED_THRESHOLD_MS &&
-        lastNavHeadingRef.current !== null;
+        lastHeading !== null &&
+        headingDeltaDeg < 30;
 
       return {
         type: 'navigationFollow',

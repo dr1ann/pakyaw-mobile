@@ -12,6 +12,7 @@ const DEAD_RECKON_MAX_SECONDS = 5;
 const DEAD_RECKON_MAX_METERS = 50;
 const DEAD_RECKON_MIN_SPEED_MPS = 0.5;
 const EARTH_RADIUS_M = 6_371_000;
+const STATE_UPDATE_THROTTLE_MS = 66; // ~15fps — prevents ANR from 60fps state updates
 
 export function lerpCoordinate(
   from: InterpolatedCoordinate,
@@ -82,6 +83,7 @@ export function useInterpolatedCoordinate(
   const headingRef = useRef<number | null>(null);
   const lastGpsTargetRef = useRef<InterpolatedCoordinate | null>(null);
   const deadReckonStartRef = useRef<number | null>(null);
+  const lastStateUpdateMsRef = useRef(0);
 
   // Keep speed/heading refs current without restarting interpolation
   useEffect(() => {
@@ -152,14 +154,19 @@ export function useInterpolatedCoordinate(
       if (progress < 1) {
         const nextCoordinate = lerpCoordinate(from, targetCoordinate, progress);
         displayCoordinateRef.current = nextCoordinate;
-        setDisplayCoordinate(nextCoordinate);
+        const now = Date.now();
+        if (now - lastStateUpdateMsRef.current >= STATE_UPDATE_THROTTLE_MS) {
+          lastStateUpdateMsRef.current = now;
+          setDisplayCoordinate(nextCoordinate);
+        }
         frameRef.current = requestAnimationFrame(animate);
         return;
       }
 
-      // Interpolation complete — target reached
+      // Interpolation complete — always commit final position
       displayCoordinateRef.current = targetCoordinate;
       setDisplayCoordinate(targetCoordinate);
+      lastStateUpdateMsRef.current = Date.now();
 
       // Begin dead-reckoning from the target position
       const speedNow = speedRef.current;
@@ -217,7 +224,11 @@ export function useInterpolatedCoordinate(
         }
 
         displayCoordinateRef.current = extrapolated;
-        setDisplayCoordinate(extrapolated);
+        const tickNowMs = Date.now();
+        if (tickNowMs - lastStateUpdateMsRef.current >= STATE_UPDATE_THROTTLE_MS) {
+          lastStateUpdateMsRef.current = tickNowMs;
+          setDisplayCoordinate(extrapolated);
+        }
         frameRef.current = requestAnimationFrame(deadReckonTick);
       };
 

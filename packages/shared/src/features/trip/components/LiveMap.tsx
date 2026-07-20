@@ -662,7 +662,7 @@ export function LiveMap({
 
         {ownLocation && (
           <Marker
-            key={`own-location-${showNavigationArrow ? `${arrowSize}-${navigationArrowRotation}` : 'dot'}`}
+            key={`own-location-${showNavigationArrow ? arrowSize : 'dot'}`}
             coordinate={ownLocation}
             anchor={{ x: 0.5, y: 0.5 }}
             rotation={showNavigationArrow ? navigationArrowRotation : undefined}
