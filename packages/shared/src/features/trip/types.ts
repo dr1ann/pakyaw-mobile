@@ -26,9 +26,11 @@ export type TripStatus =
  */
 export type TripDoc = {
   readonly id: string;
-  readonly mode: 'solo' | 'shared';
+  readonly mode: 'solo' | 'shared' | 'hop';
   readonly status: TripStatus;
   readonly passengerId: string;
+  readonly passengerName?: string;
+  readonly passengerPhotoUrl?: string;
   readonly driverId: string | null;
   readonly pickup: Place;
   readonly destination: Place;
@@ -42,6 +44,14 @@ export type TripDoc = {
   readonly cancelledBy: CancelledBy | null;
   readonly cancelReason: string | null;
   readonly fare?: number;
+  readonly fareBreakdown?: {
+    readonly baseFare: number;
+    readonly distanceFare: number;
+    readonly surcharges: number;
+    readonly techFee: number;
+    readonly driverEarnings: number;
+    readonly paymentStatus?: 'paid' | 'pending';
+  };
 
   // Shared Ride Fields
   readonly sharedRideId?: string | null;
@@ -75,18 +85,37 @@ export type SharedRideStatus = 'active' | 'completing' | 'completed';
 export type SharedRidePassenger = {
   readonly tripId: string;
   readonly passengerId: string;
+  readonly passengerName?: string;
+  readonly passengerPhotoUrl?: string;
   readonly seatsCovered: number;
   readonly pickup: Place;
   readonly destination: Place;
   readonly status: 'active' | 'dropped_off';
+  readonly isHop?: boolean;
+  readonly fare?: number;
+  readonly fareBreakdown?: {
+    readonly baseFare: number;
+    readonly distanceFare: number;
+    readonly surcharges: number;
+    readonly techFee: number;
+    readonly driverEarnings: number;
+    readonly paymentStatus?: 'paid' | 'pending';
+  };
 };
 
 export type SharedRideDoc = {
   readonly id: string;
   readonly driverId: string;
+  readonly driverName?: string;
+  readonly driverPhotoUrl?: string;
+  readonly driverPhone?: string;
+  readonly vehicleModel?: string;
+  readonly vehiclePlate?: string;
   readonly status: SharedRideStatus;
   readonly maxSeats: number;
   readonly seatsBooked: number;
+  readonly totalPassengersCount?: number;
+  readonly isLockedForHops?: boolean;
   readonly routePolyline: string;
   readonly routeOrigin: { readonly lat: number; readonly lng: number };
   readonly routeDestination: { readonly lat: number; readonly lng: number };

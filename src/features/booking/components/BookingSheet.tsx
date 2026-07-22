@@ -12,7 +12,7 @@ import { SurchargeType } from '@/lib/fare/types';
 import { useFareConfig } from '@/features/booking/hooks/useFareConfig';
 import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
-import { HopOnRadar } from './HopOnRadar';
+import { HopDriverSearch } from './HopDriverSearch';
 import { useNearbySharedRides } from '../hooks/useNearbySharedRides';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import { useJoinSharedRide } from '../hooks/useJoinSharedRide';
@@ -103,24 +103,28 @@ export function BookingSheet({
     setRoute(null);
   }
 
+  const confirmButtonLabel = React.useMemo(() => {
+    if (draft.rideMode === 'hopon') return 'Book Hop';
+    if (draft.rideMode === 'shared') return 'Book Shared';
+    return 'Book Pakyaw';
+  }, [draft.rideMode]);
+
   function handleConfirm() {
     if (!draft.pickup || !draft.destination || !draft.route) {
       logger.error('[BookingSheet] Confirm tapped but pickup, destination, or route is missing');
       return;
     }
 
-    // Guard against booking a route that no longer matches the current inputs
-    // (e.g. pickup changed and the refetch hasn't landed yet) — §13.2.
     if (!routeMatchesInputs(draft)) {
       logger.warn('[BookingSheet] Confirm tapped but route is stale for current inputs; ignoring');
       return;
     }
 
     const payload: CreateBookingInput = {
-      mode: draft.rideMode === 'private' ? 'private' : 'shared',
+      mode: draft.rideMode === 'private' ? 'private' : (draft.rideMode === 'hopon' ? 'hop' : 'shared') as any,
       pickup: draft.pickup!,
       destination: draft.destination!,
-      passengerCount: draft.passengerCount,
+      passengerCount: draft.rideMode === 'hopon' ? 1 : draft.passengerCount,
       route: {
         distanceMeters: draft.route.distanceMeters,
         durationSeconds: draft.route.durationSeconds,
@@ -328,7 +332,7 @@ export function BookingSheet({
         )}
 
         {draft.rideMode === 'hopon' ? (
-          <HopOnRadar
+          <HopDriverSearch
             rides={nearbyRides}
             loading={loadingRides}
             onJoinRide={handleJoinHopOn}
@@ -468,7 +472,7 @@ export function BookingSheet({
         
         <View style={styles.buttonWrapper}>
           <Button
-            label="Request Pakyaw"
+            label={confirmButtonLabel}
             onPress={handleConfirm}
             loading={isPending}
             disabled={isPending || !hasValidRoute || isLoadingRoute}

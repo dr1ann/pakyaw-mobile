@@ -13,9 +13,15 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
+import { HopDriverMatchLobby } from '@/features/booking/components/HopDriverMatchLobby';
+
 export function DriverMatchedSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: cancel, isPending } = useCancelTrip();
+
+  if (trip && trip.mode === 'hop') {
+    return <HopDriverMatchLobby trip={trip} />;
+  }
 
   function handleCancel() {
     if (trip) {

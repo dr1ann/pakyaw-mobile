@@ -56,6 +56,14 @@ export type LiveMapProps = {
   readonly onMapReady?: () => void;
   readonly onRegionChangeComplete?: (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => void;
   readonly debugTripStatus?: string | null;
+  readonly passengerStops?: readonly MapPassengerStop[];
+};
+
+export type MapPassengerStop = {
+  readonly id: string;
+  readonly type: 'pickup' | 'destination';
+  readonly passengerName: string;
+  readonly location: { latitude: number; longitude: number };
 };
 
 const ORMOC_CENTER = {
