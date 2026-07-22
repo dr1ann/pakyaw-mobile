@@ -49,18 +49,31 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
 
   useEffect(() => {
     if (!trip?.driverId) return;
-    const ref = doc(firestore, 'drivers', trip.driverId);
-    const unsub = onSnapshot(ref, (snap) => {
+    const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        setDriverDoc({
-          name: d.displayName || d.fullName || d.name || 'Ormoc Pakyaw Driver',
+        const name = d.displayName || d.fullName || d.name || d.firstName;
+        setDriverDoc((prev) => ({
+          ...prev,
+          ...(name && { name }),
           vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
           vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
-        });
+        }));
       }
     });
-    return () => unsub();
+    const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
+      if (snap.exists()) {
+        const u = snap.data();
+        const name = u.displayName || u.fullName || u.name || u.firstName;
+        if (name) {
+          setDriverDoc((prev) => ({ ...prev, name }));
+        }
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, [trip?.driverId]);
 
   const mode = trip?.mode || 'hop';

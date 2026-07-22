@@ -16,6 +16,8 @@ import { FirebaseError } from 'firebase/app';
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 
@@ -89,20 +91,38 @@ export async function createTrip(
   }
   const geohash = geohashOf(validated.pickup.coords, 7);
 
-  const data: TripCreateData = {
+  // Fetch passenger user profile to store passengerName and passengerPhotoUrl
+  let passengerName = 'Passenger';
+  let passengerPhotoUrl: string | null = null;
+  try {
+    const userSnap = await getDoc(doc(firestore, 'users', passengerId));
+    if (userSnap.exists()) {
+      const u = userSnap.data();
+      passengerName = u.displayName || u.fullName || u.firstName || u.name || 'Passenger';
+      passengerPhotoUrl = u.photoUrl || u.avatarUrl || null;
+    }
+  } catch (e) {
+    logger.warn('[booking] failed to fetch passenger profile, using default', e);
+  }
+
+  const finalFare = input.fare ?? 55.0;
+
+  const data: TripCreateData & { passengerName?: string; passengerPhotoUrl?: string | null } = {
     mode: input.mode === 'private' ? 'solo' : (input.mode || 'solo'),
     passengerId,
+    passengerName,
+    passengerPhotoUrl,
     driverId: null,
     pickup: validated.pickup,
     destination: validated.destination,
     passengerCount: validated.passengerCount,
     billedSeats: input.mode === 'shared' ? input.passengerCount : billedSeats,
-    ...(input.mode === 'shared' && { seatsCovered: input.passengerCount }),
+    seatsCovered: input.passengerCount,
     status: 'request',
     geohash,
     requestedAt: serverTimestamp(),
     createdTime: serverTimestamp(),
-    ...(input.fare !== undefined && { fare: input.fare }),
+    fare: finalFare,
     route: validated.route,
     serviceAreaId: 'ormoc',
   };
