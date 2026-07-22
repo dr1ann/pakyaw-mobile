@@ -6,7 +6,8 @@
  * Transition buttons will be added in a later phase.
  */
 
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
@@ -25,24 +26,28 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
   function handleStartNavigation() {
     if (!trip) return;
-    // Optimistically engage the Navigation Mode camera immediately so the
-    // driver sees the camera zoom to their location the instant they press
-    // the button — same immediate response as the recenter/compass paths.
-    // The Firestore transition round-trip (runTransaction → onSnapshot) can
-    // take several seconds; without this optimistic flag, navigation.enabled
-    // stays false until the snapshot arrives, producing an 8-10s camera delay.
-    // The flag is cleared once Firestore confirms the status (DriveScreen
-    // effect) or on transition error (onError below).
-    //
-    // Clear the pan latch here too (same as recenter does) so the camera
-    // controller's effect sees userPanned=false from the very first render
-    // after the optimistic flag flips. Without this, a stale pan latch from
-    // the user panning during the 'accepted' phase suppresses the engagement
-    // — the effect's rising-edge setCameraFollowing(true) call updates the
-    // store but the effect closure still has userPanned=true, and subsequent
-    // re-renders hit the command-dedup check before the engagement can fire.
     useActiveTripStore.getState().setOptimisticNavEngaged(true);
     useActiveTripStore.getState().setCameraFollowing(true);
     transition(
@@ -57,7 +62,15 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
 
   if (compact) {
     return (
-      <View style={styles.compactContainer}>
+      <Animated.View
+        style={[
+          styles.compactContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
         <View style={styles.compactInfo}>
           <Text style={styles.compactPrimary} numberOfLines={1}>Trip accepted</Text>
           <Text style={styles.compactSecondary} numberOfLines={1}>
@@ -73,12 +86,20 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
           style={styles.compactButton}
           testID="driver-start-navigation"
         />
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
       <StatusPill label="Trip accepted" tone="success" dot />
       <Text style={styles.title}>New trip accepted</Text>
       <Text style={styles.subtitle}>
@@ -92,7 +113,7 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
         disabled={isPending}
         testID="driver-start-navigation"
       />
-    </View>
+    </Animated.View>
   );
 }
 

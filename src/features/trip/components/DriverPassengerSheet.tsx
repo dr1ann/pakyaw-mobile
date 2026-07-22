@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Pressable,
   Image,
   Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
@@ -29,6 +31,26 @@ export function DriverPassengerSheet({
   const [isExpanded, setIsExpanded] = useState(false);
   const [activePassengerIndex, setActivePassengerIndex] = useState(0);
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
   const passengers = sharedRide.passengers || [];
   const activePassengers = passengers.filter((p) => p.status === 'active');
   
@@ -42,7 +64,17 @@ export function DriverPassengerSheet({
   };
 
   return (
-    <View style={[styles.container, isExpanded && styles.containerExpanded, shadow.float]}>
+    <Animated.View
+      style={[
+        styles.container,
+        isExpanded && styles.containerExpanded,
+        shadow.float,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
       {/* Handle Bar */}
       <Pressable onPress={toggleExpand} style={styles.handleContainer} testID="driver-sheet-handle">
         <View style={styles.handleBar} />
@@ -219,7 +251,7 @@ export function DriverPassengerSheet({
           )}
         </ScrollView>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
