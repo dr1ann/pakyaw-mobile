@@ -227,14 +227,25 @@ export async function acceptTrip(
       }
 
       const driver = driverSnap.data();
+      const driverName = driver.displayName || driver.fullName || driver.name || 'Ormoc Pakyaw Driver';
+      const driverPhotoUrl = driver.photoUrl || driver.avatarUrl || null;
+      const vehicleModel = driver.vehicleModel || driver.vehicle?.model || 'Pakyaw Fleet Tricycle';
+      const vehiclePlate = driver.vehiclePlate || driver.plateNumber || driver.vehicle?.plate || 'ORM-2026';
       
       // If driver is accepting a Hop while already on a Shared Ride, driver availability may be on_trip
       if (trip.mode !== 'hop' && (driver.availability !== 'online' || driver.activeTripId != null)) {
         throw new TripAlreadyTakenError();
       }
 
+      const tripFare = trip.fare ?? 55.0;
+
       tx.update(tripRef, {
         driverId: driverUid,
+        driverName,
+        driverPhotoUrl,
+        vehicleModel,
+        vehiclePlate,
+        fare: tripFare,
         status: 'accepted',
         acceptedAt: serverTimestamp(),
         sharedRideId: sharedRideId ?? trip.sharedRideId ?? null,
@@ -249,21 +260,28 @@ export async function acceptTrip(
       if (sharedRideSnap && sharedRideSnap.exists()) {
         const sharedRideData = sharedRideSnap.data();
         const currentPassengers = sharedRideData.passengers || [];
-        const currentTotal = sharedRideData.totalPassengersCount ?? currentPassengers.length ?? 0;
-        const newTotal = currentTotal + (trip.passengerCount || 1);
+        const seatsToCover = trip.seatsCovered || trip.passengerCount || 1;
+        const currentTotal = sharedRideData.totalPassengersCount ?? 0;
+        const newTotal = currentTotal + seatsToCover;
 
         const newPassenger = {
           tripId,
           passengerId: trip.passengerId,
-          seatsCovered: trip.passengerCount || 1,
+          passengerName: trip.passengerName || 'Passenger',
+          passengerPhotoUrl: trip.passengerPhotoUrl || null,
+          seatsCovered: seatsToCover,
           pickup: trip.pickup,
           destination: trip.destination,
           status: 'active',
           isHop: trip.mode === 'hop',
-          fare: trip.fare || 15,
+          fare: tripFare,
         };
 
         tx.update(sharedRideRef!, {
+          driverName,
+          driverPhotoUrl,
+          vehicleModel,
+          vehiclePlate,
           passengers: [...currentPassengers, newPassenger],
           tripIds: [...(sharedRideData.tripIds || []), tripId],
           totalPassengersCount: newTotal,

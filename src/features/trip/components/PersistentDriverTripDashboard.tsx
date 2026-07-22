@@ -66,21 +66,34 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  // Subscribe to driver profile snapshot if needed for clean driver name display
+  // Subscribe to driver profile snapshot across drivers & users collections for clean driver name display
   useEffect(() => {
     if (!trip?.driverId) return;
-    const ref = doc(firestore, 'drivers', trip.driverId);
-    const unsub = onSnapshot(ref, (snap) => {
+    const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        setDriverDoc({
-          name: d.displayName || d.fullName || d.name || 'Pakyaw Driver',
+        const name = d.displayName || d.fullName || d.name || d.firstName;
+        setDriverDoc((prev) => ({
+          ...prev,
+          ...(name && { name }),
           vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
           vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
-        });
+        }));
       }
     });
-    return () => unsub();
+    const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
+      if (snap.exists()) {
+        const u = snap.data();
+        const name = u.displayName || u.fullName || u.name || u.firstName;
+        if (name) {
+          setDriverDoc((prev) => ({ ...prev, name }));
+        }
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, [trip?.driverId]);
 
   // Subscribe to passenger user profile snapshot for clean passenger name display
@@ -116,7 +129,7 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [status, buttonPulseAnim]);
 
-  const driverName = sharedRide?.driverName || driverDoc?.name || 'Pakyaw Driver';
+  const driverName = sharedRide?.driverName || driverDoc?.name || 'Ormoc Pakyaw Driver';
   const vehicleModel = sharedRide?.vehicleModel || driverDoc?.vehicleModel || 'Pakyaw Fleet Tricycle';
   const vehiclePlate = sharedRide?.vehiclePlate || driverDoc?.vehiclePlate || 'ORM-2026';
 
@@ -132,7 +145,7 @@ export function PersistentDriverTripDashboard({
     destination: trip.destination,
     status: 'active' as const,
     isHop: trip.mode === 'hop',
-    fare: trip.fare ?? 15.0,
+    fare: trip.fare ?? 55.0,
   }] : []);
 
   const activePassengers = passengers.filter((p) => p.status === 'active');
@@ -143,7 +156,7 @@ export function PersistentDriverTripDashboard({
 
   // Calculate earnings summary directly from Firestore trip fare and breakdown
   const totalCollectedFare = passengers.reduce(
-    (sum, p) => sum + (p.fare ?? trip?.fare ?? 15.0),
+    (sum, p) => sum + (p.fare ?? trip?.fare ?? 55.0),
     0
   );
   const platformFee = trip?.fareBreakdown?.techFee ?? trip?.techFee ?? (passengers.length * 5);
