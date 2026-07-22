@@ -59,6 +59,14 @@ export type LiveMapProps = {
   readonly onMapReady?: () => void;
   readonly onRegionChangeComplete?: (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => void;
   readonly debugTripStatus?: string | null;
+  readonly passengerStops?: readonly MapPassengerStop[];
+};
+
+export type MapPassengerStop = {
+  readonly id: string;
+  readonly type: 'pickup' | 'destination';
+  readonly passengerName: string;
+  readonly location: { latitude: number; longitude: number };
 };
 
 const ORMOC_CENTER = {
@@ -279,6 +287,7 @@ export function LiveMap({
   onMapReady,
   onRegionChangeComplete,
   debugTripStatus = null,
+  passengerStops = [],
 }: LiveMapProps) {
   const localMapRef = useRef<MapView>(null);
   const mapRef = externalMapRef || localMapRef;
@@ -735,6 +744,37 @@ export function LiveMap({
             </View>
           </Marker>
         )}
+
+        {/* Passenger Stop Waypoint Markers on Navigation Map */}
+        {passengerStops.map((stop) => (
+          <Marker
+            key={`passenger-stop-${stop.id}-${stop.type}`}
+            coordinate={stop.location}
+            anchor={{ x: 0.5, y: 1.0 }}
+            testID={`stop-marker-${stop.id}`}
+          >
+            <View style={styles.stopMarkerContainer}>
+              <View style={styles.stopMarkerBubble}>
+                <Text style={styles.stopMarkerText}>
+                  {stop.type === 'pickup' ? 'Pickup: ' : 'Drop-off: '}{stop.passengerName}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.stopDotRing,
+                  stop.type === 'pickup' ? styles.stopPickupRing : styles.stopDropoffRing,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.stopDotInner,
+                    stop.type === 'pickup' ? styles.stopPickupDot : styles.stopDropoffDot,
+                  ]}
+                />
+              </View>
+            </View>
+          </Marker>
+        ))}
       </MapView>
 
       {shouldShowDriverRouteLoading && (
@@ -833,6 +873,54 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   destinationDot: {
+    backgroundColor: colors.amber.primary,
+  },
+  // Passenger Stop Waypoint Markers
+  stopMarkerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopMarkerBubble: {
+    backgroundColor: colors.ink[900],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  stopMarkerText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  stopDotRing: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  stopPickupRing: {
+    borderColor: colors.blue.primary,
+  },
+  stopDropoffRing: {
+    borderColor: colors.amber.primary,
+  },
+  stopDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  stopPickupDot: {
+    backgroundColor: colors.blue.primary,
+  },
+  stopDropoffDot: {
     backgroundColor: colors.amber.primary,
   },
 });

@@ -45,7 +45,9 @@ import {
   DriverEnRouteSheet,
   DriverInTripSheet,
 } from '@/features/trip/components/DriverTripSheets';
-import { SharedRidePanel } from '@/features/shared-ride/components/SharedRidePanel';
+import { DriverPassengerSheet } from '@/features/trip/components/DriverPassengerSheet';
+import { BoardingConfirmationToast } from '@/features/trip/components/BoardingConfirmationToast';
+import { MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRideSession';
 import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
@@ -93,6 +95,42 @@ export default function DriveScreen() {
   useActiveTrip();
 
   const { sharedRide, sharedRideId } = useSharedRideSession();
+
+  const [boardingToastVisible, setBoardingToastVisible] = useState(false);
+  const [lastPassengerCount, setLastPassengerCount] = useState(0);
+
+  useEffect(() => {
+    if (sharedRide?.passengers) {
+      if (sharedRide.passengers.length > lastPassengerCount && lastPassengerCount > 0) {
+        setBoardingToastVisible(true);
+      }
+      setLastPassengerCount(sharedRide.passengers.length);
+    }
+  }, [sharedRide?.passengers, lastPassengerCount]);
+
+  const passengerStops = useMemo<MapPassengerStop[]>(() => {
+    if (!sharedRide?.passengers) return [];
+    const stops: MapPassengerStop[] = [];
+    sharedRide.passengers.forEach((p, idx) => {
+      if (p.pickup?.coords) {
+        stops.push({
+          id: `${p.passengerId}-pickup-${idx}`,
+          type: 'pickup',
+          passengerName: p.passengerName || `Passenger ${idx + 1}`,
+          location: { latitude: p.pickup.coords.lat, longitude: p.pickup.coords.lng },
+        });
+      }
+      if (p.destination?.coords) {
+        stops.push({
+          id: `${p.passengerId}-dest-${idx}`,
+          type: 'destination',
+          passengerName: p.passengerName || `Passenger ${idx + 1}`,
+          location: { latitude: p.destination.coords.lat, longitude: p.destination.coords.lng },
+        });
+      }
+    });
+    return stops;
+  }, [sharedRide?.passengers]);
 
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const arrowRotation = useActiveTripStore((s) => s.arrowRotation);
@@ -368,6 +406,7 @@ export default function DriveScreen() {
         showNavigationArrow={cameraNavEnabled}
         navigationArrowRotation={navigationArrowRotation}
         navigationActive={cameraNavEnabled}
+        passengerStops={passengerStops}
         freezeNavigationMapPadding={isInPip}
         onMapReady={cameraController.onMapReady}
         onUserPan={cameraController.onUserPan}
@@ -438,7 +477,7 @@ export default function DriveScreen() {
             </Pressable>
           ) : null}
           {sharedRide != null ? (
-            <SharedRidePanel sharedRide={sharedRide} />
+            <DriverPassengerSheet sharedRide={sharedRide} />
           ) : isOnTrip ? (
             <DriverTripSheet
               status={trip?.status ?? null}
@@ -465,6 +504,12 @@ export default function DriveScreen() {
         </View>
       </SafeAreaView>
       )}
+
+      {/* Passenger Boarding Confirmation Toast */}
+      <BoardingConfirmationToast
+        visible={boardingToastVisible}
+        onDismiss={() => setBoardingToastVisible(false)}
+      />
 
       {/* Pre-flight checklist modal */}
       <PreflightChecklist

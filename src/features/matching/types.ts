@@ -14,7 +14,7 @@ import type { Place } from '@pakyaw/shared/types/place';
 export type IncomingRequest = {
   readonly tripId: string;
   readonly passengerId: string;
-  readonly mode?: 'solo' | 'shared' | 'hopon';
+  readonly mode?: 'solo' | 'shared' | 'hopon' | 'hop';
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
