@@ -316,7 +316,7 @@ export function PersistentDriverTripDashboard({
 
         <View style={styles.driverMeta}>
           <Text style={styles.driverName}>
-            {sharedRide?.driverName || (trip?.driverId ? `Driver #${trip.driverId.slice(0, 5)}` : 'Pakyaw Driver')}
+            {driverName}
           </Text>
           <Text style={styles.vehicleDetails}>
             {sharedRide?.vehicleModel || 'Pakyaw Fleet Tricycle'}
