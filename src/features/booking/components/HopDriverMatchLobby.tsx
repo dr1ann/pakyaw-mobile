@@ -13,6 +13,14 @@ type HopDriverMatchLobbyProps = {
   readonly sharedRide?: SharedRideDoc | null;
 };
 
+const formatName = (data: any) => {
+  if (!data) return undefined;
+  if (data.firstName || data.lastName) {
+    return `${data.firstName || ''} ${data.lastName || ''}`.trim();
+  }
+  return data.displayName || data.fullName || data.name;
+};
+
 export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyProps) {
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -52,7 +60,7 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
     const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        const name = d.displayName || d.fullName || d.name || d.firstName;
+        const name = formatName(d);
         setDriverDoc((prev) => ({
           ...prev,
           ...(name && { name }),
@@ -64,7 +72,7 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
     const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
       if (snap.exists()) {
         const u = snap.data();
-        const name = u.displayName || u.fullName || u.name || u.firstName;
+        const name = formatName(u);
         if (name) {
           setDriverDoc((prev) => ({ ...prev, name }));
         }
