@@ -15,7 +15,7 @@ import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type { TripDoc, SharedRideDoc, TripStatus } from '@pakyaw/shared/features/trip/types';
-import { useTripTransition } from '@pakyaw/shared/features/trip/hooks/useTripActions';
+import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { firestore } from '@/services/firebase/firebase';
 
@@ -43,6 +43,7 @@ export function PersistentDriverTripDashboard({
   const [passengerDoc, setPassengerDoc] = useState<{ name?: string } | null>(null);
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
+  const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
 
   // Entrance & State Transition Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -199,6 +200,15 @@ export function PersistentDriverTripDashboard({
     }
   }
 
+  function handleDriverCancel() {
+    if (!trip) return;
+    cancelTrip({
+      tripId: trip.id,
+      by: 'driver',
+      reason: 'Driver cancelled trip for testing',
+    });
+  }
+
   // Dynamic Button Configuration
   const getActionConfig = (status: TripStatus) => {
     switch (status) {
@@ -309,17 +319,32 @@ export function PersistentDriverTripDashboard({
         </View>
       </View>
 
-      {/* Primary Transition Action Control Button (Persistent) */}
-      <Animated.View style={{ transform: [{ scale: buttonPulseAnim }], marginVertical: spacing[3] }}>
-        <Button
-          label={actionConfig.label}
-          onPress={handlePrimaryAction}
-          loading={isTransitioning}
-          disabled={isTransitioning}
-          style={styles.primaryActionButton}
-          testID="driver-primary-action-btn"
-        />
-      </Animated.View>
+      {/* Primary Transition Action Control & Driver Cancel (Testing) */}
+      <View style={styles.actionsRow}>
+        <Animated.View style={{ flex: 1, transform: [{ scale: buttonPulseAnim }] }}>
+          <Button
+            label={actionConfig.label}
+            onPress={handlePrimaryAction}
+            loading={isTransitioning}
+            disabled={isTransitioning || isCancelling}
+            style={styles.primaryActionButton}
+            testID="driver-primary-action-btn"
+          />
+        </Animated.View>
+
+        {status !== 'completed' && status !== 'cancelled' && (
+          <Button
+            label="Cancel Ride"
+            onPress={handleDriverCancel}
+            loading={isCancelling}
+            disabled={isCancelling || isTransitioning}
+            tone="destructive"
+            fullWidth={false}
+            style={styles.cancelRideButton}
+            testID="driver-cancel-trip-btn"
+          />
+        )}
+      </View>
 
       {/* Expanded Content Section */}
       {isExpanded && (
@@ -618,8 +643,17 @@ const styles = StyleSheet.create({
     color: colors.ink[700],
     letterSpacing: 0.5,
   },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    marginVertical: spacing[3],
+  },
   primaryActionButton: {
     width: '100%',
+  },
+  cancelRideButton: {
+    paddingHorizontal: spacing[3],
   },
   expandedScroll: {
     marginTop: spacing[2],
