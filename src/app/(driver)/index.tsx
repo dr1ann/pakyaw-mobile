@@ -46,6 +46,7 @@ import {
   DriverInTripSheet,
 } from '@/features/trip/components/DriverTripSheets';
 import { DriverPassengerSheet } from '@/features/trip/components/DriverPassengerSheet';
+import { PersistentDriverTripDashboard } from '@/features/trip/components/PersistentDriverTripDashboard';
 import { BoardingConfirmationToast } from '@/features/trip/components/BoardingConfirmationToast';
 import { MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRideSession';
@@ -459,32 +460,12 @@ export default function DriveScreen() {
 
         <View style={[styles.sheetCard, shadow.float]}>
           {isOnTrip || sharedRide != null ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isTripSheetExpanded ? 'Collapse trip details' : 'Expand trip details'}
-              onPress={handleToggleTripSheet}
-              style={styles.sheetToggle}
-              testID="driver-trip-sheet-toggle"
-            >
-              <View style={styles.sheetGrabber} />
-              <View style={styles.sheetToggleLabel}>
-                <SymbolIcon
-                  name={isTripSheetExpanded ? 'chevron.down' : 'chevron.up'}
-                  size={26}
-                  tintColor={colors.ink[500]}
-                />
-              </View>
-            </Pressable>
-          ) : null}
-          {sharedRide != null ? (
-            <DriverPassengerSheet sharedRide={sharedRide} />
-          ) : isOnTrip ? (
-            <DriverTripSheet
-              status={trip?.status ?? null}
-              onDismiss={handleDismissTerminal}
+            <PersistentDriverTripDashboard
+              trip={trip}
+              sharedRide={sharedRide}
               remainingDistanceMeters={progressStats.remainingDistanceMeters}
               etaSeconds={progressStats.etaSeconds}
-              compact={!isTripSheetExpanded}
+              onDismissTerminal={handleDismissTerminal}
             />
           ) : isOffline ? (
             <OfflineSheet
