@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Animated, Easing } from 'react-native';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type { TripDoc, SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
+import { firestore } from '@/services/firebase/firebase';
 
 type HopDriverMatchLobbyProps = {
   readonly trip: TripDoc;
@@ -43,19 +45,41 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
+  const [driverDoc, setDriverDoc] = useState<{ name?: string; vehicleModel?: string; vehiclePlate?: string } | null>(null);
+
+  useEffect(() => {
+    if (!trip?.driverId) return;
+    const ref = doc(firestore, 'drivers', trip.driverId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setDriverDoc({
+          name: d.displayName || d.fullName || d.name || 'Ormoc Pakyaw Driver',
+          vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
+          vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
+        });
+      }
+    });
+    return () => unsub();
+  }, [trip?.driverId]);
+
   const mode = trip?.mode || 'hop';
   const isHop = mode === 'hop';
   const isShared = mode === 'shared';
   const isPakyaw = mode === 'solo';
 
-  const driverName = sharedRide?.driverName || (trip.driverId ? `Driver #${trip.driverId.slice(0, 5)}` : 'Ormoc Pakyaw Driver');
-  const vehicleModel = sharedRide?.vehicleModel || 'Pakyaw Fleet Tricycle';
-  const vehiclePlate = sharedRide?.vehiclePlate || 'ORM-2026';
+  const driverName = sharedRide?.driverName || driverDoc?.name || 'Ormoc Pakyaw Driver';
+  const vehicleModel = sharedRide?.vehicleModel || driverDoc?.vehicleModel || 'Pakyaw Fleet Tricycle';
+  const vehiclePlate = sharedRide?.vehiclePlate || driverDoc?.vehiclePlate || 'ORM-2026';
   const driverPhoto = sharedRide?.driverPhotoUrl;
 
   // Compute maxSeats dynamically so if user selected 6 seats in Pakyaw/Solo mode, 6 slots display
   const maxSeats = Math.max(sharedRide?.maxSeats || 0, trip.passengerCount || 0, trip.billedSeats || 0, isPakyaw ? 4 : 6);
-  const totalOccupied = sharedRide?.passengers?.length || trip.passengerCount || 1;
+  
+  // Sum seatsCovered across passengers so booking 3 seats shows 3/6 seats occupied
+  const totalOccupied = sharedRide?.passengers && sharedRide.passengers.length > 0
+    ? sharedRide.passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0)
+    : (trip.seatsCovered || trip.billedSeats || trip.passengerCount || 1);
 
   // Status-driven labels
   const status = trip.status;
