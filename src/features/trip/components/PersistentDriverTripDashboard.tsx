@@ -29,6 +29,14 @@ type PersistentDriverTripDashboardProps = {
   readonly onDismissTerminal?: () => void;
 };
 
+const formatName = (data: any) => {
+  if (!data) return undefined;
+  if (data.firstName || data.lastName) {
+    return `${data.firstName || ''} ${data.lastName || ''}`.trim();
+  }
+  return data.displayName || data.fullName || data.name;
+};
+
 export function PersistentDriverTripDashboard({
   trip,
   sharedRide,
@@ -73,7 +81,7 @@ export function PersistentDriverTripDashboard({
     const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        const name = d.displayName || d.fullName || d.name || d.firstName;
+        const name = formatName(d);
         setDriverDoc((prev) => ({
           ...prev,
           ...(name && { name }),
@@ -85,7 +93,7 @@ export function PersistentDriverTripDashboard({
     const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
       if (snap.exists()) {
         const u = snap.data();
-        const name = u.displayName || u.fullName || u.name || u.firstName;
+        const name = formatName(u);
         if (name) {
           setDriverDoc((prev) => ({ ...prev, name }));
         }
@@ -104,8 +112,9 @@ export function PersistentDriverTripDashboard({
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         const u = snap.data();
+        const name = formatName(u);
         setPassengerDoc({
-          name: u.displayName || u.fullName || u.firstName || u.name || 'Passenger',
+          name: name || 'Passenger',
         });
       }
     });
