@@ -10,12 +10,14 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type { TripDoc, SharedRideDoc, TripStatus } from '@pakyaw/shared/features/trip/types';
 import { useTripTransition } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+import { firestore } from '@/services/firebase/firebase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,6 +38,9 @@ export function PersistentDriverTripDashboard({
 }: PersistentDriverTripDashboardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activePassengerIndex, setActivePassengerIndex] = useState(0);
+
+  const [driverDoc, setDriverDoc] = useState<{ name?: string; vehicleModel?: string; vehiclePlate?: string } | null>(null);
+  const [passengerDoc, setPassengerDoc] = useState<{ name?: string } | null>(null);
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
 
@@ -61,6 +66,38 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [fadeAnim, slideAnim]);
 
+  // Subscribe to driver profile snapshot if needed for clean driver name display
+  useEffect(() => {
+    if (!trip?.driverId) return;
+    const ref = doc(firestore, 'drivers', trip.driverId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setDriverDoc({
+          name: d.displayName || d.fullName || d.name || 'Pakyaw Driver',
+          vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
+          vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
+        });
+      }
+    });
+    return () => unsub();
+  }, [trip?.driverId]);
+
+  // Subscribe to passenger user profile snapshot for clean passenger name display
+  useEffect(() => {
+    if (!trip?.passengerId) return;
+    const ref = doc(firestore, 'users', trip.passengerId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const u = snap.data();
+        setPassengerDoc({
+          name: u.displayName || u.fullName || u.firstName || u.name || 'Passenger',
+        });
+      }
+    });
+    return () => unsub();
+  }, [trip?.passengerId]);
+
   // Animate button on trip status change for smooth UX feedback
   const status = trip?.status ?? 'accepted';
   useEffect(() => {
@@ -79,28 +116,40 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [status, buttonPulseAnim]);
 
+  const driverName = sharedRide?.driverName || driverDoc?.name || 'Pakyaw Driver';
+  const vehicleModel = sharedRide?.vehicleModel || driverDoc?.vehicleModel || 'Pakyaw Fleet Tricycle';
+  const vehiclePlate = sharedRide?.vehiclePlate || driverDoc?.vehiclePlate || 'ORM-2026';
+
+  const defaultPassengerName = trip?.passengerName || passengerDoc?.name || 'Passenger';
+
   const passengers = sharedRide?.passengers || (trip ? [{
     tripId: trip.id,
     passengerId: trip.passengerId,
-    passengerName: `Passenger #${trip.passengerId.slice(0, 5)}`,
-    seatsCovered: trip.passengerCount || 1,
+    passengerName: defaultPassengerName,
+    passengerPhotoUrl: trip.passengerPhotoUrl,
+    seatsCovered: trip.seatsCovered || trip.billedSeats || trip.passengerCount || 1,
     pickup: trip.pickup,
     destination: trip.destination,
     status: 'active' as const,
     isHop: trip.mode === 'hop',
-    fare: trip.fare || 15.0,
+    fare: trip.fare ?? 15.0,
   }] : []);
 
   const activePassengers = passengers.filter((p) => p.status === 'active');
   const maxSeats = Math.max(sharedRide?.maxSeats || 0, trip?.passengerCount || 0, trip?.billedSeats || 0, 6);
-  const totalOccupied = sharedRide?.totalPassengersCount || passengers.length || 1;
 
-  // Calculate earnings summary
-  const totalCollectedFare = passengers.reduce((sum, p) => sum + (p.fare || 15), 0);
-  const platformFee = passengers.length * 5;
-  const driverTakeHome = Math.max(0, totalCollectedFare - platformFee);
+  // Sum seatsCovered across passengers so booking 3 seats shows 3/6 seats occupied
+  const totalOccupied = passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0);
 
-  // Generate 6 circular seat slots
+  // Calculate earnings summary directly from Firestore trip fare and breakdown
+  const totalCollectedFare = passengers.reduce(
+    (sum, p) => sum + (p.fare ?? trip?.fare ?? 15.0),
+    0
+  );
+  const platformFee = trip?.fareBreakdown?.techFee ?? trip?.techFee ?? (passengers.length * 5);
+  const driverTakeHome = trip?.fareBreakdown?.driverEarnings ?? Math.max(0, totalCollectedFare - platformFee);
+
+  // Generate circular seat slots
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
     const passenger = sharedRide?.passengers?.[index];
     const isOccupied = index < totalOccupied;
