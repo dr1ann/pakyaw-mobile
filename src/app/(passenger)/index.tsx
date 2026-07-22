@@ -696,18 +696,10 @@ function TripSheet({
     case 'request':
       return <SearchingSheet />;
     case 'accepted':
-      return <DriverMatchedSheet />;
     case 'driver_arriving':
-      return <EnRouteSheet />;
     case 'driver_arrived':
-      return <ArrivedSheet />;
     case 'in_progress':
-      return (
-        <InTripSheet
-          remainingDistanceMeters={remainingDistanceMeters}
-          etaSeconds={etaSeconds}
-        />
-      );
+      return <DriverMatchedSheet />;
     case 'completed':
       return <CompletedSheet onDismiss={onDismiss} />;
     case 'cancelled':

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Animated, Easing } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
@@ -13,6 +13,7 @@ type HopDriverMatchLobbyProps = {
 
 export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyProps) {
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -52,26 +53,51 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
   const vehiclePlate = sharedRide?.vehiclePlate || 'ORM-2026';
   const driverPhoto = sharedRide?.driverPhotoUrl;
 
-  const maxSeats = isPakyaw ? 4 : (sharedRide?.maxSeats || 6);
+  // Compute maxSeats dynamically so if user selected 6 seats in Pakyaw/Solo mode, 6 slots display
+  const maxSeats = Math.max(sharedRide?.maxSeats || 0, trip.passengerCount || 0, trip.billedSeats || 0, isPakyaw ? 4 : 6);
   const totalOccupied = sharedRide?.passengers?.length || trip.passengerCount || 1;
 
-  const badgeText = isHop
+  // Status-driven labels
+  const status = trip.status;
+  const badgeText = status === 'driver_arriving'
+    ? 'DRIVER EN ROUTE'
+    : status === 'driver_arrived'
+    ? 'DRIVER ARRIVED'
+    : status === 'in_progress'
+    ? 'RIDE IN PROGRESS'
+    : isHop
     ? 'HOP DRIVER MATCHED'
     : isShared
     ? 'SHARED RIDE MATCHED'
     : 'PAKYAW DRIVER MATCHED';
 
-  const titleText = isHop
+  const etaText = status === 'driver_arriving'
+    ? 'Approaching'
+    : status === 'driver_arrived'
+    ? 'At Pickup'
+    : status === 'in_progress'
+    ? 'En Route'
+    : 'ETA ~3 mins';
+
+  const titleText = status === 'driver_arriving'
+    ? 'Driver is heading to your location'
+    : status === 'driver_arrived'
+    ? 'Your driver has arrived & is waiting'
+    : status === 'in_progress'
+    ? 'On your way to destination'
+    : isHop
     ? 'Your Hop Ride is on the way!'
     : isShared
     ? 'Your Shared Ride is confirmed!'
     : 'Your Private Pakyaw Ride is ready!';
 
-  const subtitleText = isHop
+  const subtitleText = status === 'in_progress'
+    ? `Heading towards ${trip.destination?.label || 'your destination'}.`
+    : isHop
     ? 'Your driver has accepted your Hop request and is navigating to your pickup point along their route.'
     : isShared
     ? 'Your driver is heading to your pickup location. Other passengers on your route may join open slots.'
-    : 'Your driver has reserved the entire vehicle for your exclusive private trip.';
+    : 'Your driver has reserved the vehicle for your route.';
 
   // Generate seat slots representation
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
@@ -105,19 +131,44 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
       ]}
       testID="hop-driver-lobby"
     >
-      {/* Header Banner */}
-      <View style={styles.headerRow}>
-        <View style={styles.matchedBadge}>
-          <SymbolIcon name="checkmark.circle.fill" size={16} tintColor={colors.green.primary} />
-          <Text style={styles.matchedBadgeText}>{badgeText}</Text>
-        </View>
-        <View style={styles.etaBadge}>
-          <Text style={styles.etaText}>ETA ~3 mins</Text>
-        </View>
-      </View>
+      {/* Top Grabber Handle & Header Row (Tap to Collapse / Expand) */}
+      <Pressable onPress={() => setIsCollapsed(!isCollapsed)} style={styles.handleContainer} testID="passenger-lobby-toggle">
+        <View style={styles.handleBar} />
+        <View style={styles.headerRow}>
+          <View style={styles.matchedBadge}>
+            <SymbolIcon name="checkmark.circle.fill" size={16} tintColor={colors.green.primary} />
+            <Text style={styles.matchedBadgeText}>{badgeText}</Text>
+          </View>
 
-      <Text style={styles.title}>{titleText}</Text>
-      <Text style={styles.subtitle}>{subtitleText}</Text>
+          <View style={styles.headerRightRow}>
+            <View style={styles.etaBadge}>
+              <Text style={styles.etaText}>{etaText}</Text>
+            </View>
+            <View style={styles.chevronBox}>
+              <SymbolIcon
+                name={isCollapsed ? 'chevron.up' : 'chevron.down'}
+                size={18}
+                tintColor={colors.ink[700]}
+              />
+            </View>
+          </View>
+        </View>
+      </Pressable>
+
+      {/* Collapsed Compact Summary */}
+      {isCollapsed ? (
+        <Pressable onPress={() => setIsCollapsed(false)} style={styles.collapsedBar}>
+          <View style={styles.collapsedMeta}>
+            <Text style={styles.driverName}>{driverName}</Text>
+            <Text style={styles.vehicleDetails}>{vehicleModel} • {vehiclePlate}</Text>
+          </View>
+          <Text style={styles.expandHintText}>Tap to view Lobby details ➔</Text>
+        </Pressable>
+      ) : (
+        /* Full Expanded Lobby Content */
+        <View>
+          <Text style={styles.title}>{titleText}</Text>
+          <Text style={styles.subtitle}>{subtitleText}</Text>
       <View style={[styles.driverCard, shadow.card]}>
         <View style={styles.driverProfileRow}>
           <View style={styles.avatarContainer}>
@@ -216,6 +267,8 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
           style={styles.cancelButton}
         />
       </View>
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -223,17 +276,58 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: spacing[5],
-    paddingTop: spacing[4],
+    paddingTop: spacing[2],
     paddingBottom: spacing[6],
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
   },
+  handleContainer: {
+    alignItems: 'center',
+    paddingBottom: spacing[2],
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border.subtle,
+    marginBottom: spacing[2],
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
     marginBottom: spacing[2],
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  chevronBox: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collapsedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing[2],
+    backgroundColor: colors.surface.muted,
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.md,
+    marginTop: spacing[1],
+  },
+  collapsedMeta: {
+    flex: 1,
+  },
+  expandHintText: {
+    fontSize: 11,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
   },
   matchedBadge: {
     flexDirection: 'row',
