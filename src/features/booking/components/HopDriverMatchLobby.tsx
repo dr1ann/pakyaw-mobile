@@ -42,15 +42,38 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
-  const driverName = sharedRide?.driverName || trip.driverId ? `Driver #${trip.driverId?.slice(0, 5)}` : 'Driver Matched';
-  const vehicleModel = sharedRide?.vehicleModel || 'Pakyaw Fleet Vehicle';
+  const mode = trip?.mode || 'hop';
+  const isHop = mode === 'hop';
+  const isShared = mode === 'shared';
+  const isPakyaw = mode === 'solo';
+
+  const driverName = sharedRide?.driverName || (trip.driverId ? `Driver #${trip.driverId.slice(0, 5)}` : 'Ormoc Pakyaw Driver');
+  const vehicleModel = sharedRide?.vehicleModel || 'Pakyaw Fleet Tricycle';
   const vehiclePlate = sharedRide?.vehiclePlate || 'ORM-2026';
   const driverPhoto = sharedRide?.driverPhotoUrl;
 
-  const maxSeats = sharedRide?.maxSeats || 6;
-  const totalOccupied = sharedRide?.passengers?.length || 1;
-  
-  // Generate 6 seat slots representation
+  const maxSeats = isPakyaw ? 4 : (sharedRide?.maxSeats || 6);
+  const totalOccupied = sharedRide?.passengers?.length || trip.passengerCount || 1;
+
+  const badgeText = isHop
+    ? 'HOP DRIVER MATCHED'
+    : isShared
+    ? 'SHARED RIDE MATCHED'
+    : 'PAKYAW DRIVER MATCHED';
+
+  const titleText = isHop
+    ? 'Your Hop Ride is on the way!'
+    : isShared
+    ? 'Your Shared Ride is confirmed!'
+    : 'Your Private Pakyaw Ride is ready!';
+
+  const subtitleText = isHop
+    ? 'Your driver has accepted your Hop request and is navigating to your pickup point along their route.'
+    : isShared
+    ? 'Your driver is heading to your pickup location. Other passengers on your route may join open slots.'
+    : 'Your driver has reserved the entire vehicle for your exclusive private trip.';
+
+  // Generate seat slots representation
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
     const passenger = sharedRide?.passengers?.[index];
     const isOccupied = index < totalOccupied;
@@ -86,19 +109,15 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
       <View style={styles.headerRow}>
         <View style={styles.matchedBadge}>
           <SymbolIcon name="checkmark.circle.fill" size={16} tintColor={colors.green.primary} />
-          <Text style={styles.matchedBadgeText}>HOP DRIVER MATCHED</Text>
+          <Text style={styles.matchedBadgeText}>{badgeText}</Text>
         </View>
         <View style={styles.etaBadge}>
           <Text style={styles.etaText}>ETA ~3 mins</Text>
         </View>
       </View>
 
-      <Text style={styles.title}>Your Hop Ride is on the way!</Text>
-      <Text style={styles.subtitle}>
-        Your driver has accepted your Hop request and is navigating to your pickup point.
-      </Text>
-
-      {/* Driver Card */}
+      <Text style={styles.title}>{titleText}</Text>
+      <Text style={styles.subtitle}>{subtitleText}</Text>
       <View style={[styles.driverCard, shadow.card]}>
         <View style={styles.driverProfileRow}>
           <View style={styles.avatarContainer}>

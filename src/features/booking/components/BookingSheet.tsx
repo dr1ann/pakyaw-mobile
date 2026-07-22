@@ -323,21 +323,15 @@ export function BookingSheet({
         {draft.rideMode === 'hopon' && (
           <View style={styles.modeContainer}>
             <View style={styles.modeBadge}>
-              <Text style={styles.modeText}>Hop-On Radar</Text>
+              <Text style={styles.modeText}>Hop On</Text>
             </View>
             <Text style={styles.modeSubText}>
-              Find nearby active shared rides heading your way. Join instantly and save!
+              Broadcast a Hop request along your corridor. Nearby active drivers on your route will receive your request automatically.
             </Text>
           </View>
         )}
 
-        {draft.rideMode === 'hopon' ? (
-          <HopDriverSearch
-            rides={nearbyRides}
-            loading={loadingRides}
-            onJoinRide={handleJoinHopOn}
-          />
-        ) : (
+        {draft.rideMode !== 'hopon' && (
           <View style={styles.formGroup}>
             {/* Passenger Stepper */}
             <View style={styles.formRow}>

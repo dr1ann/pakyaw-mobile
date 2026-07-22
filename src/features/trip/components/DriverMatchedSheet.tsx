@@ -19,7 +19,7 @@ export function DriverMatchedSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: cancel, isPending } = useCancelTrip();
 
-  if (trip && trip.mode === 'hop') {
+  if (trip) {
     return <HopDriverMatchLobby trip={trip} />;
   }
 
