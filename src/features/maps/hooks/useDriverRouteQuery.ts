@@ -152,6 +152,7 @@ export function useDriverRouteQuery(tripId: string | null) {
 
   const [queryCoords, setQueryCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isRerouting, setIsRerouting] = useState(false);
+  const queryCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const lastPublishedRouteRef = useRef<{ polyline: string; distanceMeters: number; durationSeconds: number } | null>(null);
   const currentRouteRef = useRef<NavRoute | null>(null);
@@ -172,16 +173,16 @@ export function useDriverRouteQuery(tripId: string | null) {
     decodedRoutePointsRef.current = [];
     offRouteConfirmationCountRef.current = 0;
     positionHistoryRef.current = [];
+    queryCoordsRef.current = null;
     setIsRerouting(false);
     setQueryCoords(null);
   }, [tripId]);
 
   useEffect(() => {
     if (!enabled) {
-      setTimeout(() => {
-        setQueryCoords(null);
-        setIsRerouting(false);
-      }, 0);
+      queryCoordsRef.current = null;
+      setQueryCoords(null);
+      setIsRerouting(false);
       lastFetchTimeRef.current = 0;
       offRouteConfirmationCountRef.current = 0;
       positionHistoryRef.current = [];
@@ -211,8 +212,11 @@ export function useDriverRouteQuery(tripId: string | null) {
         }
       }
 
-      if (!queryCoords) {
+      const activeQueryCoords = queryCoordsRef.current;
+
+      if (!activeQueryCoords) {
         logger.info('[useDriverRouteQuery] Initializing query coordinates', { currentLive });
+        queryCoordsRef.current = currentLive;
         setQueryCoords(currentLive);
         lastFetchTimeRef.current = now;
         return;
@@ -252,6 +256,7 @@ export function useDriverRouteQuery(tripId: string | null) {
             });
             offRouteConfirmationCountRef.current = 0;
             positionHistoryRef.current = [];
+            queryCoordsRef.current = currentLive;
             setIsRerouting(true);
             setQueryCoords(currentLive);
             lastFetchTimeRef.current = now;
@@ -261,7 +266,7 @@ export function useDriverRouteQuery(tripId: string | null) {
       }
 
       // Check normal distance and time thresholds
-      const distance = haversineMeters(queryCoords, currentLive);
+      const distance = haversineMeters(activeQueryCoords, currentLive);
       const timeElapsed = now - lastFetchTimeRef.current;
 
       if (distance >= REROUTE_MIN_MOVE_M || timeElapsed >= REROUTE_MIN_INTERVAL_MS) {
@@ -270,6 +275,7 @@ export function useDriverRouteQuery(tripId: string | null) {
           timeElapsed,
           currentLive,
         });
+        queryCoordsRef.current = currentLive;
         setQueryCoords(currentLive);
         lastFetchTimeRef.current = now;
       }
@@ -281,7 +287,7 @@ export function useDriverRouteQuery(tripId: string | null) {
     // Setup periodic check for time-based refetching (every 5 seconds)
     const interval = setInterval(checkAndUpdate, 5_000);
     return () => clearInterval(interval);
-  }, [lastLatitude, lastLongitude, targetCoords, status, enabled, queryCoords, gpsHeading, gpsSpeed]);
+  }, [lastLatitude, lastLongitude, targetCoords?.lat, targetCoords?.lng, status, enabled, gpsHeading, gpsSpeed]);
 
   const query = useQuery<NavRoute, Error>({
     queryKey: [
