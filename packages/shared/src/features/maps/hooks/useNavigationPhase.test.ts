@@ -4,7 +4,7 @@ import { getAutomaticNavigationStatus } from '../navigation/navigationHelper';
 
 let mockTripStatus: any = null;
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({ trip: mockTripStatus ? { status: mockTripStatus } : null }),
 }));
 

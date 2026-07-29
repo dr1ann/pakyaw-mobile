@@ -8,7 +8,7 @@ let mockArrowRotation: number | null = null;
 const mockSetNavHeading = vi.fn();
 const mockSetArrowRotation = vi.fn();
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({
     gpsHeading: mockGpsHeading,
     gpsSpeed: mockGpsSpeed,

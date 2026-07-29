@@ -10,7 +10,7 @@ const mockSetCameraFollowing = vi.fn((cameraFollowing: boolean) => {
   mockCameraFollowing = cameraFollowing;
 });
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: Object.assign(
     (selector: any) =>
       selector({

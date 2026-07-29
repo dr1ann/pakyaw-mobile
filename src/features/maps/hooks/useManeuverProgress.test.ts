@@ -12,7 +12,7 @@ let mockSpeedSamples: number[] = [];
 const mockSetNavStepIndex = vi.fn();
 const mockSetSpeedSamples = vi.fn();
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({
     navStepIndex: mockNavStepIndex,
     setNavStepIndex: mockSetNavStepIndex,

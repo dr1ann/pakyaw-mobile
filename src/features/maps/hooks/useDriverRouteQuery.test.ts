@@ -11,7 +11,7 @@ let mockDriverLng: number | null = null;
 let mockGpsHeading: number | null = null;
 let mockGpsSpeed: number | null = null;
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({
     trip: mockTrip,
     gpsHeading: mockGpsHeading,
@@ -68,12 +68,15 @@ describe('useDriverRouteQuery', () => {
     stateValue = null;
     isReroutingState = false;
     refValues = [
-      { current: 0 },    // 0: lastFetchTimeRef
-      { current: null }, // 1: lastPublishedRouteRef
-      { current: null }, // 2: currentRouteRef
-      { current: [] },   // 3: decodedRoutePointsRef
-      { current: true }, // 4: isFirstMountRef
-      { current: 0 },    // 5: offRouteConfirmationCountRef
+      { current: null }, // 0: queryCoordsRef
+      { current: 0 },    // 1: lastFetchTimeRef
+      { current: null }, // 2: lastPublishedRouteRef
+      { current: null }, // 3: currentRouteRef
+      { current: [] },   // 4: decodedRoutePointsRef
+      { current: true }, // 5: isFirstMountRef
+      { current: 0 },    // 6: offRouteConfirmationCountRef
+      { current: [] },   // 7: positionHistoryRef
+      { current: null }, // 8: lastTargetCoordsRef
     ];
     refCallCount = 0;
     stateCallCount = 0;
@@ -130,8 +133,7 @@ describe('useDriverRouteQuery', () => {
 
     useDriverRouteQuery('trip-1');
 
-    // In our new hook, status 'in_progress' is allowed (to navigate to destination)
-    // but here we check status 'completed' or something to verify disablement.
+    // In our hook, status 'in_progress' is allowed (to navigate to destination)
   });
 
   it('is disabled when status is completed or cancelled', () => {
@@ -168,67 +170,46 @@ describe('useDriverRouteQuery', () => {
     expect(setStateMock).toHaveBeenCalledWith({ lat: 10.05, lng: 124.05 });
   });
 
-  it('does not trigger a new state update on minor driver movement', () => {
+  it('does not trigger a new state update on routine driver movement along route', () => {
     mockTrip = {
       id: 'trip-1',
       status: 'accepted',
       pickup: { coords: { lat: 10.0, lng: 124.0 } },
     };
-    // Initialize stateValue with first position
+    // Initialize stateValue with first position and set active target
     stateValue = { lat: 10.05, lng: 124.05 };
-    refValues[0].current = Date.now();
+    refValues[0].current = { lat: 10.05, lng: 124.05 };
+    refValues[8].current = { lat: 10.0, lng: 124.0 }; // targetCoords
 
-    // Driver moves a tiny bit (roughly 5 meters)
-    mockDriverLat = 10.05005;
-    mockDriverLng = 124.05005;
+    // Driver moves along route (no off-route deviation)
+    mockDriverLat = 10.04;
+    mockDriverLng = 124.04;
 
     useDriverRouteQuery('trip-1');
     capturedEffects.forEach((eff) => eff());
 
-    // setState should NOT have been called because distance is below 60 meters and time is fresh
+    // setState should NOT be called because driver is on route and target hasn't changed
     expect(setStateMock).not.toHaveBeenCalled();
   });
 
-  it('triggers a new state update on significant movement (>= 60 meters)', () => {
+  it('triggers a new state update when target changes (leg start)', () => {
     mockTrip = {
       id: 'trip-1',
-      status: 'accepted',
-      pickup: { coords: { lat: 10.0, lng: 124.0 } },
+      status: 'in_progress',
+      destination: { coords: { lat: 10.5, lng: 124.5 } },
     };
-    // Initialize stateValue
+    // Previous target was pickup (10.0, 124.0)
     stateValue = { lat: 10.05, lng: 124.05 };
-    refValues[0].current = Date.now();
+    refValues[0].current = { lat: 10.05, lng: 124.05 };
+    refValues[8].current = { lat: 10.0, lng: 124.0 };
 
-    // Driver moves significantly (roughly 1.1 km)
-    mockDriverLat = 10.06;
-    mockDriverLng = 124.06;
-
-    useDriverRouteQuery('trip-1');
-    capturedEffects.forEach((eff) => eff());
-
-    // setState should be called with new coords
-    expect(setStateMock).toHaveBeenCalledWith({ lat: 10.06, lng: 124.06 });
-  });
-
-  it('triggers a new state update when 25 seconds have elapsed even without significant movement', () => {
-    mockTrip = {
-      id: 'trip-1',
-      status: 'accepted',
-      pickup: { coords: { lat: 10.0, lng: 124.0 } },
-    };
-    stateValue = { lat: 10.05, lng: 124.05 };
-
-    // Simulate last fetch was 30 seconds ago
-    refValues[0].current = Date.now() - 30_000;
-
-    // Driver coordinates are the same (no movement)
     mockDriverLat = 10.05;
     mockDriverLng = 124.05;
 
     useDriverRouteQuery('trip-1');
     capturedEffects.forEach((eff) => eff());
 
-    // setState should be called due to time threshold
+    // setState should be called with new leg start coords
     expect(setStateMock).toHaveBeenCalledWith({ lat: 10.05, lng: 124.05 });
   });
 
@@ -239,19 +220,20 @@ describe('useDriverRouteQuery', () => {
       pickup: { coords: { lat: 10.0, lng: 124.0 } },
     };
     stateValue = { lat: 10.005, lng: 124.01 };
-    refValues[0].current = Date.now();
-    refValues[2].current = { overviewPolyline: 'route' };
-    refValues[3].current = [
+    refValues[0].current = { lat: 10.005, lng: 124.01 };
+    refValues[3].current = { overviewPolyline: 'route' };
+    refValues[4].current = [
       { lat: 10.0, lng: 124.0 },
       { lat: 10.01, lng: 124.0 },
     ];
+    refValues[8].current = { lat: 10.0, lng: 124.0 };
     mockDriverLat = 10.005;
     mockDriverLng = 124.01;
 
     useDriverRouteQuery('trip-1');
     capturedEffects.forEach((eff) => eff());
 
-    expect(refValues[5].current).toBe(1);
+    expect(refValues[6].current).toBe(1);
     expect(setStateMock).not.toHaveBeenCalled();
   });
 
@@ -262,13 +244,14 @@ describe('useDriverRouteQuery', () => {
       pickup: { coords: { lat: 10.0, lng: 124.0 } },
     };
     stateValue = { lat: 10.005, lng: 124.01 };
-    refValues[0].current = Date.now();
-    refValues[2].current = { overviewPolyline: 'route' };
-    refValues[3].current = [
+    refValues[0].current = { lat: 10.005, lng: 124.01 };
+    refValues[3].current = { overviewPolyline: 'route' };
+    refValues[4].current = [
       { lat: 10.0, lng: 124.0 },
       { lat: 10.01, lng: 124.0 },
     ];
-    refValues[5].current = 1;
+    refValues[6].current = 1;
+    refValues[8].current = { lat: 10.0, lng: 124.0 };
     mockDriverLat = 10.005;
     mockDriverLng = 124.01;
 

@@ -14,8 +14,6 @@ import {
   OFF_ROUTE_M,
   POSITION_HISTORY_MAX_AGE_MS,
   POSITION_HISTORY_MIN_MOVE_M,
-  REROUTE_MIN_INTERVAL_MS,
-  REROUTE_MIN_MOVE_M,
 } from '@pakyaw/shared/features/maps/navigation/constants';
 import { isNavActiveStatus } from '@pakyaw/shared/features/maps/navigation/navigationHelper';
 import type { NavRoute } from '@pakyaw/shared/features/maps/navigation/types';
@@ -118,8 +116,9 @@ export function getRouteDeviation(
 /**
  * Hook to fetch the driver navigation route (Phase 12 Navigation).
  * Parameterizes target: pickup coords during waiting, destination coords during trip.
- * Refetches on major driver movement, 25s elapsed, off-route detection (>50m), or phase change.
- * Publishes driverRoute to Firestore during the waiting phase (accepted/driver_arriving).
+ * Refetches on leg start (initial load or target change) or off-route detection (>50m).
+ * Eliminates periodic time/distance polling to optimize Google Maps API calls.
+ * Publishes driverRoute to Firestore during active navigation phases.
  */
 export function useDriverRouteQuery(tripId: string | null) {
   const trip = useActiveTripStore((s) => s.trip);
@@ -160,6 +159,7 @@ export function useDriverRouteQuery(tripId: string | null) {
   const isFirstMountRef = useRef<boolean>(true);
   const offRouteConfirmationCountRef = useRef<number>(0);
   const positionHistoryRef = useRef<Array<{ lat: number; lng: number; ts: number }>>([]);
+  const lastTargetCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Reset tracking refs and coordinates inside useEffect when tripId changes (skip initial mount)
   useEffect(() => {
@@ -174,13 +174,15 @@ export function useDriverRouteQuery(tripId: string | null) {
     offRouteConfirmationCountRef.current = 0;
     positionHistoryRef.current = [];
     queryCoordsRef.current = null;
+    lastTargetCoordsRef.current = null;
     setIsRerouting(false);
     setQueryCoords(null);
   }, [tripId]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !targetCoords) {
       queryCoordsRef.current = null;
+      lastTargetCoordsRef.current = null;
       setQueryCoords(null);
       setIsRerouting(false);
       lastFetchTimeRef.current = 0;
@@ -214,8 +216,14 @@ export function useDriverRouteQuery(tripId: string | null) {
 
       const activeQueryCoords = queryCoordsRef.current;
 
-      if (!activeQueryCoords) {
-        logger.info('[useDriverRouteQuery] Initializing query coordinates', { currentLive });
+      const targetChanged =
+        lastTargetCoordsRef.current === null ||
+        lastTargetCoordsRef.current.lat !== targetCoords.lat ||
+        lastTargetCoordsRef.current.lng !== targetCoords.lng;
+
+      if (!activeQueryCoords || targetChanged) {
+        logger.info('[useDriverRouteQuery] Initializing query coordinates (leg start)', { currentLive, targetCoords });
+        lastTargetCoordsRef.current = { lat: targetCoords.lat, lng: targetCoords.lng };
         queryCoordsRef.current = currentLive;
         setQueryCoords(currentLive);
         lastFetchTimeRef.current = now;
@@ -264,29 +272,10 @@ export function useDriverRouteQuery(tripId: string | null) {
           }
         }
       }
-
-      // Check normal distance and time thresholds
-      const distance = haversineMeters(activeQueryCoords, currentLive);
-      const timeElapsed = now - lastFetchTimeRef.current;
-
-      if (distance >= REROUTE_MIN_MOVE_M || timeElapsed >= REROUTE_MIN_INTERVAL_MS) {
-        logger.info('[useDriverRouteQuery] Threshold reached. Updating query coordinates for refetch.', {
-          distance,
-          timeElapsed,
-          currentLive,
-        });
-        queryCoordsRef.current = currentLive;
-        setQueryCoords(currentLive);
-        lastFetchTimeRef.current = now;
-      }
     };
 
-    // Run check immediately when dependencies change
+    // Run check immediately when location or target coordinates change
     checkAndUpdate();
-
-    // Setup periodic check for time-based refetching (every 5 seconds)
-    const interval = setInterval(checkAndUpdate, 5_000);
-    return () => clearInterval(interval);
   }, [lastLatitude, lastLongitude, targetCoords?.lat, targetCoords?.lng, status, enabled, gpsHeading, gpsSpeed]);
 
   const query = useQuery<NavRoute, Error>({
