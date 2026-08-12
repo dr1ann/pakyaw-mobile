@@ -2,9 +2,13 @@
  * Contract-aligned matching and trip domain types.
  *
  * These types deliberately have no Firebase, React, Expo, or platform imports.
- * They are the Day 1 source of truth for new matching domain logic; legacy
- * application types are not re-exported from this module.
+ * Application and document states are imported from the canonical onboarding
+ * domain and re-exported here for matching consumers' backwards compatibility.
  */
+
+import type { ApplicationStatus, DocumentState } from '../onboarding/types';
+
+export type { ApplicationStatus, DocumentState } from '../onboarding/types';
 
 export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
@@ -60,28 +64,11 @@ export type MatchingConfig = {
   readonly searchTimeoutSeconds: number;
 };
 
-export type ApplicationStatus =
-  | 'draft'
-  | 'submitted'
-  | 'needs_correction'
-  | 'approved'
-  | 'rejected'
-  | 'suspended'
-  | 'expired';
-
 /**
  * A matching snapshot must include every required document. The application
  * and document-review domain is responsible for changing an expired document
  * from `approved` to `expired`; matching only trusts the snapshot state.
  */
-export type DocumentState =
-  | 'missing'
-  | 'uploaded'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'expired';
-
 export type AccountStatus = 'active' | 'blocked' | 'suspended';
 
 export type DriverAvailability = 'online' | 'offline';
