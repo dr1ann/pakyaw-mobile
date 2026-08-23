@@ -37,6 +37,7 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.8.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
@@ -49,12 +50,13 @@
     "vitest": "^4.1.9"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "node node_modules/expo/bin/cli start",
+    "prebuild": "node node_modules/expo/bin/cli prebuild",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "lint": "expo lint",
+    "android": "node node_modules/expo/bin/cli run:android",
+    "ios": "node node_modules/expo/bin/cli run:ios",
+    "web": "node node_modules/expo/bin/cli start --web",
+    "lint": "node node_modules/expo/bin/cli lint",
     "typecheck": "tsc --noEmit",
     "validate": "npm run typecheck && npm run lint",
     "test": "vitest run",

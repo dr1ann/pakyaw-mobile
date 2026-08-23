@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRideCameraController } from './useRideCameraController';
-// uiStore is driver-only; mocked inline
-const mockPipState = { isInPip: false, isSupported: false };
-
 const mockUseState = vi.fn();
 const mockUseEffect = vi.fn();
 const mockUseRef = vi.fn();
@@ -11,7 +8,7 @@ const mockSetCameraFollowing = vi.fn((cameraFollowing: boolean) => {
   mockCameraFollowing = cameraFollowing;
 });
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: Object.assign(
     (selector: any) =>
       selector({
@@ -81,8 +78,6 @@ describe('useRideCameraController', () => {
     hasExecutedNavigationFollowRef = { current: false };
     prevNavEnabledRef = { current: false };
     appStateRef = { current: 'active' };
-    mockPipState.isInPip = false; mockPipState.isSupported = false;
-
     mockUseState.mockImplementation((init) => {
       return [isMapReady, setIsMapReady];
     });
@@ -450,8 +445,7 @@ describe('useRideCameraController', () => {
     expect(animateCameraMock.mock.calls[0][1]).toEqual({ duration: 0 });
   });
 
-  it('does not execute navigation camera commands while Android PiP is active', () => {
-    mockPipState.isInPip = true; mockPipState.isSupported = true;
+  it('executes navigation without the driver-only PiP store', () => {
     isMapReady = true;
     const animateCameraMock = vi.fn();
     const mapRef = { current: { animateCamera: animateCameraMock } };
@@ -472,7 +466,7 @@ describe('useRideCameraController', () => {
     useRideCameraController(mapRef as any, inputs);
     capturedEffect();
 
-    expect(animateCameraMock).not.toHaveBeenCalled();
+    expect(animateCameraMock).toHaveBeenCalledOnce();
   });
 
   it('queues camera commands while AppState is not active (Frustum NPE guard)', () => {

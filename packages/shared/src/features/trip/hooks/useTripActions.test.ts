@@ -34,7 +34,7 @@ vi.mock('../services/trip.service', () => ({
   cancel: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/stores/sessionStore', () => {
+vi.mock('@pakyaw/shared/stores/sessionStore', () => {
   const store = { uid: 'passenger-123' };
   const mockUseSessionStore = (fn: any) => fn(store);
   (mockUseSessionStore as any).getState = () => store;
@@ -52,7 +52,7 @@ describe('useTripActions', () => {
     const hook = useTripTransition();
     await hook.mutate({ tripId: 'trip-1', status: 'completed' });
 
-    expect(tripService.transition).toHaveBeenCalledWith('trip-1', 'completed');
+    expect(tripService.transition).toHaveBeenCalledWith('trip-1', 'passenger-123', 'completed');
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['history', 'passenger-123'],
     });
@@ -62,7 +62,7 @@ describe('useTripActions', () => {
     const hook = useCancelTrip();
     await hook.mutate({ tripId: 'trip-1', by: 'passenger', reason: 'change of plans' });
 
-    expect(tripService.cancel).toHaveBeenCalledWith('trip-1', 'passenger', 'change of plans');
+    expect(tripService.cancel).toHaveBeenCalledWith('trip-1', 'passenger-123', 'passenger_changed_mind');
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['history', 'passenger-123'],
     });

@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { doc, getDoc } from 'firebase/firestore';
 
-import type { FareConfig } from '@/lib/fare/types';
 import { firestore } from '@/services/firebase/firebase';
 
 export function useFareConfig(vehicleType: string = 'Tricycle') {
@@ -33,7 +32,7 @@ export function useFareConfig(vehicleType: string = 'Tricycle') {
             subscription: { daily_fee: 100 },
             tiered: { short_distance_km: 5, short_fee: 10, long_fee: 20 }
           }
-        } as FareConfig;
+        };
       }
       
       const data = snap.data();
@@ -75,7 +74,7 @@ export function useFareConfig(vehicleType: string = 'Tricycle') {
             long_fee: data.schemes?.tiered?.long_fee ?? 20,
           }
         }
-      } as FareConfig;
+      };
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });

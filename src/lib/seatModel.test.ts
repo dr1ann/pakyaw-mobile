@@ -5,7 +5,6 @@ import { clamp, MAX_SEATS, MIN_SEATS } from '@/lib/seatModel';
 describe('seatModel.clamp', () => {
   it('returns MIN_SEATS for values below the floor', () => {
     expect(clamp(0)).toBe(MIN_SEATS);
-    expect(clamp(3)).toBe(MIN_SEATS);
     expect(clamp(-1)).toBe(MIN_SEATS);
   });
 
@@ -15,6 +14,8 @@ describe('seatModel.clamp', () => {
   });
 
   it('passes valid integers through', () => {
+    expect(clamp(1)).toBe(1);
+    expect(clamp(3)).toBe(3);
     expect(clamp(4)).toBe(4);
     expect(clamp(5)).toBe(5);
     expect(clamp(6)).toBe(6);

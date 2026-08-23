@@ -1,7 +1,7 @@
 /**
  * Domain types for the passenger booking feature (Phase 6).
  *
- * Scope: trip creation only. Lifecycle states beyond 'request' (matched,
+ * Scope: trip creation only. Lifecycle states beyond 'requested' (matched,
  * accepted, arrived, in_progress, completed) belong to later phases and
  * are deliberately not modeled here.
  */
@@ -41,7 +41,7 @@ export type TripCreateData = {
   readonly passengerCount: number;
   readonly billedSeats: number;
   readonly seatsCovered?: number;
-  readonly status: 'request';
+  readonly status: 'requested';
   readonly geohash: string;
   readonly requestedAt: FieldValue;
   readonly createdTime: FieldValue;

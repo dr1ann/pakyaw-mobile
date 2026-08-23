@@ -58,20 +58,24 @@ describe('signUpCredentialsSchema', () => {
 // signUpProfileSchema
 // ---------------------------------------------------------------------------
 describe('signUpProfileSchema', () => {
+  const validProfile = {
+    firstName: 'Juan',
+    lastName: 'dela Cruz',
+    phone: '+639171234567',
+    birthday: '1990-01-01',
+    gender: 'male',
+    address: 'Barangay Linao, Ormoc City',
+  };
+
   it('accepts valid first/last name and +63 phone', () => {
-    const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
-      lastName: 'dela Cruz',
-      phone: '+639171234567',
-    });
+    const result = signUpProfileSchema.safeParse(validProfile);
     expect(result.success).toBe(true);
   });
 
   it('rejects empty first name', () => {
     const result = signUpProfileSchema.safeParse({
+      ...validProfile,
       firstName: '',
-      lastName: 'dela Cruz',
-      phone: '+639171234567',
     });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toContain('required');
@@ -79,9 +83,8 @@ describe('signUpProfileSchema', () => {
 
   it('rejects empty last name', () => {
     const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
+      ...validProfile,
       lastName: '',
-      phone: '+639171234567',
     });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toContain('required');
@@ -89,8 +92,7 @@ describe('signUpProfileSchema', () => {
 
   it('rejects phone not starting with +639', () => {
     const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
-      lastName: 'dela Cruz',
+      ...validProfile,
       phone: '+6391234',
     });
     expect(result.success).toBe(false);
@@ -99,8 +101,7 @@ describe('signUpProfileSchema', () => {
 
   it('rejects phone with wrong country code', () => {
     const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
-      lastName: 'dela Cruz',
+      ...validProfile,
       phone: '+1234567890',
     });
     expect(result.success).toBe(false);
@@ -108,8 +109,7 @@ describe('signUpProfileSchema', () => {
 
   it('rejects phone with too few digits after +639', () => {
     const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
-      lastName: 'dela Cruz',
+      ...validProfile,
       phone: '+63912345678', // 8 digits after +639 — needs 9
     });
     expect(result.success).toBe(false);
@@ -117,8 +117,7 @@ describe('signUpProfileSchema', () => {
 
   it('accepts exactly 9 digits after +639', () => {
     const result = signUpProfileSchema.safeParse({
-      firstName: 'Juan',
-      lastName: 'dela Cruz',
+      ...validProfile,
       phone: '+639123456789',
     });
     expect(result.success).toBe(true);

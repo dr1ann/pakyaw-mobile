@@ -1,9 +1,8 @@
 /**
  * booking.service — Phase 6 passenger trip creation.
  *
- * Writes trips/{auto} with status='request'. No driver matching and no
- * lifecycle transitions. Lifecycle states beyond 'request' belong to later
- * phases.
+ * Requests a server-authoritative trip through the Day 2 requestTrip callable.
+ * The client validates user-entered route data but never writes trips directly.
  *
  * Architectural rules:
  * - billedSeats is ALWAYS re-derived here via clamp(passengerCount). UI state
@@ -14,21 +13,21 @@
 
 import { FirebaseError } from 'firebase/app';
 import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
+  httpsCallable,
+} from 'firebase/functions';
 
 import { BookingOfflineError, BookingWriteError } from '@/features/booking/errors';
-import type { CreateBookingInput, TripCreateData } from '@/features/booking/types';
+import type { CreateBookingInput } from '@/features/booking/types';
 import { createTripSchema } from '@/features/booking/validation/bookingSchema';
-import { geohashOf } from '@pakyaw/shared/lib/geo';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { clamp } from '@/lib/seatModel';
 import { assertInServiceArea, TripDistanceTooShortError } from '@/lib/serviceArea';
-import { firestore } from '@/services/firebase/firebase';
+import { functions } from '@/services/firebase/firebase';
+
+type RequestTripResult = {
+  readonly tripId: string;
+  readonly status: 'requested';
+  readonly offeredDriverCount: number;
+};
 
 /**
  * Translate raw Firebase / network errors into booking domain errors.
@@ -49,7 +48,7 @@ function translateWriteError(err: unknown): BookingOfflineError | BookingWriteEr
 }
 
 /**
- * Create a new trip request document.
+ * Request a new trip using the server-authoritative matching backend.
  *
  * @param input - Validated booking input (pickup, destination, passengerCount).
  * @param passengerId - Firebase Auth uid of the requesting passenger.
@@ -81,63 +80,46 @@ export async function createTrip(
     serviceAreaId: 'ormoc',
   });
 
-  // Re-derive billedSeats inside the service — never trust UI state.
-  const billedSeats = clamp(validated.passengerCount);
-
-  if (validated.pickup.coords == null) {
+  if (validated.pickup.coords == null || validated.destination.coords == null) {
     throw new BookingWriteError(
-      new Error('pickup.coords required to compute geohash'),
+      new Error('pickup and destination coordinates are required to request a trip'),
     );
   }
-  const geohash = geohashOf(validated.pickup.coords, 7);
-
-  // Fetch passenger user profile to store passengerName and passengerPhotoUrl
-  let passengerName = 'Passenger';
-  let passengerPhotoUrl: string | null = null;
   try {
-    const userSnap = await getDoc(doc(firestore, 'users', passengerId));
-    if (userSnap.exists()) {
-      const u = userSnap.data();
-      passengerName = u.displayName || u.fullName || u.firstName || u.name || 'Passenger';
-      passengerPhotoUrl = u.photoUrl || u.avatarUrl || null;
-    }
-  } catch (e) {
-    logger.warn('[booking] failed to fetch passenger profile, using default', e);
-  }
-
-  const finalFare = input.fare ?? 55.0;
-
-  const data: TripCreateData & { passengerName?: string; passengerPhotoUrl?: string | null } = {
-    mode: input.mode === 'private' ? 'solo' : (input.mode || 'solo'),
-    passengerId,
-    passengerName,
-    passengerPhotoUrl,
-    driverId: null,
-    pickup: validated.pickup,
-    destination: validated.destination,
-    passengerCount: validated.passengerCount,
-    billedSeats: input.mode === 'shared' ? input.passengerCount : billedSeats,
-    seatsCovered: input.passengerCount,
-    status: 'request',
-    geohash,
-    requestedAt: serverTimestamp(),
-    createdTime: serverTimestamp(),
-    fare: finalFare,
-    route: validated.route,
-    serviceAreaId: 'ormoc',
-  };
-
-  try {
-    logger.info('[booking] creating trip', {
-      pickupCoords: validated.pickup.coords,
-      geohash,
+    const requestTrip = httpsCallable<
+      {
+        readonly passengerId: string;
+        readonly pickup: { readonly latitude: number; readonly longitude: number; readonly label?: string };
+        readonly destination: { readonly latitude: number; readonly longitude: number; readonly label?: string };
+        readonly fare: { readonly passengerCount: number; readonly displayedTotal: number | null };
+      },
+      RequestTripResult
+    >(functions, 'requestTrip');
+    const result = await requestTrip({
+      passengerId,
+      pickup: {
+        latitude: validated.pickup.coords.lat,
+        longitude: validated.pickup.coords.lng,
+        label: validated.pickup.label,
+      },
+      destination: {
+        latitude: validated.destination.coords.lat,
+        longitude: validated.destination.coords.lng,
+        label: validated.destination.label,
+      },
+      fare: {
+        passengerCount: validated.passengerCount,
+        displayedTotal: input.fare ?? null,
+      },
     });
-    // Bypass the wrapper converter on collections.trips() — we want a flat
-    // document payload, not { id, data } wrapped through toFirestore.
-    const tripsRaw = collection(firestore, 'trips');
-    const ref = await addDoc(tripsRaw, data);
-    logger.info('[booking] trip created', { tripId: ref.id });
-    return ref.id;
+    if (result.data.status !== 'requested' || !result.data.tripId) {
+      throw new BookingWriteError(new Error('Trip request returned an invalid result.'));
+    }
+    logger.info('[booking] trip requested', {
+      tripId: result.data.tripId,
+      offeredDriverCount: result.data.offeredDriverCount,
+    });
+    return result.data.tripId;
   } catch (err) {
     logger.error('[booking] createTrip failed', { err });
     throw translateWriteError(err);

@@ -1,23 +1,17 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { firestore } from '@/services/firebase/firebase';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import type { BookingDraft } from '@/stores/bookingDraftStore';
-import { geohashNeighbors } from '@pakyaw/shared/lib/geo';
 import { isRouteCompatible } from '@pakyaw/shared/lib/routeMatching';
 
 export function useNearbySharedRides(draft: BookingDraft) {
   const [rides, setRides] = useState<SharedRideDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const enabled = draft.rideMode === 'hopon' && !!draft.pickup?.coords && !!draft.destination?.coords;
 
   useEffect(() => {
-    if (draft.rideMode !== 'hopon' || !draft.pickup?.coords || !draft.destination?.coords) {
-      setRides([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
+    if (!enabled) return;
 
     // We will listen to all active shared rides. If it scales we would use geohashes.
     // For now, let's query all active shared rides and filter client side.
@@ -56,7 +50,7 @@ export function useNearbySharedRides(draft: BookingDraft) {
     });
 
     return () => unsubscribe();
-  }, [draft.rideMode, draft.pickup, draft.destination, draft.passengerCount]);
+  }, [draft.pickup, draft.destination, draft.passengerCount, enabled]);
 
-  return { rides, loading };
+  return { rides: enabled ? rides : [], loading: enabled ? loading : false };
 }

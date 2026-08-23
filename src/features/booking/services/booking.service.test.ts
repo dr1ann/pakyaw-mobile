@@ -1,27 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTrip } from './booking.service';
+
 import { ServiceAreaError, TripDistanceTooShortError } from '@/lib/serviceArea';
 
-// ─── Mock Firestore ──────────────────────────────────────────────────────────
-const mockAddDoc = vi.fn();
-vi.mock('firebase/firestore', () => {
-  return {
-    collection: vi.fn((_fs, name) => name),
-    addDoc: vi.fn((col, data) => mockAddDoc(col, data)),
-    serverTimestamp: vi.fn(() => ({ __serverTimestamp: true })),
-  };
-});
-
-vi.mock('@/services/firebase/firebase', () => ({
-  firestore: {},
+const mocks = vi.hoisted(() => ({
+  callable: vi.fn(),
+  httpsCallable: vi.fn(),
 }));
 
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-  },
+vi.mock('firebase/functions', () => ({
+  httpsCallable: mocks.httpsCallable,
 }));
+
+vi.mock('@/services/firebase/firebase', () => ({ functions: {} }));
+
+vi.mock('@pakyaw/shared/lib/logger', () => ({
+  logger: { info: vi.fn(), error: vi.fn() },
+}));
+
+import { createTrip } from './booking.service';
 
 describe('booking.service — createTrip()', () => {
   const validRoute = {
@@ -29,157 +25,60 @@ describe('booking.service — createTrip()', () => {
     durationSeconds: 480,
     polyline: 'abcdef_encoded_polyline',
   };
+  const validInput = {
+    pickup: {
+      label: 'Ormoc Superdome',
+      address: 'Ormoc, Leyte',
+      coords: { lat: 11.005, lng: 124.6075 },
+    },
+    destination: {
+      label: 'Brgy Cogon',
+      address: 'Cogon, Ormoc',
+      coords: { lat: 11.01, lng: 124.615 },
+    },
+    passengerCount: 3,
+    route: validRoute,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAddDoc.mockResolvedValue({ id: 'mock-trip-id-123' });
+    mocks.httpsCallable.mockReturnValue(mocks.callable);
+    mocks.callable.mockResolvedValue({
+      data: { tripId: 'mock-trip-id-123', status: 'requested', offeredDriverCount: 2 },
+    });
   });
 
-  it('successfully creates a trip when pickup and destination are in Ormoc service area', async () => {
-    const input = {
-      pickup: {
-        label: 'Ormoc Superdome',
-        address: 'Ormoc, Leyte',
-        coords: { lat: 11.0050, lng: 124.6075 },
-      },
-      destination: {
-        label: 'Brgy Cogon',
-        address: 'Cogon, Ormoc',
-        coords: { lat: 11.0100, lng: 124.6150 },
-      },
-      passengerCount: 3,
-      route: validRoute,
-    };
+  it('requests a server-authoritative trip with canonical coordinates', async () => {
+    await expect(createTrip(validInput, 'passenger-uid-123')).resolves.toBe('mock-trip-id-123');
 
-    const tripId = await createTrip(input, 'passenger-uid-123');
-    expect(tripId).toBe('mock-trip-id-123');
-
-    expect(mockAddDoc).toHaveBeenCalledTimes(1);
-    const [col, data] = mockAddDoc.mock.calls[0];
-    expect(col).toBe('trips');
-    expect(data.serviceAreaId).toBe('ormoc');
-    expect(data.route).toEqual(validRoute);
-    expect(data.billedSeats).toBe(4); // clamped minimum
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'requestTrip');
+    expect(mocks.callable).toHaveBeenCalledWith({
+      passengerId: 'passenger-uid-123',
+      pickup: { latitude: 11.005, longitude: 124.6075, label: 'Ormoc Superdome' },
+      destination: { latitude: 11.01, longitude: 124.615, label: 'Brgy Cogon' },
+      fare: { passengerCount: 3, displayedTotal: null },
+    });
   });
 
-  it('throws ServiceAreaError if pickup is outside Ormoc service area', async () => {
-    const input = {
-      pickup: {
-        label: 'Tacloban City Hall',
-        address: 'Tacloban City',
-        coords: { lat: 11.2444, lng: 125.0039 }, // Tacloban (outside)
-      },
-      destination: {
-        label: 'Ormoc Superdome',
-        address: 'Ormoc, Leyte',
-        coords: { lat: 11.0050, lng: 124.6075 },
-      },
-      passengerCount: 3,
-      route: validRoute,
-    };
-
-    await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(ServiceAreaError);
-    expect(mockAddDoc).not.toHaveBeenCalled();
+  it('never calls the server when a location is outside the service area', async () => {
+    await expect(createTrip({
+      ...validInput,
+      pickup: { ...validInput.pickup, coords: { lat: 11.2444, lng: 125.0039 } },
+    }, 'passenger-uid-123')).rejects.toThrow(ServiceAreaError);
+    expect(mocks.callable).not.toHaveBeenCalled();
   });
 
-  it('throws ServiceAreaError if destination is outside Ormoc service area', async () => {
-    const input = {
-      pickup: {
-        label: 'Ormoc Superdome',
-        address: 'Ormoc, Leyte',
-        coords: { lat: 11.0050, lng: 124.6075 },
-      },
-      destination: {
-        label: 'Kananga Town Hall',
-        address: 'Kananga, Leyte',
-        coords: { lat: 11.1873, lng: 124.5602 }, // Kananga (outside)
-      },
-      passengerCount: 3,
-      route: validRoute,
-    };
-
-    await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(ServiceAreaError);
-    expect(mockAddDoc).not.toHaveBeenCalled();
+  it('never calls the server for a route shorter than 50 metres', async () => {
+    await expect(createTrip({
+      ...validInput,
+      route: { ...validRoute, distanceMeters: 49 },
+    }, 'passenger-uid-123')).rejects.toThrow(TripDistanceTooShortError);
+    expect(mocks.callable).not.toHaveBeenCalled();
   });
 
-  it('throws BookingWriteError if pickup coords are missing', async () => {
-    const input = {
-      pickup: {
-        label: 'Ormoc Superdome',
-        address: 'Ormoc, Leyte',
-        coords: null, // missing coords
-      },
-      destination: {
-        label: 'Brgy Cogon',
-        address: 'Cogon, Ormoc',
-        coords: { lat: 11.0100, lng: 124.6150 },
-      },
-      passengerCount: 3,
-      route: validRoute,
-    };
+  it('rejects a malformed callable response instead of inventing a trip id', async () => {
+    mocks.callable.mockResolvedValue({ data: { tripId: '', status: 'requested', offeredDriverCount: 0 } });
 
-    // Note: Null coords in pickup will be caught by assertInServiceArea first, throwing ServiceAreaError
-    await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(ServiceAreaError);
-    expect(mockAddDoc).not.toHaveBeenCalled();
-  });
-
-  describe('minimum trip distance validation', () => {
-    const baseInput = {
-      pickup: {
-        label: 'Ormoc Superdome',
-        address: 'Ormoc, Leyte',
-        coords: { lat: 11.0050, lng: 124.6075 },
-      },
-      destination: {
-        label: 'Brgy Cogon',
-        address: 'Cogon, Ormoc',
-        coords: { lat: 11.0100, lng: 124.6150 },
-      },
-      passengerCount: 3,
-    };
-
-    const testDistance = async (distanceMeters: number, shouldThrow: boolean) => {
-      const input = {
-        ...baseInput,
-        route: {
-          distanceMeters,
-          durationSeconds: 480,
-          polyline: 'abcdef_encoded_polyline',
-        },
-      };
-
-      if (shouldThrow) {
-        await expect(createTrip(input, 'passenger-uid-123')).rejects.toThrow(TripDistanceTooShortError);
-        expect(mockAddDoc).not.toHaveBeenCalled();
-      } else {
-        const tripId = await createTrip(input, 'passenger-uid-123');
-        expect(tripId).toBe('mock-trip-id-123');
-        expect(mockAddDoc).toHaveBeenCalled();
-      }
-    };
-
-    it('throws TripDistanceTooShortError if route distance is 0 m', async () => {
-      await testDistance(0, true);
-    });
-
-    it('throws TripDistanceTooShortError if route distance is 25 m', async () => {
-      await testDistance(25, true);
-    });
-
-    it('throws TripDistanceTooShortError if route distance is 49 m', async () => {
-      await testDistance(49, true);
-    });
-
-    it('succeeds if route distance is 50 m', async () => {
-      await testDistance(50, false);
-    });
-
-    it('succeeds if route distance is 51 m', async () => {
-      await testDistance(51, false);
-    });
-
-    it('succeeds with a valid longer route (> 50 m)', async () => {
-      await testDistance(150, false);
-    });
+    await expect(createTrip(validInput, 'passenger-uid-123')).rejects.toThrow('Could not create your trip');
   });
 });

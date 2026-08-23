@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
@@ -13,8 +13,8 @@ export function SearchingSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: cancel, isPending } = useCancelTrip();
 
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(1));
+  const [rotateAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const pulseLoop = Animated.loop(
@@ -65,14 +65,19 @@ export function SearchingSheet() {
   const mode = trip?.mode || 'hop';
   const isHop = mode === 'hop';
   const isShared = mode === 'shared';
+  const isTimedOut = trip?.matching?.stage === 'timed_out';
 
-  const titleText = isHop
+  const titleText = isTimedOut
+    ? 'No Driver Found Yet'
+    : isHop
     ? 'Scanning for Hop Drivers…'
     : isShared
     ? 'Finding Shared Ride Match…'
     : 'Connecting to Nearest Driver…';
 
-  const subtitleText = isHop
+  const subtitleText = isTimedOut
+    ? 'We could not find an available driver in the current search window. You may cancel and try again.'
+    : isHop
     ? 'Broadcast request sent. Nearby drivers along your corridor are receiving your trip.'
     : isShared
     ? 'Matching you with drivers heading in your direction.'
@@ -115,7 +120,7 @@ export function SearchingSheet() {
         {/* Status Badge */}
         <View style={styles.statusBadge}>
           <View style={styles.liveDot} />
-          <Text style={styles.statusBadgeText}>BROADCAST REQUEST ACTIVE</Text>
+          <Text style={styles.statusBadgeText}>{isTimedOut ? 'SEARCH WINDOW ENDED' : 'BROADCAST REQUEST ACTIVE'}</Text>
         </View>
 
         <Text style={styles.title}>{titleText}</Text>

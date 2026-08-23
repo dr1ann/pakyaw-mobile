@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Animated, Easing } from 'react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
@@ -26,9 +26,9 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(25)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(25));
+  const [scaleAnim] = useState(() => new Animated.Value(0.95));
 
   useEffect(() => {
     Animated.parallel([

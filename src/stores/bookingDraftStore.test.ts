@@ -10,7 +10,7 @@ describe('bookingDraftStore', () => {
     const state = useBookingDraftStore.getState().draft;
     expect(state.pickup).toBeNull();
     expect(state.destination).toBeNull();
-    expect(state.passengerCount).toBe(4); // MIN_SEATS
+    expect(state.passengerCount).toBe(1); // MIN_SEATS
     expect(state.route).toBeNull();
   });
 
@@ -73,7 +73,10 @@ describe('bookingDraftStore', () => {
     expect(useBookingDraftStore.getState().draft.passengerCount).toBe(6); // Clamped max
 
     store.setPassengerCount(2);
-    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(4); // Clamped min
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(2);
+
+    store.setPassengerCount(0);
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(1); // Clamped min
   });
 
   it('allows setting route', () => {
@@ -101,7 +104,7 @@ describe('bookingDraftStore', () => {
     const state = useBookingDraftStore.getState().draft;
     expect(state.pickup).toBeNull();
     expect(state.destination).toBeNull();
-    expect(state.passengerCount).toBe(4);
+    expect(state.passengerCount).toBe(1);
     expect(state.route).toBeNull();
   });
 });

@@ -1,11 +1,11 @@
 import { SafeAreaView, StyleSheet } from 'react-native';
 
-import { SignUpForm } from '@/features/auth/components/SignUpForm';
+import { PhoneRegistrationForm } from '@/features/auth/components/PhoneRegistrationForm';
 
 export default function SignUpScreen() {
   return (
     <SafeAreaView style={styles.container}>
-      <SignUpForm />
+      <PhoneRegistrationForm />
     </SafeAreaView>
   );
 }

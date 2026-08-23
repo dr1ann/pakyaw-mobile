@@ -11,6 +11,8 @@ import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
+import { SosButton } from '@/features/safety/components/SosButton';
+
 export function InTripSheet({
   remainingDistanceMeters,
   etaSeconds,
@@ -53,6 +55,7 @@ export function InTripSheet({
           </View>
         </View>
       )}
+      <SosButton tripId={trip?.id ?? null} />
     </View>
   );
 }

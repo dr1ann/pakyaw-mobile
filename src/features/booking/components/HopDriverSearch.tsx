@@ -56,7 +56,7 @@ export function HopDriverSearch({ rides, loading, onJoinRide }: HopDriverSearchP
         </View>
         <Text style={styles.emptyTitle}>Searching for Nearby Hop Drivers</Text>
         <Text style={styles.emptySubtitle}>
-          No drivers currently operating an active Shared Ride within your {config.searchRadiusKm} km corridor. You can tap "Book Hop" below to broadcast your Hop request!
+          No drivers currently operating an active Shared Ride within your {config.searchRadiusKm} km corridor. You can tap &quot;Book Hop&quot; below to broadcast your Hop request!
         </Text>
 
         <View style={styles.infoBox}>

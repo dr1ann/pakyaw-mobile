@@ -458,8 +458,8 @@ export default function RideScreen() {
     useActiveTripStore.getState().clearTrip();
   }
 
-  const status = trip?.status ?? (tripId ? 'request' : null);
-  const isSheetSelfContained = status === null || status === 'request';
+  const status = trip?.status ?? (tripId ? 'requested' : null);
+  const isSheetSelfContained = status === null || status === 'requested';
 
   const activeRoute = trip?.route ?? null;
   const activeRoutePolyline = activeRoute?.polyline ?? null;
@@ -693,7 +693,7 @@ function TripSheet({
   etaSeconds,
 }: TripSheetProps) {
   switch (status) {
-    case 'request':
+    case 'requested':
       return <SearchingSheet />;
     case 'accepted':
     case 'driver_arriving':

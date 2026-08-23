@@ -9,6 +9,7 @@
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import { useSignOut } from '@pakyaw/shared/features/auth/hooks/useSignOut';
@@ -20,6 +21,7 @@ import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function PassengerAccountScreen() {
+  const router = useRouter();
   const { uid } = useSession();
   const signOut = useSignOut();
 
@@ -30,7 +32,8 @@ export default function PassengerAccountScreen() {
     staleTime: 5 * 60_000,
   });
 
-  const fullName = profile ? `${profile.firstName} ${profile.lastName}` : undefined;
+  const canonicalProfile = profile as (UserDoc & { readonly name?: string; readonly mobile?: string }) | null;
+  const fullName = canonicalProfile?.name ?? (profile ? `${profile.firstName} ${profile.lastName}` : undefined);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -47,7 +50,7 @@ export default function PassengerAccountScreen() {
           </View>
 
           <Card padded={false} style={styles.card}>
-            <InfoRow label="Phone" value={profile?.phone ?? '—'} />
+            <InfoRow label="Phone" value={canonicalProfile?.mobile ?? profile?.phone ?? '—'} />
             <InfoRow label="Email" value={profile?.email ?? '—'} />
             <InfoRow
               label="Rider type"
@@ -63,6 +66,9 @@ export default function PassengerAccountScreen() {
       )}
 
       <View style={styles.signOutWrap}>
+        <Pressable style={styles.supportBtn} onPress={() => router.push('./support')}>
+          <Text style={styles.supportLabel}>Contact support</Text>
+        </Pressable>
         {signOut.error instanceof Error ? (
           <Text style={styles.errorText}>{signOut.error.message}</Text>
         ) : null}
@@ -158,6 +164,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[4],
     alignItems: 'center',
   },
+  supportBtn: { borderWidth: 1.5, borderColor: colors.blue.primary, borderRadius: radius.pill, paddingVertical: spacing[4], alignItems: 'center' },
+  supportLabel: { fontSize: typography.size.bodyMd, fontWeight: typography.weight.bold, color: colors.blue.primary },
   signOutBtnDisabled: { opacity: 0.5 },
   signOutLabel: {
     fontSize: typography.size.bodyMd,

@@ -4,7 +4,7 @@ import { getAutomaticNavigationStatus } from '../navigation/navigationHelper';
 
 let mockTripStatus: any = null;
 
-vi.mock('@/stores/activeTripStore', () => ({
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
   useActiveTripStore: (selector: any) => selector({ trip: mockTripStatus ? { status: mockTripStatus } : null }),
 }));
 
@@ -12,7 +12,7 @@ describe('useNavigationPhase', () => {
   describe('getNavPhase', () => {
     it('returns idle when status is request or null', () => {
       expect(getNavPhase(null)).toBe('idle');
-      expect(getNavPhase('request')).toBe('idle');
+      expect(getNavPhase('requested')).toBe('idle');
     });
 
     it('returns to_pickup when status is accepted or driver_arriving', () => {
