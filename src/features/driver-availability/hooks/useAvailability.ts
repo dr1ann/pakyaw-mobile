@@ -18,7 +18,10 @@ import {
   goOffline as serviceGoOffline,
   goOnline as serviceGoOnline,
 } from '@/features/driver-availability/services/presence.service';
-import { PreflightNotPassedError } from '@/features/driver-availability/errors';
+import {
+  DriverAccountNotReadyError,
+  PreflightNotPassedError,
+} from '@/features/driver-availability/errors';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
@@ -49,6 +52,10 @@ export function useGoOnlineMutation() {
       logger.info('[useAvailability] driver went online');
     },
     onError: (err) => {
+      if (err instanceof DriverAccountNotReadyError) {
+        logger.warn('[useAvailability] goOnline blocked by account verification');
+        return;
+      }
       logger.error('[useAvailability] goOnline failed:', err);
     },
   });

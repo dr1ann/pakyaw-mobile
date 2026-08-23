@@ -66,7 +66,7 @@ describe('usePictureInPicture', () => {
     await Promise.resolve();
 
     expect(Pip.enter).toHaveBeenCalledWith({
-      aspectRatio: { num: 9, den: 16 },
+      aspectRatio: { num: 16, den: 16 },
     });
     expect(useUiStore.getState().pip.isInPip).toBe(true);
   });

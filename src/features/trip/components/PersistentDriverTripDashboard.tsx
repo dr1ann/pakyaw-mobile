@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import type { TripDoc, SharedRideDoc, TripStatus } from '@pakyaw/shared/features
 import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { firestore } from '@/services/firebase/firebase';
+import { SosButton } from '@/features/safety/components/SosButton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -54,9 +55,9 @@ export function PersistentDriverTripDashboard({
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
 
   // Entrance & State Transition Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(25)).current;
-  const buttonPulseAnim = useRef(new Animated.Value(1)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(25));
+  const [buttonPulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     Animated.parallel([
@@ -354,6 +355,7 @@ export function PersistentDriverTripDashboard({
           />
         )}
       </View>
+      <SosButton tripId={trip?.id ?? null} />
 
       {/* Expanded Content Section */}
       {isExpanded && (

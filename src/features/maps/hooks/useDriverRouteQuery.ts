@@ -175,20 +175,25 @@ export function useDriverRouteQuery(tripId: string | null) {
     positionHistoryRef.current = [];
     queryCoordsRef.current = null;
     lastTargetCoordsRef.current = null;
-    setIsRerouting(false);
-    setQueryCoords(null);
+    const resetTimeout = setTimeout(() => {
+      setIsRerouting(false);
+      setQueryCoords(null);
+    }, 0);
+    return () => clearTimeout(resetTimeout);
   }, [tripId]);
 
   useEffect(() => {
     if (!enabled || !targetCoords) {
       queryCoordsRef.current = null;
       lastTargetCoordsRef.current = null;
-      setQueryCoords(null);
-      setIsRerouting(false);
       lastFetchTimeRef.current = 0;
       offRouteConfirmationCountRef.current = 0;
       positionHistoryRef.current = [];
-      return;
+      const resetTimeout = setTimeout(() => {
+        setQueryCoords(null);
+        setIsRerouting(false);
+      }, 0);
+      return () => clearTimeout(resetTimeout);
     }
 
     const checkAndUpdate = () => {

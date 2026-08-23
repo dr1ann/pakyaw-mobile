@@ -145,8 +145,14 @@ export async function signInDriver(
         'Driver profile not found. Contact your fleet manager.',
       );
     }
-    const driverData = driverSnap.data() as { approved: boolean };
-    if (!driverData.approved) {
+    const driverData = driverSnap.data() as {
+      applicationStatus?: string;
+      accountStatus?: string;
+    };
+    if (
+      driverData.applicationStatus !== 'approved'
+      || driverData.accountStatus !== 'active'
+    ) {
       throw new AuthError(
         'Your driver account is pending approval. Please wait for confirmation.',
       );

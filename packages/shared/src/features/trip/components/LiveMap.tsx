@@ -323,31 +323,20 @@ export function LiveMap({
   // previous state+rAF approach, the padding lagged by one animation frame,
   // causing the camera to animate to the screen center (zero padding) instead
   // of the biased navigation anchor position.
-  const lastNavigationMapPaddingRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
-
   const navigationMapPadding = React.useMemo(() => {
-    if (freezeNavigationMapPadding) {
-      return lastNavigationMapPaddingRef.current;
-    }
-
     if (!navigationActive || containerHeight <= 0) {
-      const zero = { top: 0, right: 0, bottom: 0, left: 0 };
-      lastNavigationMapPaddingRef.current = zero;
-      return zero;
+      return { top: 0, right: 0, bottom: 0, left: 0 };
     }
 
     const visibleHeight = Math.max(0, containerHeight - navigationBottomInset);
     const anchorOffset = Math.max(0, 2 * navigationDriverScreenAnchor - 1) * visibleHeight;
-    const padding = {
+    return {
       top: Math.round(anchorOffset),
       right: 0,
       bottom: Math.round(navigationBottomInset),
       left: 0,
     };
-    lastNavigationMapPaddingRef.current = padding;
-    return padding;
   }, [
-    freezeNavigationMapPadding,
     navigationActive,
     containerHeight,
     navigationBottomInset,
@@ -577,7 +566,9 @@ export function LiveMap({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         logger.info('[LiveMap] Layout dimensions updated', { width, height });
-        setContainerHeight(height);
+        if (!freezeNavigationMapPadding) {
+          setContainerHeight(height);
+        }
       }}
     >
       <MapView

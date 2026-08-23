@@ -259,7 +259,10 @@ describe('auth.service — error translation', () => {
 
     it('throws AuthError when driver is not approved', async () => {
       mockSignIn('uid-4');
-      mockDocs({ role: 'driver' }, { approved: false });
+      mockDocs(
+        { role: 'driver' },
+        { applicationStatus: 'submitted', accountStatus: 'active' },
+      );
       vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
 
       await expect(
@@ -269,7 +272,10 @@ describe('auth.service — error translation', () => {
 
     it('returns uid and role on success', async () => {
       mockSignIn('uid-6');
-      mockDocs({ role: 'driver' }, { approved: true });
+      mockDocs(
+        { role: 'driver' },
+        { applicationStatus: 'approved', accountStatus: 'active' },
+      );
 
       const result = await signInDriver('driver@test.com', 'pass');
       expect(result).toEqual({ uid: 'uid-6', role: 'driver' });

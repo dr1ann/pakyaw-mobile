@@ -30,6 +30,7 @@ import { colors, shadow, spacing } from '@/constants/theme';
 import { OfflineSheet } from '@/features/driver-availability/components/OfflineSheet';
 import { OnlineSheet } from '@/features/driver-availability/components/OnlineSheet';
 import { PreflightChecklist } from '@/features/driver-availability/components/PreflightChecklist';
+import { DriverAccountNotReadyError } from '@/features/driver-availability/errors';
 import {
   useGoOfflineMutation,
   useGoOnlineMutation,
@@ -99,20 +100,20 @@ export default function DriveScreen() {
 
   const [boardingToastVisible, setBoardingToastVisible] = useState(false);
   const [lastPassengerCount, setLastPassengerCount] = useState(0);
+  const sharedRidePassengers = sharedRide?.passengers;
+  const passengerCount = sharedRidePassengers?.length ?? 0;
 
-  useEffect(() => {
-    if (sharedRide?.passengers) {
-      if (sharedRide.passengers.length > lastPassengerCount && lastPassengerCount > 0) {
-        setBoardingToastVisible(true);
-      }
-      setLastPassengerCount(sharedRide.passengers.length);
+  if (passengerCount !== lastPassengerCount) {
+    if (passengerCount > lastPassengerCount && lastPassengerCount > 0) {
+      setBoardingToastVisible(true);
     }
-  }, [sharedRide?.passengers, lastPassengerCount]);
+    setLastPassengerCount(passengerCount);
+  }
 
   const passengerStops = useMemo<MapPassengerStop[]>(() => {
-    if (!sharedRide?.passengers) return [];
+    if (!sharedRidePassengers) return [];
     const stops: MapPassengerStop[] = [];
-    sharedRide.passengers.forEach((p, idx) => {
+    sharedRidePassengers.forEach((p, idx) => {
       if (p.pickup?.coords) {
         stops.push({
           id: `${p.passengerId}-pickup-${idx}`,
@@ -131,7 +132,7 @@ export default function DriveScreen() {
       }
     });
     return stops;
-  }, [sharedRide?.passengers]);
+  }, [sharedRidePassengers]);
 
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const arrowRotation = useActiveTripStore((s) => s.arrowRotation);
@@ -179,6 +180,7 @@ export default function DriveScreen() {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handlePressGoOnline() {
+    goOnlineMutation.reset();
     setShowPreflight(true);
   }
 
@@ -196,7 +198,10 @@ export default function DriveScreen() {
         setShowPreflight(false);
       },
       onError: (err) => {
-        logger.error('[drive] goOnline mutation onError', { err });
+        setShowPreflight(false);
+        logger.warn('[drive] goOnline was rejected', {
+          errorKind: err instanceof Error ? err.name : 'unknown',
+        });
       },
     });
   }
@@ -436,7 +441,7 @@ export default function DriveScreen() {
           style={styles.incomingArea}
           pointerEvents="box-none"
         >
-          <IncomingRequestCard request={topRequest} />
+          <IncomingRequestCard key={topRequest.offerId} request={topRequest} />
         </SafeAreaView>
       ) : null}
 
@@ -472,6 +477,13 @@ export default function DriveScreen() {
               onPressGoOnline={handlePressGoOnline}
               locationPermissionDenied={locationPermissionDenied}
               goingOnline={goOnlineMutation.isPending}
+              availabilityErrorMessage={
+                goOnlineMutation.error instanceof DriverAccountNotReadyError
+                  ? goOnlineMutation.error.message
+                  : goOnlineMutation.isError
+                    ? 'We could not update your availability. Check your connection and try again.'
+                    : null
+              }
             />
           ) : (
             <OnlineSheet

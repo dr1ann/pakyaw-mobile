@@ -99,6 +99,7 @@ describe('useRideCameraController', () => {
       if (count === 2) return { current: 0 };
       if (count === 3) return hasExecutedNavigationFollowRef;
       if (count === 4) return prevNavEnabledRef;
+      if (count === 5) return { current: null };
       return appStateRef;
     });
   });

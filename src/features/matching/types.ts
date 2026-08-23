@@ -8,11 +8,12 @@
 import type { Place } from '@pakyaw/shared/types/place';
 
 /**
- * A trip request surfaced to nearby drivers via the geohash-prefix subscription.
- * Mirrors the subset of trips/{tripId} the driver UI needs to render the card.
+ * A server-created trip offer visible only to its intended driver.
  */
 export type IncomingRequest = {
   readonly tripId: string;
+  /** Stable tripOffers document ID; required for callable acceptance. */
+  readonly offerId: string;
   readonly passengerId: string;
   readonly mode?: 'solo' | 'shared' | 'hopon' | 'hop';
   readonly pickup: Place;
@@ -26,6 +27,8 @@ export type IncomingRequest = {
     readonly polyline: string;
   } | null;
   readonly fare?: number;
+  readonly offeredAt?: number;
+  readonly expiresAt?: number;
 };
 
 /**
@@ -33,5 +36,6 @@ export type IncomingRequest = {
  */
 export type AcceptTripInput = {
   readonly tripId: string;
+  readonly offerId: string;
   readonly driverUid: string;
 };

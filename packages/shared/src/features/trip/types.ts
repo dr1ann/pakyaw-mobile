@@ -12,7 +12,7 @@ import type { Timestamp } from 'firebase/firestore';
 import type { Place } from '@pakyaw/shared/types/place';
 
 export type TripStatus =
-  | 'request'
+  | 'requested'
   | 'accepted'
   | 'driver_arriving'
   | 'driver_arrived'
@@ -43,6 +43,10 @@ export type TripDoc = {
   readonly cancelledAt: Timestamp | null;
   readonly cancelledBy: CancelledBy | null;
   readonly cancelReason: string | null;
+  readonly matching?: {
+    readonly stage: 'initial' | 'second' | 'final' | 'timed_out';
+    readonly radiusKm?: number;
+  } | null;
   readonly fare?: number;
   readonly fareBreakdown?: {
     readonly baseFare: number;
@@ -132,11 +136,11 @@ export type SharedRideDoc = {
  * Forward-only transition matrix. Each key maps to the set of statuses
  * it may transition INTO. Terminal states map to empty arrays.
  *
- * Note: request → accepted is handled exclusively by Phase 7 acceptTrip()
+ * Note: requested → accepted is handled exclusively by the server offer-acceptance callable.
  * and is intentionally absent here.
  */
 export const ALLOWED_TRANSITIONS: Record<
-  Exclude<TripStatus, 'request'>,
+  Exclude<TripStatus, 'requested'>,
   readonly TripStatus[]
 > = {
   accepted: ['driver_arriving'],
@@ -152,13 +156,13 @@ export const ALLOWED_TRANSITIONS: Record<
  * Terminal states (completed, cancelled) and in_progress are excluded.
  *
  * Cancellation is lifecycle-dependent (see trip.service.cancel):
- * - 'request' (pre-acceptance): the trip document is DELETED — no 'cancelled'
- *   status is written and no history is kept (abandoned booking request).
+ * - `requested` cancellation is retained as `cancelled` by the server so the
+ *   trip history and audit record are preserved.
  * - 'accepted' | 'driver_arriving' | 'driver_arrived' (post-acceptance): the
  *   document is retained and its status moves to 'cancelled'.
  */
 export const CANCELLABLE_STATUSES: readonly TripStatus[] = [
-  'request',
+  'requested',
   'accepted',
   'driver_arriving',
   'driver_arrived',
@@ -166,9 +170,17 @@ export const CANCELLABLE_STATUSES: readonly TripStatus[] = [
 
 export type CancelledBy = 'driver' | 'passenger';
 
+export type CancelReason =
+  | 'passenger_changed_mind'
+  | 'driver_unavailable'
+  | 'unable_to_locate_passenger'
+  | 'vehicle_issue'
+  | 'safety_concern'
+  | 'other';
+
 /**
  * Statuses during which the passenger should receive live driver location.
- * Subscription is inactive during request and terminal states.
+ * Subscription is inactive during requested and terminal states.
  */
 export const DRIVER_LOCATION_ACTIVE_STATUSES: readonly TripStatus[] = [
   'accepted',

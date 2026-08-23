@@ -42,7 +42,9 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const driverUid = useSessionStore((s) => s.uid);
   const acceptMutation = useAcceptTrip();
   const [isMinimized, setIsMinimized] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(() => request.expiresAt == null
+    ? 15
+    : Math.max(0, Math.ceil((request.expiresAt - Date.now()) / 1000)));
 
   useEffect(() => {
     // Notify driver when a request appears
@@ -61,7 +63,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [request.tripId]); // Reset countdown on new request
+  }, [request.offerId]); // Reset countdown on a new offer
 
   const isPending = acceptMutation.isPending;
   const disabled = isPending || driverUid == null;
@@ -77,7 +79,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
   function handleAccept() {
     if (driverUid == null) return;
-    acceptMutation.mutate({ tripId: request.tripId, driverUid });
+    acceptMutation.mutate({ tripId: request.tripId, offerId: request.offerId, driverUid });
   }
 
   function handleDecline() {

@@ -12,6 +12,7 @@ export type Availability = 'offline' | 'online' | 'on_trip';
 export interface DriverLocation {
   readonly latitude: number;
   readonly longitude: number;
+  readonly accuracyMeters: number | null;
 }
 
 /**

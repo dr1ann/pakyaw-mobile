@@ -115,11 +115,12 @@ describe('location.service background tracking', () => {
         latitude: 11.001,
         longitude: 124.002,
         heading: 87,
+        accuracy: 6.5,
       },
     } as Location.LocationObject;
 
     expect(getLocationPublishPayload(locationObject)).toEqual({
-      location: { latitude: 11.001, longitude: 124.002 },
+      location: { latitude: 11.001, longitude: 124.002, accuracyMeters: 6.5 },
       geohash: expect.any(String),
       heading: 87,
       locationUpdatedAt: 'server-time',
@@ -132,7 +133,7 @@ describe('location.service background tracking', () => {
     expect(updateDoc).toHaveBeenCalledWith(
       { path: 'drivers/driver-1' },
       expect.objectContaining({
-        location: { latitude: 11.001, longitude: 124.002 },
+        location: { latitude: 11.001, longitude: 124.002, accuracyMeters: 6.5 },
         heading: 87,
         locationUpdatedAt: 'server-time',
       }),

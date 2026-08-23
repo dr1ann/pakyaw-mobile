@@ -47,6 +47,15 @@ export default function WelcomeScreen() {
 
       {/* Actions */}
       <View style={styles.actions}>
+        <Link href="./driver-register" asChild>
+          <Pressable
+            style={styles.btnPrimary}
+            accessibilityRole="button"
+            testID="welcome-driver-apply"
+          >
+            <Text style={styles.btnPrimaryLabel}>Apply to drive</Text>
+          </Pressable>
+        </Link>
         <Link href="/driver-sign-in" asChild>
           <Pressable
             style={styles.btnDriver}

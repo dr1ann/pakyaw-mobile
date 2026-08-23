@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
@@ -14,7 +14,7 @@ export function BoardingConfirmationToast({
   visible,
   onDismiss,
 }: BoardingConfirmationToastProps) {
-  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const [slideAnim] = useState(() => new Animated.Value(-100));
 
   useEffect(() => {
     if (visible) {

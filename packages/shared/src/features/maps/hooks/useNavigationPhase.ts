@@ -8,7 +8,7 @@ import type { NavPhase } from '../navigation/types';
 export function getNavPhase(status: TripStatus | null): NavPhase {
   if (!status) return 'idle';
   switch (status) {
-    case 'request':
+    case 'requested':
       return 'idle';
     case 'accepted':
     case 'driver_arriving':

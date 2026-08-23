@@ -12,7 +12,7 @@ describe('useNavigationPhase', () => {
   describe('getNavPhase', () => {
     it('returns idle when status is request or null', () => {
       expect(getNavPhase(null)).toBe('idle');
-      expect(getNavPhase('request')).toBe('idle');
+      expect(getNavPhase('requested')).toBe('idle');
     });
 
     it('returns to_pickup when status is accepted or driver_arriving', () => {

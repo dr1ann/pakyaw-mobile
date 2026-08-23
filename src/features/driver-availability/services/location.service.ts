@@ -144,10 +144,13 @@ export async function stopBackgroundPublishing(): Promise<void> {
 export function getLocationPublishPayload(
   locationObject: Location.LocationObject,
 ): LocationPublishPayload {
-  const { latitude, longitude, heading } = locationObject.coords;
+  const { latitude, longitude, heading, accuracy } = locationObject.coords;
+  const accuracyMeters = typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0
+    ? accuracy
+    : null;
 
   return {
-    location: { latitude, longitude },
+    location: { latitude, longitude, accuracyMeters },
     geohash: geohashOf({ lat: latitude, lng: longitude }, 7),
     heading: heading ?? null,
     locationUpdatedAt: serverTimestamp(),

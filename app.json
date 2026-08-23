@@ -61,7 +61,8 @@
           "iosGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE",
           "androidGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

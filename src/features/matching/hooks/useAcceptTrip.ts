@@ -17,30 +17,31 @@
 
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 
-import { TripAlreadyTakenError } from '@/features/matching/errors';
-import { acceptTrip } from '@/features/matching/services/matching.service';
+import { acceptTripOffer } from '@/features/matching/services/matching.service';
 import type { AcceptTripInput } from '@/features/matching/types';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 
 export function useAcceptTrip(): UseMutationResult<
-  void,
+  'accepted' | 'already_taken' | 'invalid',
   Error,
   AcceptTripInput
 > {
-  return useMutation<void, Error, AcceptTripInput>({
-    mutationFn: ({ tripId, driverUid }) => acceptTrip(tripId, driverUid),
-    onSuccess: (_data, variables) => {
+  return useMutation<'accepted' | 'already_taken' | 'invalid', Error, AcceptTripInput>({
+    mutationFn: ({ tripId, offerId, driverUid }) => acceptTripOffer(tripId, offerId, driverUid),
+    onSuccess: (result, variables) => {
+      if (result !== 'accepted') {
+        useAvailabilityStore.getState().removeIncomingRequest(variables.tripId);
+        return;
+      }
       // Set tripId so useActiveTrip subscribes to trips/{tripId} and the
       // authoritative snapshot begins driving the UI. Do NOT predict
       // availability here — the snapshot will land and other subscribers
       // (e.g. useActiveTrip → activeTripStore.trip) will surface the trip.
       useActiveTripStore.getState().setTripId(variables.tripId);
     },
-    onError: (err, variables) => {
-      if (err instanceof TripAlreadyTakenError) {
-        useAvailabilityStore.getState().removeIncomingRequest(variables.tripId);
-      }
+    onError: (_err, variables) => {
+      useAvailabilityStore.getState().removeIncomingRequest(variables.tripId);
     },
   });
 }

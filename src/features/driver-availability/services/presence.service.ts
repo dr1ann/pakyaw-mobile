@@ -17,20 +17,21 @@
 
 import { doc, type FieldValue, serverTimestamp, setDoc } from 'firebase/firestore';
 
-import { PresenceWriteError } from '@/features/driver-availability/errors';
+import {
+  DriverAccountNotReadyError,
+  translatePresenceWriteError,
+} from '@/features/driver-availability/errors';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { firestore } from '@/services/firebase/firebase';
 
 type GoOnlinePayload = {
   availability: 'online';
-  activeTripId: null;
   preflightPassedAt: FieldValue;
   lastSeenAt: FieldValue;
 };
 
 type GoOfflinePayload = {
   availability: 'offline';
-  activeTripId: null;
   lastSeenAt: FieldValue;
 };
 
@@ -46,7 +47,6 @@ type GoOfflinePayload = {
 export async function goOnline(uid: string): Promise<void> {
   const payload: GoOnlinePayload = {
     availability: 'online',
-    activeTripId: null,
     preflightPassedAt: serverTimestamp(),
     lastSeenAt: serverTimestamp(),
   };
@@ -57,8 +57,16 @@ export async function goOnline(uid: string): Promise<void> {
     await setDoc(driverRef, payload, { merge: true });
     logger.info('[presence] goOnline: setDoc resolved', { uid });
   } catch (cause) {
-    logger.error('[presence] goOnline failed:', cause);
-    throw new PresenceWriteError(cause);
+    const error = translatePresenceWriteError(cause);
+    // An account still awaiting verification is an expected product state,
+    // not an application crash. Keep the raw Firebase error out of the
+    // driver-facing/error-level log while retaining a useful diagnostic.
+    if (error instanceof DriverAccountNotReadyError) {
+      logger.warn('[presence] goOnline blocked by account verification', { uid });
+    } else {
+      logger.error('[presence] goOnline failed:', cause);
+    }
+    throw error;
   }
 }
 
@@ -71,7 +79,6 @@ export async function goOnline(uid: string): Promise<void> {
 export async function goOffline(uid: string): Promise<void> {
   const payload: GoOfflinePayload = {
     availability: 'offline',
-    activeTripId: null,
     lastSeenAt: serverTimestamp(),
   };
 
@@ -80,7 +87,12 @@ export async function goOffline(uid: string): Promise<void> {
     await setDoc(driverRef, payload, { merge: true });
     logger.info('[presence] driver offline:', uid);
   } catch (cause) {
-    logger.error('[presence] goOffline failed:', cause);
-    throw new PresenceWriteError(cause);
+    const error = translatePresenceWriteError(cause);
+    if (error instanceof DriverAccountNotReadyError) {
+      logger.warn('[presence] goOffline blocked by account verification', { uid });
+    } else {
+      logger.error('[presence] goOffline failed:', cause);
+    }
+    throw error;
   }
 }

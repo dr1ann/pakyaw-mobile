@@ -1,8 +1,8 @@
 /**
  * useIncomingRequests — Phase 7 driver matching subscription hook.
  *
- * Subscribes to nearby trip requests via subscribeIncoming only while the
- * driver is online and has a known location. Auto-unsubscribes when the
+ * Subscribes to server-created trip offers only while the driver is online.
+ * It auto-unsubscribes when the
  * driver goes offline / on_trip, when the session uid drops, or when the
  * component using this hook unmounts.
  *
@@ -13,35 +13,25 @@
 
 import { useEffect } from 'react';
 
-import { subscribeIncoming } from '@/features/matching/services/matching.service';
-import { geohashOf } from '@pakyaw/shared/lib/geo';
+import { subscribeDriverOffers } from '@/features/matching/services/matching.service';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
-const GEOHASH_PRECISION = 5;
-
 export function useIncomingRequests(): void {
   const availability = useAvailabilityStore((s) => s.availability);
-  const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
-  const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
   const uid = useSessionStore((s) => s.uid);
 
-  const prefix =
-    lastLatitude != null && lastLongitude != null
-      ? geohashOf({ lat: lastLatitude, lng: lastLongitude }, GEOHASH_PRECISION)
-      : null;
-
   useEffect(() => {
-    if (availability !== 'online' || uid == null || prefix == null) {
+    if (availability !== 'online' || uid == null) {
       return;
     }
 
     const { setIncomingRequests, clearIncomingRequests } =
       useAvailabilityStore.getState();
 
-    const unsubscribe = subscribeIncoming(
-      prefix,
+    const unsubscribe = subscribeDriverOffers(
+      uid,
       (requests) => {
         setIncomingRequests(requests);
       },
@@ -55,5 +45,5 @@ export function useIncomingRequests(): void {
       unsubscribe();
       useAvailabilityStore.getState().clearIncomingRequests();
     };
-  }, [availability, uid, prefix]);
+  }, [availability, uid]);
 }

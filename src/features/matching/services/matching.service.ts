@@ -1,299 +1,102 @@
-/**
- * matching.service — Phase 7 driver matching.
- *
- * - subscribeIncoming: real-time stream of trips in 'request' state with no
- *   driver, filtered by geohash prefix.
- * - acceptTrip: atomic two-write transaction that claims a trip. Rejects
- *   with TripAlreadyTakenError on collision.
- *
- * Both writes (trip + driver doc) MUST live in the same transaction. Never
- * use batch writes — batches do not re-read.
- */
+/** Driver offer subscription and callable acceptance for matching. */
 
-import { FirebaseError } from 'firebase/app';
 import {
   collection,
-  doc,
   onSnapshot,
-  orderBy,
   query,
-  runTransaction,
-  serverTimestamp,
   where,
   type DocumentData,
   type FirestoreError,
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { AcceptTripError, TripAlreadyTakenError } from '@/features/matching/errors';
+import { AcceptTripError } from '@/features/matching/errors';
 import type { IncomingRequest } from '@/features/matching/types';
-import { geohashNeighbors } from '@pakyaw/shared/lib/geo';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { firestore } from '@/services/firebase/firebase';
+import { firestore, functions } from '@/services/firebase/firebase';
 
-// '' is a high BMP sentinel. [prefix, prefix+'') matches every
-// geohash string that starts with prefix. Standard Firestore prefix-range idiom.
-export function geohashRangeEnd(prefix: string): string {
-  return prefix + '';
+function offerPlace(value: unknown): IncomingRequest['pickup'] | null {
+  if (value === null || typeof value !== 'object') return null;
+  const place = value as Record<string, unknown>;
+  if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') return null;
+  return {
+    label: typeof place.label === 'string' ? place.label : 'Location',
+    coords: { lat: place.latitude, lng: place.longitude },
+  };
+}
+function timestampMillis(value: unknown): number | undefined {
+  return value !== null && typeof value === 'object' && 'toMillis' in value
+    && typeof (value as { toMillis?: unknown }).toMillis === 'function'
+    ? (value as { toMillis(): number }).toMillis()
+    : undefined;
 }
 
-function mapDocToIncomingRequest(
+function mapOfferToIncomingRequest(
   snap: QueryDocumentSnapshot<DocumentData>,
 ): IncomingRequest | null {
   const data = snap.data();
-  const passengerId = data.passengerId;
-  const pickup = data.pickup;
-  const destination = data.destination;
-  const passengerCount = data.passengerCount;
-  const billedSeats = data.billedSeats;
-  const route = data.route;
-  const mode = data.mode;
-  const seatsCovered = data.seatsCovered;
-  const fare = data.fare;
-
-  if (
-    typeof passengerId !== 'string' ||
-    typeof passengerCount !== 'number' ||
-    typeof billedSeats !== 'number' ||
-    pickup == null ||
-    destination == null
-  ) {
-    logger.warn('[matching] dropped malformed trip doc', { tripId: snap.id });
+  const tripId = data.tripId;
+  const pickup = offerPlace(data.pickup);
+  const destination = offerPlace(data.destination);
+  if (typeof tripId !== 'string' || pickup === null || destination === null) {
+    logger.warn('[matching] dropped malformed offer', { offerId: snap.id });
     return null;
   }
-
   return {
-    tripId: snap.id,
-    passengerId,
-    mode,
+    offerId: snap.id,
+    tripId,
+    // Offer documents deliberately do not disclose a passenger identity.
+    passengerId: '',
+    mode: 'solo',
     pickup,
     destination,
-    passengerCount,
-    billedSeats,
-    seatsCovered,
-    route,
-    fare,
+    passengerCount: 1,
+    billedSeats: 1,
+    fare: typeof data.fare === 'number' ? data.fare : undefined,
+    offeredAt: timestampMillis(data.offeredAt),
+    expiresAt: timestampMillis(data.expiresAt),
   };
 }
 
-import { isPassengerInCorridor, DEFAULT_HOP_MATCHING_CONFIG, type HopMatchingConfig } from '@pakyaw/shared/features/matching/hop-matching-config';
-import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
-
-export type DriverHopMatchingContext = {
-  readonly activeSharedRide?: SharedRideDoc | null;
-  readonly driverLocation?: { readonly lat: number; readonly lng: number } | null;
-  readonly driverHeadingDeg?: number | null;
-  readonly hopConfig?: HopMatchingConfig | null;
-};
-
-export function subscribeIncoming(
-  driverGeohashPrefix: string,
+/** Subscribes only to pending offers that belong to the authenticated driver. */
+export function subscribeDriverOffers(
+  driverId: string,
   onSnap: (requests: readonly IncomingRequest[]) => void,
   onErr: (err: FirestoreError) => void,
-  driverContext?: DriverHopMatchingContext,
 ): Unsubscribe {
-  const prefixes = geohashNeighbors(driverGeohashPrefix);
-  const tripsRaw = collection(firestore, 'trips');
-
-  logger.info('[matching] subscribing to neighbor cells', {
-    count: prefixes.length,
-    prefixes,
-  });
-
-  const snapshotsByPrefix = new Map<string, readonly IncomingRequest[]>();
-
-  function mergeAndEmit(): void {
-    const seen = new Set<string>();
-    const merged: IncomingRequest[] = [];
-    const config = driverContext?.hopConfig || DEFAULT_HOP_MATCHING_CONFIG;
-
-    for (const requests of snapshotsByPrefix.values()) {
-      for (const r of requests) {
-        if (seen.has(r.tripId)) continue;
-
-        // Shared Ride + Hop Logic Filtering Rules
-        if (r.mode === 'hop') {
-          // Condition 1: Must have active Shared Ride session
-          const activeRide = driverContext?.activeSharedRide;
-          if (!activeRide || activeRide.status !== 'active') {
-            logger.info('[matching] Filtered Hop request: Driver has no active Shared Ride', { tripId: r.tripId });
-            continue;
-          }
-
-          // Capacity Rule: Maximum 6 cumulative passengers per Shared Ride session
-          const totalPassengers = activeRide.totalPassengersCount ?? activeRide.passengers?.length ?? 0;
-          if (totalPassengers >= config.maxSharedPassengers || activeRide.isLockedForHops) {
-            logger.info('[matching] Filtered Hop request: Shared Ride is at max capacity', { tripId: r.tripId, totalPassengers });
-            continue;
-          }
-
-          // Seat Rule: Hop riders may only reserve 1 seat each
-          if (r.passengerCount > config.maxHopSeatsPerPassenger) {
-            logger.info('[matching] Filtered Hop request: Exceeds 1-seat Hop limit', { tripId: r.tripId, passengerCount: r.passengerCount });
-            continue;
-          }
-
-          // Conditions 2 & 3: Corridor width & forward-range dot-product validation
-          const driverLoc = driverContext?.driverLocation;
-          const driverHeading = driverContext?.driverHeadingDeg ?? activeRide.routeHeadingDeg ?? 0;
-
-          if (driverLoc && activeRide.routeOrigin && activeRide.routeDestination && r.pickup?.coords) {
-            const inCorridorAndAhead = isPassengerInCorridor(
-              driverLoc,
-              driverHeading,
-              { lat: r.pickup.coords.lat, lng: r.pickup.coords.lng },
-              activeRide.routeOrigin,
-              activeRide.routeDestination,
-              config
-            );
-
-            if (!inCorridorAndAhead) {
-              logger.info('[matching] Filtered Hop request: Passenger outside corridor or behind driver', { tripId: r.tripId });
-              continue;
-            }
-          }
-        }
-
-        seen.add(r.tripId);
-        merged.push(r);
-      }
-    }
-
-    logger.info('[matching] merged snapshot', {
-      totalRequests: merged.length,
-      activeSubscriptions: prefixes.length,
-    });
-
-    onSnap(merged);
-  }
-
-  const unsubscribes: Unsubscribe[] = prefixes.map((prefix) => {
-    const q = query(
-      tripsRaw,
-      where('status', '==', 'request'),
-      where('driverId', '==', null),
-      where('geohash', '>=', prefix),
-      where('geohash', '<', geohashRangeEnd(prefix)),
-      orderBy('geohash'),
-    );
-
-    return onSnapshot(
-      q,
-      (snap) => {
-        const requests: IncomingRequest[] = [];
-        snap.forEach((d) => {
-          const mapped = mapDocToIncomingRequest(d);
-          if (mapped != null) requests.push(mapped);
-        });
-        snapshotsByPrefix.set(prefix, requests);
-        mergeAndEmit();
-      },
-      (err) => {
-        logger.error('[matching] subscribeIncoming failed', { err, prefix });
-        onErr(err);
-      },
-    );
-  });
-
-  return () => {
-    unsubscribes.forEach((unsub) => unsub());
-  };
+  const offers = query(
+    collection(firestore, 'tripOffers'),
+    where('driverId', '==', driverId),
+    where('status', '==', 'pending'),
+  );
+  return onSnapshot(
+    offers,
+    (snapshot) => {
+      const now = Date.now();
+      onSnap(snapshot.docs
+        .map(mapOfferToIncomingRequest)
+        .filter((offer): offer is IncomingRequest => offer !== null)
+        .filter((offer) => offer.expiresAt === undefined || offer.expiresAt > now));
+    },
+    onErr,
+  );
 }
 
-export async function acceptTrip(
+export async function acceptTripOffer(
   tripId: string,
+  offerId: string,
   driverUid: string,
-  sharedRideId?: string | null,
-): Promise<void> {
-  const tripRef = doc(firestore, 'trips', tripId);
-  const driverRef = doc(firestore, 'drivers', driverUid);
-  const sharedRideRef = sharedRideId ? doc(firestore, 'sharedRides', sharedRideId) : null;
-
+): Promise<'accepted' | 'already_taken' | 'invalid'> {
   try {
-    await runTransaction(firestore, async (tx) => {
-      const [tripSnap, driverSnap, sharedRideSnap] = await Promise.all([
-        tx.get(tripRef),
-        tx.get(driverRef),
-        sharedRideRef ? tx.get(sharedRideRef) : Promise.resolve(null),
-      ]);
-
-      if (!tripSnap.exists()) throw new TripAlreadyTakenError();
-      if (!driverSnap.exists()) throw new TripAlreadyTakenError();
-
-      const trip = tripSnap.data();
-      if (trip.status !== 'request' || (trip.driverId != null && trip.driverId !== driverUid)) {
-        throw new TripAlreadyTakenError();
-      }
-
-      const driver = driverSnap.data();
-      const driverName = driver.displayName || driver.fullName || driver.name || 'Ormoc Pakyaw Driver';
-      const driverPhotoUrl = driver.photoUrl || driver.avatarUrl || null;
-      const vehicleModel = driver.vehicleModel || driver.vehicle?.model || 'Pakyaw Fleet Tricycle';
-      const vehiclePlate = driver.vehiclePlate || driver.plateNumber || driver.vehicle?.plate || 'ORM-2026';
-      
-      // If driver is accepting a Hop while already on a Shared Ride, driver availability may be on_trip
-      if (trip.mode !== 'hop' && (driver.availability !== 'online' || driver.activeTripId != null)) {
-        throw new TripAlreadyTakenError();
-      }
-
-      const tripFare = trip.fare ?? 55.0;
-
-      tx.update(tripRef, {
-        driverId: driverUid,
-        driverName,
-        driverPhotoUrl,
-        vehicleModel,
-        vehiclePlate,
-        fare: tripFare,
-        status: 'accepted',
-        acceptedAt: serverTimestamp(),
-        sharedRideId: sharedRideId ?? trip.sharedRideId ?? null,
-      });
-
-      tx.update(driverRef, {
-        activeTripId: tripId,
-        availability: 'on_trip',
-      });
-
-      // Update Shared Ride Document if Hop / Shared Ride
-      if (sharedRideSnap && sharedRideSnap.exists()) {
-        const sharedRideData = sharedRideSnap.data();
-        const currentPassengers = sharedRideData.passengers || [];
-        const seatsToCover = trip.seatsCovered || trip.passengerCount || 1;
-        const currentTotal = sharedRideData.totalPassengersCount ?? 0;
-        const newTotal = currentTotal + seatsToCover;
-
-        const newPassenger = {
-          tripId,
-          passengerId: trip.passengerId,
-          passengerName: trip.passengerName || 'Passenger',
-          passengerPhotoUrl: trip.passengerPhotoUrl || null,
-          seatsCovered: seatsToCover,
-          pickup: trip.pickup,
-          destination: trip.destination,
-          status: 'active',
-          isHop: trip.mode === 'hop',
-          fare: tripFare,
-        };
-
-        tx.update(sharedRideRef!, {
-          driverName,
-          driverPhotoUrl,
-          vehicleModel,
-          vehiclePlate,
-          passengers: [...currentPassengers, newPassenger],
-          tripIds: [...(sharedRideData.tripIds || []), tripId],
-          totalPassengersCount: newTotal,
-          isLockedForHops: newTotal >= (sharedRideData.maxSeats || 6),
-        });
-      }
-    });
-    logger.info('[matching] trip accepted', { tripId, driverUid, sharedRideId });
+    const result = await httpsCallable<
+      { readonly tripId: string; readonly offerId: string; readonly driverId: string },
+      { readonly result: 'accepted' | 'already_taken' | 'invalid' }
+    >(functions, 'acceptTripOffer')({ tripId, offerId, driverId: driverUid });
+    return result.data.result;
   } catch (err) {
-    if (err instanceof TripAlreadyTakenError) throw err;
-    logger.error('[matching] acceptTrip failed', { err, tripId, driverUid });
-    if (err instanceof FirebaseError) throw new AcceptTripError(err);
+    logger.error('[matching] acceptTripOffer failed', { err, tripId, offerId });
     throw new AcceptTripError(err);
   }
 }

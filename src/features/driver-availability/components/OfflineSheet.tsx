@@ -11,19 +11,21 @@
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { PowerButton } from '@/features/driver-availability/components/PowerButton';
 
 type OfflineSheetProps = {
   onPressGoOnline: () => void;
   locationPermissionDenied: boolean;
   goingOnline?: boolean;
+  availabilityErrorMessage?: string | null;
 };
 
 export function OfflineSheet({
   onPressGoOnline,
   locationPermissionDenied,
   goingOnline = false,
+  availabilityErrorMessage = null,
 }: OfflineSheetProps) {
   return (
     <View style={styles.container}>
@@ -44,6 +46,16 @@ export function OfflineSheet({
             onPress={onPressGoOnline}
             loading={goingOnline}
           />
+          {availabilityErrorMessage ? (
+            <View
+              style={styles.availabilityError}
+              accessibilityRole="alert"
+              testID="availability-error"
+            >
+              <Text style={styles.availabilityErrorTitle}>Account verification required</Text>
+              <Text style={styles.availabilityErrorBody}>{availabilityErrorMessage}</Text>
+            </View>
+          ) : null}
         </>
       )}
     </View>
@@ -136,5 +148,23 @@ const styles = StyleSheet.create({
     color: colors.ink[500],
     textAlign: 'center',
     lineHeight: typography.lineHeight.body,
+  },
+  availabilityError: {
+    backgroundColor: colors.surface.muted,
+    borderLeftColor: colors.danger,
+    borderLeftWidth: 3,
+    borderRadius: radius.md,
+    gap: spacing[1],
+    padding: spacing[3],
+  },
+  availabilityErrorTitle: {
+    color: colors.ink[900],
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+  },
+  availabilityErrorBody: {
+    color: colors.ink[500],
+    fontSize: typography.size.bodySmall,
+    lineHeight: typography.lineHeight.bodySmall,
   },
 });

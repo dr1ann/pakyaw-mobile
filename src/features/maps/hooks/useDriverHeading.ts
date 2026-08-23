@@ -134,11 +134,11 @@ export function useDriverHeading(
   // Refs for gyro callback (avoids stale closure)
   const gpsHeadingRef = useRef<number | null>(null);
   const gpsSpeedRef = useRef<number | null>(null);
-  const smoothedHeadingRefForGyro = useRef<number | null>(null);
 
-  gpsHeadingRef.current = gpsHeading;
-  gpsSpeedRef.current = gpsSpeed;
-  smoothedHeadingRefForGyro.current = smoothedHeadingRef.current;
+  useEffect(() => {
+    gpsHeadingRef.current = gpsHeading;
+    gpsSpeedRef.current = gpsSpeed;
+  }, [gpsHeading, gpsSpeed]);
 
   // Gyroscope state
   const gyroAvailableRef = useRef(false);
@@ -378,8 +378,8 @@ export function useDriverHeading(
             if (gpsAvailable && curGpsH !== null) {
               gyroHeadingRef.current = curGpsH;
               gyroLastGpsAnchorRef.current = now;
-            } else if (smoothedHeadingRefForGyro.current !== null) {
-              gyroHeadingRef.current = smoothedHeadingRefForGyro.current;
+            } else if (smoothedHeadingRef.current !== null) {
+              gyroHeadingRef.current = smoothedHeadingRef.current;
             } else {
               return;
             }

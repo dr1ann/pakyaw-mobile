@@ -6,7 +6,7 @@
  * Transition buttons will be added in a later phase.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
@@ -26,8 +26,8 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(20));
 
   useEffect(() => {
     Animated.parallel([

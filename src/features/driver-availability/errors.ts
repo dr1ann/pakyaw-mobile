@@ -47,7 +47,32 @@ export class PresenceWriteError extends Error {
   }
 }
 
+/**
+ * The server permits a driver to become available only after the canonical
+ * approval and required-document checks have passed. Do not expose a raw
+ * Firestore permission error for this expected product state.
+ */
+export class DriverAccountNotReadyError extends Error {
+  readonly kind = 'DriverAccountNotReadyError' as const;
+  constructor() {
+    super(
+      'Your driver account is still being verified. You can go online once verification is complete.',
+    );
+    this.name = 'DriverAccountNotReadyError';
+  }
+}
+
+/** Maps infrastructure errors to product-safe availability errors. */
+export function translatePresenceWriteError(cause: unknown): DriverAvailabilityError {
+  if (cause instanceof FirebaseError && cause.code === 'permission-denied') {
+    return new DriverAccountNotReadyError();
+  }
+  return new PresenceWriteError(cause);
+}
+
 export type DriverAvailabilityError =
   | LocationPermissionError
   | PreflightNotPassedError
+  | DriverAccountNotReadyError
   | PresenceWriteError;
+import { FirebaseError } from 'firebase/app';
