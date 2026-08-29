@@ -9,7 +9,7 @@ import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftS
 import { logger } from '@pakyaw/shared/lib/logger';
 import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
-import type { CreateBookingInput } from '../types';
+import { toRideMode, type CreateBookingInput } from '../types';
 
 type BookingSheetProps = {
   readonly onSearchPickup?: () => void;
@@ -64,7 +64,7 @@ export function BookingSheet({
     }
 
     const payload: CreateBookingInput = {
-      mode: draft.rideMode === 'private' ? 'private' : (draft.rideMode === 'hopon' ? 'hop' : 'shared') as any,
+      mode: toRideMode(draft.rideMode),
       pickup: draft.pickup!,
       destination: draft.destination!,
       passengerCount: draft.rideMode === 'hopon' ? 1 : draft.passengerCount,

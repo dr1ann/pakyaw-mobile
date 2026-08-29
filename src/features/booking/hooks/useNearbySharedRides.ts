@@ -4,6 +4,7 @@ import { firestore } from '@/services/firebase/firebase';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import type { BookingDraft } from '@/stores/bookingDraftStore';
 import { isRouteCompatible } from '@pakyaw/shared/lib/routeMatching';
+import { LEGACY_SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 
 export function useNearbySharedRides(draft: BookingDraft) {
   const [rides, setRides] = useState<SharedRideDoc[]>([]);
@@ -16,7 +17,7 @@ export function useNearbySharedRides(draft: BookingDraft) {
     // We will listen to all active shared rides. If it scales we would use geohashes.
     // For now, let's query all active shared rides and filter client side.
     const q = query(
-      collection(firestore, 'shared_rides'),
+      collection(firestore, LEGACY_SHARED_RIDES_COLLECTION),
       where('status', '==', 'active')
     );
 

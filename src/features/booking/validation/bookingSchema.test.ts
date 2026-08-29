@@ -4,6 +4,7 @@ import { createTripSchema, routeResponseSchema } from './bookingSchema';
 describe('bookingSchema validation', () => {
   describe('createTripSchema', () => {
     const validTrip = {
+      mode: 'solo',
       pickup: {
         label: 'Ormoc City Hall',
         address: 'Ormoc City, Leyte',
@@ -34,6 +35,10 @@ describe('bookingSchema validation', () => {
 
       expect(createTripSchema.safeParse(tooMany).success).toBe(false);
       expect(createTripSchema.safeParse(tooFew).success).toBe(false);
+    });
+
+    it.each(['private', 'hopon', 'hop_on', 'pakyaw'])('rejects legacy mode %s', (mode) => {
+      expect(createTripSchema.safeParse({ ...validTrip, mode }).success).toBe(false);
     });
 
     it('fails if serviceAreaId is not ormoc', () => {

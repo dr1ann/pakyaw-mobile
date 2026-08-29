@@ -6,50 +6,31 @@
  * are deliberately not modeled here.
  */
 
-import type { FieldValue } from 'firebase/firestore';
-
 import type { Place } from '@pakyaw/shared/types/place';
+import type { RideMode, RouteSnapshot } from '@pakyaw/shared/transport/contract';
+
+export type BookingRideSelection = 'private' | 'shared' | 'hopon';
+
+export const BOOKING_RIDE_MODE_MAP: Readonly<Record<BookingRideSelection, RideMode>> = {
+  private: 'solo',
+  shared: 'shared',
+  hopon: 'hop',
+};
+
+export function toRideMode(selection: BookingRideSelection): RideMode {
+  return BOOKING_RIDE_MODE_MAP[selection];
+}
 
 /**
  * Input accepted by booking.service.createTrip.
- * passengerCount is the raw UI value; the service re-derives billedSeats.
+ * passengerCount is the requested rider/seat count; the backend derives
+ * billedSeats and authoritative fare.
  */
 export type CreateBookingInput = {
-  readonly mode?: 'private' | 'shared';
+  readonly mode: RideMode;
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
-  readonly route: {
-    readonly distanceMeters: number;
-    readonly durationSeconds: number;
-    readonly polyline: string;
-  };
-  readonly fare?: number;
-};
-
-/**
- * Concrete shape written to trips/{tripId} at create time.
- * Lifecycle fields (matched/accepted/arrived/in_progress/completed) are not
- * written by this phase.
- */
-export type TripCreateData = {
-  readonly mode: 'solo' | 'shared';
-  readonly passengerId: string;
-  readonly driverId: null;
-  readonly pickup: Place;
-  readonly destination: Place;
-  readonly passengerCount: number;
-  readonly billedSeats: number;
-  readonly seatsCovered?: number;
-  readonly status: 'requested';
-  readonly geohash: string;
-  readonly requestedAt: FieldValue;
-  readonly createdTime: FieldValue;
-  readonly fare?: number;
-  readonly route: {
-    readonly distanceMeters: number;
-    readonly durationSeconds: number;
-    readonly polyline: string;
-  };
-  readonly serviceAreaId: 'ormoc';
+  readonly route: RouteSnapshot;
+  readonly displayedFare?: number | null;
 };

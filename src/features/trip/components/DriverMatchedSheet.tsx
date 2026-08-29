@@ -16,6 +16,7 @@ import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { firestore } from '@/services/firebase/firebase';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
+import { SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 
 import { HopDriverMatchLobby } from '@/features/booking/components/HopDriverMatchLobby';
 
@@ -26,7 +27,7 @@ export function DriverMatchedSheet() {
 
   useEffect(() => {
     if (!trip?.sharedRideId) return;
-    const ref = doc(firestore, 'sharedRides', trip.sharedRideId);
+    const ref = doc(firestore, SHARED_RIDES_COLLECTION, trip.sharedRideId);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         setSharedRide({ id: snap.id, ...snap.data() } as SharedRideDoc);

@@ -26,6 +26,7 @@ describe('booking.service — createTrip()', () => {
     polyline: 'abcdef_encoded_polyline',
   };
   const validInput = {
+    mode: 'solo' as const,
     pickup: {
       label: 'Ormoc Superdome',
       address: 'Ormoc, Leyte',
@@ -54,9 +55,12 @@ describe('booking.service — createTrip()', () => {
     expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'requestTrip');
     expect(mocks.callable).toHaveBeenCalledWith({
       passengerId: 'passenger-uid-123',
+      mode: 'solo',
       pickup: { latitude: 11.005, longitude: 124.6075, label: 'Ormoc Superdome' },
       destination: { latitude: 11.01, longitude: 124.615, label: 'Brgy Cogon' },
-      fare: { passengerCount: 3, displayedTotal: null },
+      route: validRoute,
+      passengerCount: 3,
+      displayedFare: null,
     });
   });
 

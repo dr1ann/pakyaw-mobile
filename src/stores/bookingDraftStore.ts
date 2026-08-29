@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { clamp, MIN_SEATS } from '@/lib/seatModel';
 import type { Place } from '@pakyaw/shared/types/place';
 import type { LatLng } from '@pakyaw/shared/lib/geo';
+import type { BookingRideSelection } from '@/features/booking/types';
 
 /**
  * The accepted booking route, owned by the Booking Draft Store (§6.2, §13.2).
@@ -25,7 +26,7 @@ export type AcceptedRoute = {
 };
 
 export type BookingDraft = {
-  readonly rideMode: 'private' | 'shared' | 'hopon';
+  readonly rideMode: BookingRideSelection;
   readonly pickup: Place | null;
   readonly destination: Place | null;
   readonly passengerCount: number;
@@ -34,7 +35,7 @@ export type BookingDraft = {
 
 export type BookingDraftState = {
   readonly draft: BookingDraft;
-  setRideMode: (mode: 'private' | 'shared' | 'hopon') => void;
+  setRideMode: (mode: BookingRideSelection) => void;
   setPickup: (pickup: Place | null) => void;
   setDestination: (destination: Place | null) => void;
   setPassengerCount: (count: number) => void;

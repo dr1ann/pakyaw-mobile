@@ -2,12 +2,11 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-
-export type RideMode = 'private' | 'shared' | 'hopon';
+import type { BookingRideSelection } from '../types';
 
 type RideModeSelectorProps = {
-  readonly selectedMode: RideMode;
-  readonly onSelectMode: (mode: RideMode) => void;
+  readonly selectedMode: BookingRideSelection;
+  readonly onSelectMode: (mode: BookingRideSelection) => void;
 };
 
 export function RideModeSelector({ selectedMode, onSelectMode }: RideModeSelectorProps) {

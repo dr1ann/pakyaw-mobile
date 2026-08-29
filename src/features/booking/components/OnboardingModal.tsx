@@ -4,9 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import type { BookingRideSelection } from '../types';
 
 type OnboardingModalProps = {
-  readonly mode: 'private' | 'shared' | 'hopon';
+  readonly mode: BookingRideSelection;
   readonly isVisible: boolean;
   readonly onClose: () => void;
 };

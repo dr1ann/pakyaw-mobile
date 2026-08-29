@@ -5,8 +5,8 @@
  * The client validates user-entered route data but never writes trips directly.
  *
  * Architectural rules:
- * - billedSeats is ALWAYS re-derived here via clamp(passengerCount). UI state
- *   is never trusted.
+ * - billedSeats and authoritative fare are derived by the backend. The client
+ *   sends passenger intent and route context only.
  * - Raw FirebaseError instances are translated to BookingOfflineError /
  *   BookingWriteError before being re-thrown.
  */
@@ -20,6 +20,7 @@ import { BookingOfflineError, BookingWriteError } from '@/features/booking/error
 import type { CreateBookingInput } from '@/features/booking/types';
 import { createTripSchema } from '@/features/booking/validation/bookingSchema';
 import { logger } from '@pakyaw/shared/lib/logger';
+import type { RequestTripInput } from '@pakyaw/shared/transport/contract';
 import { assertInServiceArea, TripDistanceTooShortError } from '@/lib/serviceArea';
 import { functions } from '@/services/firebase/firebase';
 
@@ -50,7 +51,7 @@ function translateWriteError(err: unknown): BookingOfflineError | BookingWriteEr
 /**
  * Request a new trip using the server-authoritative matching backend.
  *
- * @param input - Validated booking input (pickup, destination, passengerCount).
+ * @param input - Validated booking input (mode, pickup, destination, passengerCount, route).
  * @param passengerId - Firebase Auth uid of the requesting passenger.
  * @returns The auto-generated tripId.
  * @throws ServiceAreaError if pickup or destination are outside the service area.
@@ -73,10 +74,12 @@ export async function createTrip(
 
   // Validate full payload at the service boundary before any network call.
   const validated = createTripSchema.parse({
+    mode: input.mode,
     pickup: input.pickup,
     destination: input.destination,
     passengerCount: input.passengerCount,
     route: input.route,
+    displayedFare: input.displayedFare,
     serviceAreaId: 'ormoc',
   });
 
@@ -86,17 +89,10 @@ export async function createTrip(
     );
   }
   try {
-    const requestTrip = httpsCallable<
-      {
-        readonly passengerId: string;
-        readonly pickup: { readonly latitude: number; readonly longitude: number; readonly label?: string };
-        readonly destination: { readonly latitude: number; readonly longitude: number; readonly label?: string };
-        readonly fare: { readonly passengerCount: number; readonly displayedTotal: number | null };
-      },
-      RequestTripResult
-    >(functions, 'requestTrip');
+    const requestTrip = httpsCallable<RequestTripInput, RequestTripResult>(functions, 'requestTrip');
     const result = await requestTrip({
       passengerId,
+      mode: validated.mode,
       pickup: {
         latitude: validated.pickup.coords.lat,
         longitude: validated.pickup.coords.lng,
@@ -107,10 +103,9 @@ export async function createTrip(
         longitude: validated.destination.coords.lng,
         label: validated.destination.label,
       },
-      fare: {
-        passengerCount: validated.passengerCount,
-        displayedTotal: input.fare ?? null,
-      },
+      route: validated.route,
+      passengerCount: validated.passengerCount,
+      displayedFare: validated.displayedFare ?? null,
     });
     if (result.data.status !== 'requested' || !result.data.tripId) {
       throw new BookingWriteError(new Error('Trip request returned an invalid result.'));

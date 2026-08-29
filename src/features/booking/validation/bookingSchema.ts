@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { LatLng } from '@pakyaw/shared/lib/geo';
+import { RIDE_MODES } from '@pakyaw/shared/transport/contract';
 import { MIN_ROUTE_DISTANCE_METERS, MAX_ROUTE_DISTANCE_METERS } from '@/lib/serviceArea';
 
 export const latLngSchema: z.ZodType<LatLng> = z
@@ -37,6 +38,7 @@ export type CreateBookingFormValues = z.infer<typeof createBookingSchema>;
  */
 export const createTripSchema = z
   .object({
+    mode: z.enum(RIDE_MODES),
     pickup: placeSchema,
     destination: placeSchema,
     passengerCount: z.number().int().min(1).max(6),
@@ -45,6 +47,7 @@ export const createTripSchema = z
       durationSeconds: z.number().int().positive().max(3 * 3600),
       polyline: z.string().min(1).max(8192),
     }),
+    displayedFare: z.number().finite().nonnegative().nullable().optional(),
     serviceAreaId: z.literal('ormoc'),
   })
   .strict();

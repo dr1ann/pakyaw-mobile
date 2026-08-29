@@ -3,22 +3,25 @@
  *
  * The trip document status field drives every screen transition.
  * This module defines the closed status union, the forward-only
- * transition matrix enforced by trip.service.ts and firestore.rules,
+ * transition matrix enforced by the callable backend and the canonical
+ * pakyaw-admin/firestore.rules,
  * and the TripDoc shape read from Firestore snapshots.
  */
 
 import type { Timestamp } from 'firebase/firestore';
 
 import type { Place } from '@pakyaw/shared/types/place';
+import type {
+  DriverPublicSnapshot,
+  RideMode,
+  TripStatus,
+} from '@pakyaw/shared/transport/contract';
 
-export type TripStatus =
-  | 'requested'
-  | 'accepted'
-  | 'driver_arriving'
-  | 'driver_arrived'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled';
+export type {
+  DriverPublicSnapshot,
+  RideMode,
+  TripStatus,
+} from '@pakyaw/shared/transport/contract';
 
 /**
  * Client-side representation of a trips/{tripId} document.
@@ -26,12 +29,13 @@ export type TripStatus =
  */
 export type TripDoc = {
   readonly id: string;
-  readonly mode: 'solo' | 'shared' | 'hop';
+  readonly mode: RideMode;
   readonly status: TripStatus;
   readonly passengerId: string;
   readonly passengerName?: string;
   readonly passengerPhotoUrl?: string;
   readonly driverId: string | null;
+  readonly driverPublic?: DriverPublicSnapshot | null;
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;

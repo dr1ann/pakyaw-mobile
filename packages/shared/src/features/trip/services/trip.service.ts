@@ -36,6 +36,7 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
+import { isRideMode, isTripStatus } from '@pakyaw/shared/transport/contract';
 import { firestore, functions } from '@/services/firebase/firebase';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
@@ -56,10 +57,13 @@ function safePlace(value: unknown): TripDoc['pickup'] {
 function mapDocToTripDoc(id: string, data: DocumentData): TripDoc {
   return {
     id,
-    mode: data.mode === 'shared' || data.mode === 'hop' ? data.mode : 'solo',
-    status: data.status as TripStatus,
+    // Read-only compatibility defaults preserve existing Solo history while
+    // new writes are validated against the canonical transport contract.
+    mode: isRideMode(data.mode) ? data.mode : 'solo',
+    status: isTripStatus(data.status) ? data.status : 'requested',
     passengerId: data.passengerId as string,
     driverId: (data.driverId as string) ?? null,
+    driverPublic: data.driverPublic ?? null,
     pickup: safePlace(data.pickup),
     destination: safePlace(data.destination),
     passengerCount: typeof data.passengerCount === 'number' ? data.passengerCount : 1,
