@@ -40,7 +40,14 @@ describe('Day 3 callable trip actions', () => {
           route: { distanceMeters: 3_400, durationSeconds: 480, polyline: 'encoded-route' },
           passengerCount: 3,
           billedSeats: 3,
-          fare: 55,
+          fare: {
+            baseFare: 50,
+            distanceFare: 0,
+            surcharges: 0,
+            techFee: 5,
+            total: 55,
+            driverEarnings: 50,
+          },
         }),
       });
       return mocks.unsubscribe;
@@ -54,6 +61,7 @@ describe('Day 3 callable trip actions', () => {
       passengerCount: 3,
       billedSeats: 3,
       fare: 55,
+      fareBreakdown: expect.objectContaining({ total: 55, driverEarnings: 50 }),
       route: expect.objectContaining({
         distanceMeters: 3_400,
         durationSeconds: 480,
