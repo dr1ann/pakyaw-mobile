@@ -36,7 +36,7 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isRideMode, isTripStatus } from '@pakyaw/shared/transport/contract';
+import { isRideMode, isTripStatus, type FareBreakdown } from '@pakyaw/shared/transport/contract';
 import { firestore, functions } from '@/services/firebase/firebase';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
@@ -63,11 +63,11 @@ type CanonicalTripData = DocumentData & {
   readonly destination: { readonly latitude: number; readonly longitude: number; readonly label?: string };
   readonly passengerCount: number;
   readonly billedSeats: number;
-  readonly fare: number;
+  readonly fare: FareBreakdown;
   readonly route: {
     readonly distanceMeters: number;
     readonly durationSeconds: number;
-    readonly polyline: string;
+    readonly polyline?: string;
     readonly fetchedAt?: Timestamp | null;
   };
 };
@@ -91,7 +91,16 @@ function isCanonicalRoute(value: unknown): value is CanonicalTripData['route'] {
     && typeof route.durationSeconds === 'number'
     && Number.isFinite(route.durationSeconds)
     && route.durationSeconds >= 0
-    && typeof route.polyline === 'string';
+    && (route.polyline === undefined || typeof route.polyline === 'string');
+}
+
+function isCanonicalFareBreakdown(value: unknown): value is FareBreakdown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const fare = value as Record<string, unknown>;
+  return ['baseFare', 'distanceFare', 'surcharges', 'techFee', 'total'].every((field) => (
+    typeof fare[field] === 'number' && Number.isFinite(fare[field]) && (fare[field] as number) >= 0
+  )) && (fare.driverEarnings === undefined
+    || (typeof fare.driverEarnings === 'number' && Number.isFinite(fare.driverEarnings) && fare.driverEarnings >= 0));
 }
 
 function isCanonicalTripData(data: DocumentData): data is CanonicalTripData {
@@ -105,8 +114,7 @@ function isCanonicalTripData(data: DocumentData): data is CanonicalTripData {
     && data.passengerCount >= 1
     && Number.isInteger(data.billedSeats)
     && data.billedSeats >= 1
-    && typeof data.fare === 'number'
-    && Number.isFinite(data.fare)
+    && isCanonicalFareBreakdown(data.fare)
     && isCanonicalRoute(data.route);
 }
 
@@ -140,7 +148,8 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
         radiusKm: typeof data.matching.radiusKm === 'number' ? data.matching.radiusKm : undefined,
       }
       : null,
-    fare: data.fare as number | undefined,
+    fare: typeof data.fare === 'number' && Number.isFinite(data.fare) ? data.fare : undefined,
+    fareBreakdown: isCanonicalFareBreakdown(data.fareBreakdown) ? data.fareBreakdown : undefined,
     route: data.route
       ? {
         distanceMeters: data.route.distanceMeters as number,
@@ -194,11 +203,12 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
         radiusKm: typeof data.matching.radiusKm === 'number' ? data.matching.radiusKm : undefined,
       }
       : null,
-    fare: data.fare,
+    fare: data.fare.total,
+    fareBreakdown: data.fare,
     route: {
       distanceMeters: data.route.distanceMeters,
       durationSeconds: data.route.durationSeconds,
-      polyline: data.route.polyline,
+      polyline: data.route.polyline ?? '',
       fetchedAt: data.route.fetchedAt ?? null,
     },
     driverRoute: data.driverRoute

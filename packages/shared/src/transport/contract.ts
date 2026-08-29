@@ -61,6 +61,11 @@ export type FareBreakdown = {
   driverEarnings?: number;
 };
 
+export type TripOfferFare = {
+  total: number;
+  driverEarnings: number;
+};
+
 export type DriverPublicSnapshot = {
   name: string;
   photoUrl?: string | null;
@@ -106,7 +111,7 @@ export type TripOffer = {
   passengerCount: number;
   billedSeats: number;
 
-  fare: number;
+  fare: TripOfferFare;
 
   status: TripOfferStatus;
   offeredAt: Timestamp;
@@ -125,6 +130,15 @@ export type RequestTripInput = {
   passengerCount: number;
 
   displayedFare?: number | null;
+};
+
+export type QuoteTripInput = Omit<RequestTripInput, 'passengerId' | 'displayedFare'>;
+
+export type QuoteTripResult = {
+  readonly mode: 'solo';
+  readonly passengerCount: number;
+  readonly billedSeats: number;
+  readonly fare: FareBreakdown;
 };
 
 export function isPassengerCountAllowed(mode: RideMode, passengerCount: number): boolean {

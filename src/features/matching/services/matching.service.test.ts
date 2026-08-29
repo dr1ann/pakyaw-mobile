@@ -52,7 +52,7 @@ describe('matching.service — server offers', () => {
               billedSeats: 2,
               pickup: { latitude: 11.0, longitude: 124.6, label: 'Pickup' },
               destination: { latitude: 11.1, longitude: 124.7, label: 'Destination' },
-              fare: 125,
+              fare: { total: 125, driverEarnings: 120 },
               offeredAt: { toMillis: () => 1_700_000_000_000 },
               expiresAt: { toMillis: () => Date.now() + 30_000 },
             }),
@@ -85,7 +85,7 @@ describe('matching.service — server offers', () => {
         passengerCount: 2,
         billedSeats: 2,
         status: 'pending',
-        fare: 125,
+        fare: { total: 125, driverEarnings: 120 },
         offeredAt: 1_700_000_000_000,
       }),
     ]);
@@ -118,6 +118,32 @@ describe('matching.service — server offers', () => {
 
     expect(onOffers).toHaveBeenCalledWith([]);
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('drops a Solo offer with a legacy scalar fare instead of inventing the offer shape', () => {
+    const onOffers = vi.fn();
+    mocks.onSnapshot.mockImplementation((_query, onNext) => {
+      onNext({
+        docs: [{
+          id: 'scalar-offer',
+          data: () => ({
+            tripId: 'trip-scalar',
+            status: 'pending',
+            mode: 'solo',
+            passengerCount: 1,
+            billedSeats: 1,
+            pickup: { latitude: 11.0, longitude: 124.6 },
+            destination: { latitude: 11.1, longitude: 124.7 },
+            fare: 125,
+          }),
+        }],
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribeDriverOffers('driver-1', onOffers, vi.fn());
+
+    expect(onOffers).toHaveBeenCalledWith([]);
   });
 
   it('accepts a specific offer through the server callable', async () => {

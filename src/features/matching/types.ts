@@ -6,7 +6,7 @@
  */
 
 import type { Place } from '@pakyaw/shared/types/place';
-import type { RideMode, TripOfferStatus } from '@pakyaw/shared/transport/contract';
+import type { RideMode, TripOfferFare, TripOfferStatus } from '@pakyaw/shared/transport/contract';
 
 /**
  * A server-created trip offer visible only to its intended driver.
@@ -26,7 +26,7 @@ export type IncomingRequest = {
     readonly durationSeconds: number;
     readonly polyline: string;
   } | null;
-  readonly fare: number;
+  readonly fare: TripOfferFare;
   readonly offeredAt?: number;
   readonly expiresAt?: number;
 };

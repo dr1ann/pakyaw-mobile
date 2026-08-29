@@ -164,7 +164,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Estimated Fare</Text>
-              <Text style={styles.infoValue}>{request.fare != null ? `₱${request.fare.toFixed(2)}` : '—'}</Text>
+              <Text style={styles.infoValue}>{`₱${request.fare.total.toFixed(2)}`}</Text>
             </View>
           </View>
           {request.mode === 'shared' && (

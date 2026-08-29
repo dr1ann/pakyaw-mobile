@@ -43,6 +43,9 @@ function mapOfferToIncomingRequest(
   const passengerCount = data.passengerCount;
   const billedSeats = data.billedSeats;
   const fare = data.fare;
+  const offerFare = fare !== null && typeof fare === 'object' && !Array.isArray(fare)
+    ? fare as Record<string, unknown>
+    : null;
   const pickup = offerPlace(data.pickup);
   const destination = offerPlace(data.destination);
   if (
@@ -55,8 +58,13 @@ function mapOfferToIncomingRequest(
     typeof billedSeats !== 'number' ||
     !Number.isInteger(billedSeats) ||
     billedSeats < 1 ||
-    typeof fare !== 'number' ||
-    !Number.isFinite(fare) ||
+    offerFare === null ||
+    typeof offerFare.total !== 'number' ||
+    !Number.isFinite(offerFare.total) ||
+    offerFare.total < 0 ||
+    typeof offerFare.driverEarnings !== 'number' ||
+    !Number.isFinite(offerFare.driverEarnings) ||
+    offerFare.driverEarnings < 0 ||
     pickup === null ||
     destination === null
   ) {
@@ -72,7 +80,10 @@ function mapOfferToIncomingRequest(
     passengerCount,
     billedSeats,
     status: 'pending',
-    fare,
+    fare: {
+      total: offerFare.total,
+      driverEarnings: offerFare.driverEarnings,
+    },
     offeredAt: timestampMillis(data.offeredAt),
     expiresAt: timestampMillis(data.expiresAt),
   };

@@ -13,6 +13,7 @@ import type { Timestamp } from 'firebase/firestore';
 import type { Place } from '@pakyaw/shared/types/place';
 import type {
   DriverPublicSnapshot,
+  FareBreakdown,
   RideMode,
   TripStatus,
 } from '@pakyaw/shared/transport/contract';
@@ -51,13 +52,9 @@ export type TripDoc = {
     readonly stage: 'initial' | 'second' | 'final' | 'timed_out';
     readonly radiusKm?: number;
   } | null;
+  /** Derived total projection for existing UI; fareBreakdown is authoritative. */
   readonly fare?: number;
-  readonly fareBreakdown?: {
-    readonly baseFare: number;
-    readonly distanceFare: number;
-    readonly surcharges: number;
-    readonly techFee: number;
-    readonly driverEarnings: number;
+  readonly fareBreakdown?: FareBreakdown & {
     readonly paymentStatus?: 'paid' | 'pending';
   };
 
@@ -101,12 +98,7 @@ export type SharedRidePassenger = {
   readonly status: 'active' | 'dropped_off';
   readonly isHop?: boolean;
   readonly fare?: number;
-  readonly fareBreakdown?: {
-    readonly baseFare: number;
-    readonly distanceFare: number;
-    readonly surcharges: number;
-    readonly techFee: number;
-    readonly driverEarnings: number;
+  readonly fareBreakdown?: FareBreakdown & {
     readonly paymentStatus?: 'paid' | 'pending';
   };
 };
