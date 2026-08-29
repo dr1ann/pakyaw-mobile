@@ -1,3 +1,21 @@
+# Branch Identity — Read First
+
+This checkout is the maintained **Pakyaw Passenger app** when working on branch `passenger-app`.
+
+The mobile repository is intentionally split by role:
+
+- `passenger-app` = maintained Passenger application.
+- `driver-app` = maintained Driver application.
+- `main`, `map-fix`, and other historical branches are not current implementation sources.
+
+Before architecture, Firebase, booking, matching, trip, or shared-domain work, read [docs/branch_architecture.md](docs/branch_architecture.md). It overrides older documentation where older docs still describe one combined Passenger + Driver Expo binary. `BRANCH_SPLIT_MANIFEST.md` documents the original role split.
+
+Do not add Driver-only routes or flows to this branch. Changes under `packages/shared/` that affect both products must be intentionally reconciled with `driver-app`; changing one Git branch does not automatically update the other.
+
+Preserve the current server-authoritative integration. Do not reintroduce direct client authority over trip creation/assignment, fare, matching, or lifecycle state. Passenger booking uses the backend `requestTrip` callable and permitted realtime subscriptions.
+
+---
+
 # Tech Stack
 
 ## Frontend
@@ -24,6 +42,7 @@
   - Authentication
   - Cloud Firestore
   - Storage
+  - Cloud Functions integration for authoritative commands
 
 ## Notifications
 
@@ -56,11 +75,13 @@
 
 # Architecture
 
-- Follow [docs/architecture.md](docs/architecture.md) and [docs/design_system.md](docs/design_system.md). They are the source of truth for structure and visual tokens.
+- Follow [docs/branch_architecture.md](docs/branch_architecture.md) first for branch ownership and current backend boundaries.
+- Use legacy docs only when compatible with the maintained Passenger branch and current code/tests.
 - Thin route/controller layer; business logic lives inside feature services.
 - Use Zod for every external input boundary (forms, network, storage, environment variables).
 - TanStack Query owns server state.
 - Zustand owns client/global state.
+- Firestore subscriptions may feed live state where permitted; sensitive commands remain backend-authoritative.
 - Do not duplicate sources of truth.
 - Prefer composition over abstraction. Introduce abstractions only after a second concrete consumer exists.
 
@@ -81,10 +102,12 @@
 
 # Process
 
-- Never assume APIs or library behavior. Verify against the codebase or versioned documentation.
+- Never assume APIs or library behavior. Verify against the current `passenger-app` codebase or versioned documentation.
+- Never use `main` or `map-fix` as the implementation reference for Passenger work.
 - Respect the Expo SDK version defined in [AGENTS.md](AGENTS.md).
 - Before implementing, understand the existing architecture instead of introducing parallel solutions.
 - Prefer fixing the root cause over patching symptoms.
+- For shared-contract changes, inspect the corresponding maintained `driver-app` contract before considering the work complete.
 
 ---
 
