@@ -7,7 +7,7 @@
 
 /**
  * Thrown by the accept transaction when the trip is no longer claimable —
- * status moved off 'request' or another driver already set driverId.
+ * status moved off 'requested' or another driver already set driverId.
  *
  * UI MUST handle this silently (no toast, no alert): the card is simply
  * removed from the local incoming list.

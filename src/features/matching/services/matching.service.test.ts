@@ -47,7 +47,7 @@ describe('matching.service — server offers', () => {
             data: () => ({
               tripId: 'trip-1',
               status: 'pending',
-              mode: 'shared',
+              mode: 'solo',
               passengerCount: 2,
               billedSeats: 2,
               pickup: { latitude: 11.0, longitude: 124.6, label: 'Pickup' },
@@ -81,7 +81,7 @@ describe('matching.service — server offers', () => {
       expect.objectContaining({
         offerId: 'offer-live',
         tripId: 'trip-1',
-        mode: 'shared',
+        mode: 'solo',
         passengerCount: 2,
         billedSeats: 2,
         status: 'pending',
