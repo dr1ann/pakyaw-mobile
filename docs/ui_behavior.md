@@ -141,7 +141,7 @@ Interactive behavior, states, transitions, and validation rules inferred from th
   - **DriverArrivedSheet (`driver_arrived`):** Informs the passenger of arrival and displays a **"Start Trip"** button. Tapping it transitions the trip to `in_progress`.
   - **DriverInTripSheet (`in_progress`):** Displays a route polyline towards the destination, passenger count, and an **"End Trip"** button. Tapping it completes the trip.
   - **Terminal sheets (`completed`/`cancelled`):** Let the driver tap "Done" / "Dismiss" to clear the active trip state and return safely to the Online screen.
-- **Atomic State Transitions:** Completing or cancelling a trip triggers a Firestore transaction that updates the trip document, clears the driver's `activeTripId`, resets availability back to `online`, and increments their `tripCount` in a single write.
+- **Atomic State Transitions:** Completing or cancelling a trip invokes the backend transaction that updates the Trip, SharedRide membership when applicable, Driver active state, availability, and trip counter together.
 - **UI Responsiveness:** All transition buttons disable and display loading spinner animations while mutations are pending.
 
 ### 4.3 Earnings & incentives

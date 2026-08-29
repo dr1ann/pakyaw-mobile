@@ -27,8 +27,8 @@ export type IncomingRequest = {
     readonly polyline: string;
   } | null;
   readonly fare: TripOfferFare;
-  readonly offeredAt?: number;
-  readonly expiresAt?: number;
+  readonly offeredAt: number;
+  readonly expiresAt: number;
 };
 
 /**

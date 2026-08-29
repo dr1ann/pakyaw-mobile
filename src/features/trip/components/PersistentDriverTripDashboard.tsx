@@ -156,22 +156,41 @@ export function PersistentDriverTripDashboard({
     destination: trip.destination,
     status: 'active' as const,
     isHop: trip.mode === 'hop',
-    fare: trip.fare ?? 55.0,
+    fare: trip.fare,
   }] : []);
 
   const activePassengers = passengers.filter((p) => p.status === 'active');
-  const maxSeats = Math.max(sharedRide?.maxSeats || 0, trip?.passengerCount || 0, trip?.billedSeats || 0, 6);
+  const isSharedTrip = trip?.mode === 'shared' || sharedRide != null;
+  const maxSeats = sharedRide
+    ? sharedRide.maxSeats
+    : isSharedTrip
+      ? (trip?.sharedRideSummary?.maxSeats ?? 0)
+      : Math.max(trip?.passengerCount || 0, trip?.billedSeats || 0, 6);
 
-  // Sum seatsCovered across passengers so booking 3 seats shows 3/6 seats occupied
-  const totalOccupied = passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0);
+  // Canonical SharedRide capacity is server-derived. Solo keeps its
+  // historical single-trip presentation projection.
+  const totalOccupied = sharedRide
+    ? sharedRide.seatsBooked
+    : isSharedTrip
+      ? (trip?.sharedRideSummary?.seatsOccupied ?? 0)
+      : passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0);
 
   // Calculate earnings summary directly from Firestore trip fare and breakdown
-  const totalCollectedFare = passengers.reduce(
-    (sum, p) => sum + (p.fare ?? trip?.fare ?? 55.0),
-    0
-  );
-  const platformFee = trip?.fareBreakdown?.techFee ?? trip?.techFee ?? (passengers.length * 5);
-  const driverTakeHome = trip?.fareBreakdown?.driverEarnings ?? Math.max(0, totalCollectedFare - platformFee);
+  const totalCollectedFare = sharedRide
+    ? (trip?.fareBreakdown?.total ?? trip?.fare ?? 0)
+    : isSharedTrip
+      ? (trip?.fareBreakdown?.total ?? trip?.fare ?? 0)
+      : passengers.reduce((sum, p) => sum + (p.fare ?? trip?.fare ?? 0), 0);
+  const platformFee = sharedRide
+    ? (trip?.fareBreakdown?.techFee ?? 0)
+    : isSharedTrip
+      ? (trip?.fareBreakdown?.techFee ?? 0)
+      : (trip?.fareBreakdown?.techFee ?? trip?.techFee ?? 0);
+  const driverTakeHome = sharedRide
+    ? (trip?.fareBreakdown?.driverEarnings ?? 0)
+    : isSharedTrip
+      ? (trip?.fareBreakdown?.driverEarnings ?? 0)
+      : (trip?.fareBreakdown?.driverEarnings ?? Math.max(0, totalCollectedFare - platformFee));
 
   // Generate circular seat slots
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
@@ -434,9 +453,9 @@ export function PersistentDriverTripDashboard({
             contentContainerStyle={styles.cardsScrollContent}
           >
             {passengers.map((p, index) => {
-              const pFare = p.fare || 15.0;
-              const pFee = 5.0;
-              const pNet = Math.max(0, pFare - pFee);
+              const pFare = p.fare ?? (p.tripId === trip?.id ? trip?.fare : undefined);
+              const pFee = p.tripId === trip?.id ? (trip?.fareBreakdown?.techFee ?? 0) : 0;
+              const pNet = pFare === undefined ? undefined : Math.max(0, pFare - pFee);
 
               return (
                 <View key={p.tripId || index} style={[styles.passengerCard, shadow.card]}>
@@ -492,11 +511,11 @@ export function PersistentDriverTripDashboard({
                   <View style={styles.fareBreakdownBox}>
                     <View style={styles.breakdownRow}>
                       <Text style={styles.breakdownLabel}>Fare Amount:</Text>
-                      <Text style={styles.breakdownVal}>₱{pFare.toFixed(2)}</Text>
+                      <Text style={styles.breakdownVal}>{pFare === undefined ? 'Fare pending' : `₱${pFare.toFixed(2)}`}</Text>
                     </View>
                     <View style={styles.breakdownRowBold}>
                       <Text style={styles.breakdownLabelBold}>Net Earnings:</Text>
-                      <Text style={styles.breakdownValBold}>₱{pNet.toFixed(2)}</Text>
+                      <Text style={styles.breakdownValBold}>{pNet === undefined ? 'Earnings pending' : `₱${pNet.toFixed(2)}`}</Text>
                     </View>
                   </View>
                 </View>

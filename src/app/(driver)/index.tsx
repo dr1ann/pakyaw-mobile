@@ -46,7 +46,6 @@ import {
   DriverEnRouteSheet,
   DriverInTripSheet,
 } from '@/features/trip/components/DriverTripSheets';
-import { DriverPassengerSheet } from '@/features/trip/components/DriverPassengerSheet';
 import { PersistentDriverTripDashboard } from '@/features/trip/components/PersistentDriverTripDashboard';
 import { BoardingConfirmationToast } from '@/features/trip/components/BoardingConfirmationToast';
 import { MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
@@ -373,7 +372,8 @@ export default function DriveScreen() {
     distanceToManeuver: progressStats.distanceToManeuver,
   });
   const showIncomingCard =
-    availability === 'online' && incomingRequests.length > 0;
+    (availability === 'online' || (availability === 'on_trip' && sharedRideId != null))
+      && incomingRequests.length > 0;
   const topRequest = showIncomingCard ? incomingRequests[0] : null;
 
   function handleDismissTerminal() {

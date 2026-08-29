@@ -36,7 +36,7 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isRideMode, isTripStatus, type FareBreakdown } from '@pakyaw/shared/transport/contract';
+import { isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
 import { firestore, functions } from '@/services/firebase/firebase';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
@@ -70,6 +70,8 @@ type CanonicalTripData = DocumentData & {
     readonly polyline?: string;
     readonly fetchedAt?: Timestamp | null;
   };
+  readonly sharedRideId?: string | null;
+  readonly sharedRideSummary?: SharedRideSummary | null;
 };
 
 function isCanonicalPlace(value: unknown): value is CanonicalTripData['pickup'] {
@@ -103,6 +105,21 @@ function isCanonicalFareBreakdown(value: unknown): value is FareBreakdown {
     || (typeof fare.driverEarnings === 'number' && Number.isFinite(fare.driverEarnings) && fare.driverEarnings >= 0));
 }
 
+function isSharedRideSummary(value: unknown): value is SharedRideSummary {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const summary = value as Record<string, unknown>;
+  return typeof summary.seatsOccupied === 'number'
+    && Number.isInteger(summary.seatsOccupied)
+    && summary.seatsOccupied >= 0
+    && typeof summary.maxSeats === 'number'
+    && Number.isInteger(summary.maxSeats)
+    && summary.maxSeats >= 1
+    && summary.seatsOccupied <= summary.maxSeats
+    && typeof summary.passengerGroups === 'number'
+    && Number.isInteger(summary.passengerGroups)
+    && summary.passengerGroups >= 0;
+}
+
 function isCanonicalTripData(data: DocumentData): data is CanonicalTripData {
   return isRideMode(data.mode)
     && isTripStatus(data.status)
@@ -128,6 +145,8 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
     passengerId: data.passengerId as string,
     driverId: (data.driverId as string) ?? null,
     driverPublic: data.driverPublic ?? null,
+    sharedRideId: typeof data.sharedRideId === 'string' ? data.sharedRideId : null,
+    sharedRideSummary: isSharedRideSummary(data.sharedRideSummary) ? data.sharedRideSummary : null,
     pickup: safePlace(data.pickup),
     destination: safePlace(data.destination),
     passengerCount: typeof data.passengerCount === 'number' ? data.passengerCount : 1,
@@ -185,6 +204,8 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
     passengerId: data.passengerId,
     driverId: data.driverId,
     driverPublic: data.driverPublic ?? null,
+    sharedRideId: typeof data.sharedRideId === 'string' ? data.sharedRideId : null,
+    sharedRideSummary: isSharedRideSummary(data.sharedRideSummary) ? data.sharedRideSummary : null,
     pickup: safePlace(data.pickup),
     destination: safePlace(data.destination),
     passengerCount: data.passengerCount,

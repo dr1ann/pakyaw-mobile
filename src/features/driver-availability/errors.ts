@@ -1,3 +1,5 @@
+import { FirebaseError } from 'firebase/app';
+
 /**
  * Domain errors for the driver-availability feature.
  *
@@ -64,7 +66,12 @@ export class DriverAccountNotReadyError extends Error {
 
 /** Maps infrastructure errors to product-safe availability errors. */
 export function translatePresenceWriteError(cause: unknown): DriverAvailabilityError {
-  if (cause instanceof FirebaseError && cause.code === 'permission-denied') {
+  if (cause instanceof FirebaseError && (
+    cause.code === 'permission-denied'
+    || cause.code === 'functions/permission-denied'
+    || ((cause.code === 'failed-precondition' || cause.code === 'functions/failed-precondition')
+      && cause.message.toLowerCase().includes('account is not ready'))
+  )) {
     return new DriverAccountNotReadyError();
   }
   return new PresenceWriteError(cause);
@@ -75,4 +82,3 @@ export type DriverAvailabilityError =
   | PreflightNotPassedError
   | DriverAccountNotReadyError
   | PresenceWriteError;
-import { FirebaseError } from 'firebase/app';

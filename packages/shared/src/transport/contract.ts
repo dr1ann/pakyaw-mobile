@@ -91,6 +91,7 @@ export type Trip = {
   fare: FareBreakdown;
 
   sharedRideId?: string | null;
+  sharedRideSummary?: SharedRideSummary | null;
   driverPublic?: DriverPublicSnapshot | null;
 
   requestedAt: Timestamp;
@@ -135,7 +136,7 @@ export type RequestTripInput = {
 export type QuoteTripInput = Omit<RequestTripInput, 'passengerId' | 'displayedFare'>;
 
 export type QuoteTripResult = {
-  readonly mode: 'solo';
+  readonly mode: RideMode;
   readonly passengerCount: number;
   readonly billedSeats: number;
   readonly fare: FareBreakdown;
@@ -152,20 +153,26 @@ export function isPassengerCountAllowed(mode: RideMode, passengerCount: number):
 
 export type SharedRideStatus = 'forming' | 'active' | 'completed' | 'cancelled';
 
-export type SharedRidePassengerStatus =
+export type SharedRideMemberStatus =
   | 'reserved'
   | 'waiting_pickup'
   | 'onboard'
   | 'dropped_off'
   | 'cancelled';
 
-export type SharedRidePassenger = {
+export type SharedRideMember = {
   tripId: string;
   passengerId: string;
   seats: number;
   pickup: Place;
   destination: Place;
-  status: SharedRidePassengerStatus;
+  status: SharedRideMemberStatus;
+};
+
+export type SharedRideSummary = {
+  seatsOccupied: number;
+  maxSeats: number;
+  passengerGroups: number;
 };
 
 export type SharedRide = {
@@ -176,7 +183,10 @@ export type SharedRide = {
   seatsReserved: number;
 
   tripIds: string[];
-  passengers: SharedRidePassenger[];
+  members: SharedRideMember[];
 
   route: RouteSnapshot;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };

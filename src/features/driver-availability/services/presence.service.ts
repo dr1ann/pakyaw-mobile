@@ -1,61 +1,36 @@
 /**
- * Presence service — manages driver availability writes to Firestore.
+ * Presence service — sends driver availability intent to the backend.
  *
- * Scope: Phase 5 only. Writes go to drivers/{uid}.
- * No reads — the store is updated by the calling hooks.
+ * The mobile client never writes drivers/{uid}.availability directly. The
+ * backend validates the driver account and active ride state before changing
+ * availability; this service only invokes that callable.
  *
  * Firestore field contract:
- *   Going online:
- *     availability: 'online'
- *     preflightPassedAt: serverTimestamp()
- *     lastSeenAt: serverTimestamp()
- *
- *   Going offline:
- *     availability: 'offline'
- *     lastSeenAt: serverTimestamp()
+ * The store is updated by the calling hooks after the callable succeeds.
  */
 
-import { doc, type FieldValue, serverTimestamp, setDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
 import {
   DriverAccountNotReadyError,
   translatePresenceWriteError,
 } from '@/features/driver-availability/errors';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { firestore } from '@/services/firebase/firebase';
-
-type GoOnlinePayload = {
-  availability: 'online';
-  preflightPassedAt: FieldValue;
-  lastSeenAt: FieldValue;
-};
-
-type GoOfflinePayload = {
-  availability: 'offline';
-  lastSeenAt: FieldValue;
-};
+import { functions } from '@/services/firebase/firebase';
 
 /**
- * Sets driver availability to 'online' in Firestore.
- * Stamps preflightPassedAt and lastSeenAt with serverTimestamp().
- *
- * Uses setDoc+merge so a pre-provisioned driver doc that doesn't yet exist
- * in Firestore is safely created on first go-online.
+ * Requests that the backend set driver availability to 'online'.
  *
  * Throws PresenceWriteError on failure.
  */
 export async function goOnline(uid: string): Promise<void> {
-  const payload: GoOnlinePayload = {
-    availability: 'online',
-    preflightPassedAt: serverTimestamp(),
-    lastSeenAt: serverTimestamp(),
-  };
-
-  logger.info('[presence] goOnline: writing drivers/{uid}', { uid });
+  logger.info('[presence] goOnline: requesting backend availability transition', { uid });
   try {
-    const driverRef = doc(firestore, 'drivers', uid);
-    await setDoc(driverRef, payload, { merge: true });
-    logger.info('[presence] goOnline: setDoc resolved', { uid });
+    await httpsCallable<{ readonly driverId: string; readonly availability: 'online' }, { readonly availability: 'online' }>(
+      functions,
+      'setDriverAvailability',
+    )({ driverId: uid, availability: 'online' });
+    logger.info('[presence] goOnline: backend transition resolved', { uid });
   } catch (cause) {
     const error = translatePresenceWriteError(cause);
     // An account still awaiting verification is an expected product state,
@@ -71,21 +46,17 @@ export async function goOnline(uid: string): Promise<void> {
 }
 
 /**
- * Sets driver availability to 'offline' in Firestore.
- * Stamps lastSeenAt with serverTimestamp().
+ * Requests that the backend set driver availability to 'offline'.
  *
  * Throws PresenceWriteError on failure.
  */
 export async function goOffline(uid: string): Promise<void> {
-  const payload: GoOfflinePayload = {
-    availability: 'offline',
-    lastSeenAt: serverTimestamp(),
-  };
-
   try {
-    const driverRef = doc(firestore, 'drivers', uid);
-    await setDoc(driverRef, payload, { merge: true });
-    logger.info('[presence] driver offline:', uid);
+    await httpsCallable<{ readonly driverId: string; readonly availability: 'offline' }, { readonly availability: 'offline' }>(
+      functions,
+      'setDriverAvailability',
+    )({ driverId: uid, availability: 'offline' });
+    logger.info('[presence] backend set driver offline:', uid);
   } catch (cause) {
     const error = translatePresenceWriteError(cause);
     if (error instanceof DriverAccountNotReadyError) {

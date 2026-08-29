@@ -222,24 +222,23 @@ Identity source: **Firebase Auth**. Session is bootstrapped via `onAuthStateChan
 Targets `drivers/{uid}`. Source: architecture §7.4.
 
 ### 2.1 Set availability (go online / offline)
-- **Route:** `drivers/{uid}/availability`
-- **Method:** `UPDATE`
+- **Callable:** `setDriverAvailability`
 - **Request body:**
 ```
-{ "availability": "online | offline" }
+{ "driverId": "string", "availability": "online | offline" }
 ```
 - **Response body:**
 ```
-{ "uid": "string", "availability": "online | offline", "lastSeenAt": "ISO-8601" }
+{ "availability": "online | offline" }
 ```
 - **Validation rules:**
   - `availability` — required, `online` or `offline`. `on_trip` is the third valid `Availability` state (database schema §3) but is system-set on trip accept (§4.2); the driver cannot set it directly through this operation.
-  - Going **online** is gated behind the **pre-flight checklist** (client-side for MVP, §7.4); a contract caller is expected to have passed it.
+  - Going **online** is gated by the pre-flight UI and backend approval/document checks. The callable, not the client, commits `availability`.
 - **Error responses:**
   - `ValidationError` — bad enum value.
   - `PermissionError` — writing another driver's presence.
   - `NetworkError` — offline.
-- **Authentication:** driver session; write targets caller's own `drivers/{uid}`. Server also stamps `lastSeenAt`.
+- **Authentication:** driver session; the caller may address only their own driver id. The server stamps `lastSeenAt` and `preflightPassedAt` and rejects changes during an active Trip or SharedRide.
 
 ### 2.2 Publish location update
 - **Route:** `drivers/{uid}/location`

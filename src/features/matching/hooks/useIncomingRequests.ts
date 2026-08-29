@@ -1,9 +1,9 @@
 /**
  * useIncomingRequests — Phase 7 driver matching subscription hook.
  *
- * Subscribes to server-created trip offers only while the driver is online.
- * It auto-unsubscribes when the
- * driver goes offline / on_trip, when the session uid drops, or when the
+ * Subscribes to server-created trip offers while the driver is online or is
+ * operating a server-owned SharedRide. It auto-unsubscribes when the
+ * driver goes offline, when the session uid drops, or when the
  * component using this hook unmounts.
  *
  * The hook never returns data — snapshots are piped into the availability
@@ -23,7 +23,7 @@ export function useIncomingRequests(): void {
   const uid = useSessionStore((s) => s.uid);
 
   useEffect(() => {
-    if (availability !== 'online' || uid == null) {
+    if ((availability !== 'online' && availability !== 'on_trip') || uid == null) {
       return;
     }
 

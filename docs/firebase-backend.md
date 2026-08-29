@@ -24,9 +24,12 @@ Driver offers must contain server-provided canonical mode, passenger count,
 billed seats, fare, and offer status; malformed or legacy offers are dropped
 instead of being inferred as Solo.
 
-## Legacy SharedRide naming
+## Phase 4 SharedRide boundary
 
-`sharedRides` is canonical. The untouched legacy shared-ride reader/writer
-paths use an explicitly named `LEGACY_SHARED_RIDES_COLLECTION` constant for
-`shared_rides`; no speculative production-data migration is performed in
-Phase 1. See the Admin transport contract for the complete usage inventory.
+`sharedRides` is canonical. The old client-authoritative SharedRide
+reader/writer service was removed; the Driver only reads its assigned
+`sharedRides/{id}` session. No new runtime document is written under
+`shared_rides`, and no speculative production-data migration is performed.
+Driver availability intent now goes through the backend
+`setDriverAvailability` callable; location/progress publishing remains the
+only owner-safe operational write from the Driver client.

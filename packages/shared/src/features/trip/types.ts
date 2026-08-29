@@ -15,6 +15,7 @@ import type {
   DriverPublicSnapshot,
   FareBreakdown,
   RideMode,
+  SharedRideSummary,
   TripStatus,
 } from '@pakyaw/shared/transport/contract';
 
@@ -60,6 +61,8 @@ export type TripDoc = {
 
   // Shared Ride Fields
   readonly sharedRideId?: string | null;
+  /** Safe occupancy only; never contains co-rider identity or route details. */
+  readonly sharedRideSummary?: SharedRideSummary | null;
   readonly seatsCovered?: number;
   readonly pickupFee?: number;
   readonly techFee?: number;
@@ -85,7 +88,8 @@ export type TripDoc = {
   readonly serviceAreaId?: 'ormoc' | null;
 };
 
-export type SharedRideStatus = 'active' | 'completing' | 'completed';
+/** Read-only Driver presentation projection of canonical sharedRides data. */
+export type SharedRideStatus = 'forming' | 'active' | 'completed' | 'cancelled';
 
 export type SharedRidePassenger = {
   readonly tripId: string;

@@ -143,7 +143,7 @@ Progress bar shows N/6. Observed steps:
    - **En Route State:** The map draws a route polyline towards the pickup point. The bottom sheet renders an **"Arrived at Pickup"** button, which transitions the trip to `driver_arrived`.
    - **Arrived State:** The map highlights the pickup point. The bottom sheet renders a **"Start Trip"** button, which transitions the trip to `in_progress`.
    - **In-Trip State:** The map renders a route polyline towards the destination point. The bottom sheet renders an **"End Trip"** button.
-   - **Terminal Stage:** Once the driver or passenger taps "End Trip", a secure Firestore transaction completes the trip, resets the driver's availability to `online`, increments their `tripCount`, and displays a terminal success summary sheet. Tapping "Done" returns the driver to the Online screen.
+   - **Terminal Stage:** Once the driver or passenger taps "End Trip", the backend transaction completes the Trip and, when applicable, its SharedRide membership before resetting the Driver's availability and incrementing `tripCount`. Tapping "Done" returns the driver to the Online screen.
 
 ### 2.7 Earnings & cash-out
 **Screens:** `earnings_page.png` / `earnings_page(1).png` → `wallet_page.png` → `gcash_clicked.png`

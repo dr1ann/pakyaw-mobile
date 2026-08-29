@@ -21,17 +21,20 @@ import { firestore, functions } from '@/services/firebase/firebase';
 function offerPlace(value: unknown): IncomingRequest['pickup'] | null {
   if (value === null || typeof value !== 'object') return null;
   const place = value as Record<string, unknown>;
-  if (typeof place.latitude !== 'number' || typeof place.longitude !== 'number') return null;
+  if (typeof place.latitude !== 'number' || !Number.isFinite(place.latitude)
+    || place.latitude < -90 || place.latitude > 90
+    || typeof place.longitude !== 'number' || !Number.isFinite(place.longitude)
+    || place.longitude < -180 || place.longitude > 180) return null;
   return {
     label: typeof place.label === 'string' ? place.label : 'Location',
     coords: { lat: place.latitude, lng: place.longitude },
   };
 }
 function timestampMillis(value: unknown): number | undefined {
-  return value !== null && typeof value === 'object' && 'toMillis' in value
-    && typeof (value as { toMillis?: unknown }).toMillis === 'function'
-    ? (value as { toMillis(): number }).toMillis()
-    : undefined;
+  if (value === null || typeof value !== 'object' || !('toMillis' in value)
+    || typeof (value as { toMillis?: unknown }).toMillis !== 'function') return undefined;
+  const milliseconds = (value as { toMillis(): unknown }).toMillis();
+  return typeof milliseconds === 'number' && Number.isFinite(milliseconds) ? milliseconds : undefined;
 }
 
 function mapOfferToIncomingRequest(
@@ -48,9 +51,12 @@ function mapOfferToIncomingRequest(
     : null;
   const pickup = offerPlace(data.pickup);
   const destination = offerPlace(data.destination);
+  const offeredAt = timestampMillis(data.offeredAt);
+  const expiresAt = timestampMillis(data.expiresAt);
   if (
     typeof tripId !== 'string' ||
     !isRideMode(mode) ||
+    (mode !== 'solo' && mode !== 'shared') ||
     !isTripOfferStatus(data.status) ||
     data.status !== 'pending' ||
     typeof passengerCount !== 'number' ||
@@ -58,6 +64,7 @@ function mapOfferToIncomingRequest(
     typeof billedSeats !== 'number' ||
     !Number.isInteger(billedSeats) ||
     billedSeats < 1 ||
+    billedSeats > 12 ||
     offerFare === null ||
     typeof offerFare.total !== 'number' ||
     !Number.isFinite(offerFare.total) ||
@@ -66,7 +73,10 @@ function mapOfferToIncomingRequest(
     !Number.isFinite(offerFare.driverEarnings) ||
     offerFare.driverEarnings < 0 ||
     pickup === null ||
-    destination === null
+    destination === null ||
+    offeredAt === undefined ||
+    expiresAt === undefined ||
+    expiresAt <= offeredAt
   ) {
     logger.warn('[matching] dropped malformed offer', { offerId: snap.id });
     return null;
@@ -84,8 +94,8 @@ function mapOfferToIncomingRequest(
       total: offerFare.total,
       driverEarnings: offerFare.driverEarnings,
     },
-    offeredAt: timestampMillis(data.offeredAt),
-    expiresAt: timestampMillis(data.expiresAt),
+    offeredAt,
+    expiresAt,
   };
 }
 
@@ -107,7 +117,7 @@ export function subscribeDriverOffers(
       onSnap(snapshot.docs
         .map(mapOfferToIncomingRequest)
         .filter((offer): offer is IncomingRequest => offer !== null)
-        .filter((offer) => offer.expiresAt === undefined || offer.expiresAt > now));
+        .filter((offer) => offer.expiresAt > now));
     },
     onErr,
   );
