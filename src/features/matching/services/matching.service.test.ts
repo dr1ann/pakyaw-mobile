@@ -46,6 +46,10 @@ describe('matching.service — server offers', () => {
             id: 'offer-live',
             data: () => ({
               tripId: 'trip-1',
+              status: 'pending',
+              mode: 'shared',
+              passengerCount: 2,
+              billedSeats: 2,
               pickup: { latitude: 11.0, longitude: 124.6, label: 'Pickup' },
               destination: { latitude: 11.1, longitude: 124.7, label: 'Destination' },
               fare: 125,
@@ -57,6 +61,10 @@ describe('matching.service — server offers', () => {
             id: 'offer-expired',
             data: () => ({
               tripId: 'trip-2',
+              status: 'pending',
+              mode: 'solo',
+              passengerCount: 1,
+              billedSeats: 1,
               pickup: { latitude: 11.0, longitude: 124.6 },
               destination: { latitude: 11.1, longitude: 124.7 },
               expiresAt: { toMillis: () => Date.now() - 1 },
@@ -73,12 +81,43 @@ describe('matching.service — server offers', () => {
       expect.objectContaining({
         offerId: 'offer-live',
         tripId: 'trip-1',
+        mode: 'shared',
+        passengerCount: 2,
+        billedSeats: 2,
+        status: 'pending',
         fare: 125,
         offeredAt: 1_700_000_000_000,
       }),
     ]);
+    expect(onOffers.mock.calls[0][0][0]).not.toHaveProperty('passengerId');
     expect(onError).not.toHaveBeenCalled();
     expect(unsubscribe).toBe(mocks.unsubscribe);
+  });
+
+  it('drops legacy or incomplete offers instead of inventing mode and seat values', () => {
+    const onOffers = vi.fn();
+    const onError = vi.fn();
+    mocks.onSnapshot.mockImplementation((_query, onNext) => {
+      onNext({
+        docs: [{
+          id: 'legacy-offer',
+          data: () => ({
+            tripId: 'trip-legacy',
+            status: 'pending',
+            mode: 'hopon',
+            pickup: { latitude: 11.0, longitude: 124.6 },
+            destination: { latitude: 11.1, longitude: 124.7 },
+            fare: 125,
+          }),
+        }],
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribeDriverOffers('driver-1', onOffers, onError);
+
+    expect(onOffers).toHaveBeenCalledWith([]);
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('accepts a specific offer through the server callable', async () => {

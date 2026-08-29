@@ -239,7 +239,7 @@ Same Firebase project, same environment, same build tooling. Both branches share
 ```
 src/services/env.ts                              — Zod-validated env vars (Firebase keys, Maps key, APP_ENV)
 src/services/env.test.ts
-src/services/firebase/firebase.ts                 — Firebase App/Auth/Firestore init with AsyncStorage persistence
+src/services/firebase/firebase.ts                 — Firebase client initialization with AsyncStorage persistence
 src/services/firebase/collections.ts              — Typed Firestore collection references (users, drivers, trips)
 src/services/query/queryClient.ts                 — React Query client setup with AsyncStorage persistence
 
@@ -250,11 +250,11 @@ vitest.setup.ts                                   — Shared test setup
 tsconfig.json                                     — Shared TypeScript config with path aliases
 eslint.config.js                                  — Shared ESLint config
 eas.json                                          — EAS Build config (dev/preview/production profiles)
-firebase.json                                     — Firestore rules + indexes config
-.firebaserc                                       — Firebase project alias
-firestore.rules                                   — Firestore security rules (enforce per-role access patterns)
-firestore.rules.bak                               — Backup copy
-firestore.indexes.json                            — Composite indexes (used by both driver matching + passenger history)
+firebase.json                                     — intentionally absent; backend deployment is Admin-owned
+.firebaserc                                       — intentionally absent; backend deployment is Admin-owned
+firestore.rules                                   — intentionally absent; see ../pakyaw-admin/firestore.rules
+firestore.rules.bak                               — removed obsolete client-side rules backup
+firestore.indexes.json                            — intentionally absent; see ../pakyaw-admin/firestore.indexes.json
 google-services.json                              — Firebase Android config (same project)
 package.json                                      — Dependencies (shared, both branches need same packages)
 package-lock.json
@@ -285,6 +285,7 @@ src/features/auth/types.ts                        — UserRole, UserDoc, DriverD
 src/features/auth/errors.ts                       — AuthError, NetworkError, etc.; used by both auth flows
 
 src/features/trip/types.ts                        — TripDoc, TripStatus, CancelledBy, ALLOWED_TRANSITIONS; imported by both role screens + activeTripStore
+packages/shared/src/transport/contract.ts         — canonical cross-role ride modes, trip/offer status, request, route, and collection-name contract
 src/features/trip/errors.ts                       — Trip errors; used by shared trip.service
 
 src/features/maps/navigation/types.ts             — NavRoute, NavStep, Maneuver, NavPhase, CameraMode; used by shared hooks

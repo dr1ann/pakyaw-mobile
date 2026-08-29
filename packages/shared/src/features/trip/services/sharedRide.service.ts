@@ -13,6 +13,7 @@ import { firestore } from '@/services/firebase/firebase';
 import type { SharedRideDoc, SharedRidePassenger, TripDoc } from '../types';
 import { geohashNeighbors } from '../../../lib/geo';
 import { logger } from '../../../lib/logger';
+import { LEGACY_SHARED_RIDES_COLLECTION } from '../../../transport/contract';
 
 export async function createSharedRide(
   driverId: string,
@@ -20,7 +21,7 @@ export async function createSharedRide(
   maxSeats: number,
   corridorThresholdMeters: number
 ): Promise<string> {
-  const sharedRideRef = doc(collection(firestore, 'shared_rides'));
+  const sharedRideRef = doc(collection(firestore, LEGACY_SHARED_RIDES_COLLECTION));
   
   if (!firstTrip.route || !firstTrip.pickup.coords || !firstTrip.destination.coords) {
     throw new Error('Trip is missing route or coordinate data');
@@ -84,7 +85,7 @@ export function subscribeSharedRide(
   onErr: (err: Error) => void
 ): Unsubscribe {
   return onSnapshot(
-    doc(firestore, 'shared_rides', sharedRideId),
+    doc(firestore, LEGACY_SHARED_RIDES_COLLECTION, sharedRideId),
     (snap) => {
       if (snap.exists()) {
         onSnap(snap.data() as SharedRideDoc);
@@ -100,7 +101,7 @@ export async function joinSharedRide(
   sharedRideId: string,
   tripId: string
 ): Promise<void> {
-  const sharedRideRef = doc(firestore, 'shared_rides', sharedRideId);
+  const sharedRideRef = doc(firestore, LEGACY_SHARED_RIDES_COLLECTION, sharedRideId);
   const tripRef = doc(firestore, 'trips', tripId);
 
   await runTransaction(firestore, async (tx) => {
@@ -149,7 +150,7 @@ export async function dropOffPassenger(
   sharedRideId: string,
   tripId: string
 ): Promise<void> {
-  const sharedRideRef = doc(firestore, 'shared_rides', sharedRideId);
+  const sharedRideRef = doc(firestore, LEGACY_SHARED_RIDES_COLLECTION, sharedRideId);
   const tripRef = doc(firestore, 'trips', tripId);
 
   await runTransaction(firestore, async (tx) => {

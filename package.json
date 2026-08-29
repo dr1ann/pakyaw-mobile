@@ -61,7 +61,8 @@
     "web": "node node_modules/expo/bin/cli start --web",
     "lint": "node node_modules/expo/bin/cli lint",
     "typecheck": "tsc --noEmit",
-    "validate": "npm run typecheck && npm run lint",
+    "check:firebase-boundary": "node scripts/check-firebase-boundary.js",
+    "validate": "npm run check:firebase-boundary && npm run typecheck && npm run lint",
     "test": "vitest run",
     "check:no-money": "node scripts/check-no-money.js"
   },

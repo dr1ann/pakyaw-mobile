@@ -6,6 +6,7 @@
  */
 
 import type { Place } from '@pakyaw/shared/types/place';
+import type { RideMode, TripOfferStatus } from '@pakyaw/shared/transport/contract';
 
 /**
  * A server-created trip offer visible only to its intended driver.
@@ -14,19 +15,18 @@ export type IncomingRequest = {
   readonly tripId: string;
   /** Stable tripOffers document ID; required for callable acceptance. */
   readonly offerId: string;
-  readonly passengerId: string;
-  readonly mode?: 'solo' | 'shared' | 'hopon' | 'hop';
+  readonly mode: RideMode;
   readonly pickup: Place;
   readonly destination: Place;
   readonly passengerCount: number;
   readonly billedSeats: number;
-  readonly seatsCovered?: number;
+  readonly status: TripOfferStatus;
   readonly route?: {
     readonly distanceMeters: number;
     readonly durationSeconds: number;
     readonly polyline: string;
   } | null;
-  readonly fare?: number;
+  readonly fare: number;
   readonly offeredAt?: number;
   readonly expiresAt?: number;
 };

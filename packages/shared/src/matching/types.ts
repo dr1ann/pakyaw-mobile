@@ -7,19 +7,23 @@
  */
 
 import type { ApplicationStatus, DocumentState } from '../onboarding/types';
+import type {
+  LatLng as TransportLatLng,
+  RideMode,
+  TripOffer as TransportTripOffer,
+  TripOfferStatus,
+  TripStatus as TransportTripStatus,
+} from '../transport/contract';
 
 export type { ApplicationStatus, DocumentState } from '../onboarding/types';
+export type {
+  RideMode,
+  TripOfferStatus,
+} from '../transport/contract';
 
-export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'expired';
-
-export type TripStatus =
-  | 'requested'
-  | 'accepted'
-  | 'driver_arriving'
-  | 'driver_arrived'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled';
+/** @deprecated Use TripOfferStatus. Kept as a type-only compatibility alias. */
+export type OfferStatus = TripOfferStatus;
+export type TripStatus = TransportTripStatus;
 
 export type EligibilityReason =
   | 'not_approved'
@@ -39,21 +43,8 @@ export type CancelReason =
   | 'safety_concern'
   | 'other';
 
-export type LatLng = {
-  readonly latitude: number;
-  readonly longitude: number;
-};
-
-export type TripOffer = {
-  readonly tripId: string;
-  readonly driverId: string;
-  readonly status: OfferStatus;
-  readonly offeredAt: number;
-  readonly expiresAt: number;
-  readonly pickup: LatLng;
-  readonly destination: LatLng;
-  readonly fare: number;
-};
+export type LatLng = TransportLatLng;
+export type TripOffer = TransportTripOffer;
 
 export type MatchingConfig = {
   readonly gpsFreshnessSeconds: number;

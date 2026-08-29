@@ -3,6 +3,7 @@ import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { firestore } from '@/services/firebase/firebase';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
+import { LEGACY_SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 
 export function useSharedRideSession() {
   const uid = useSessionStore((s) => s.uid);
@@ -28,7 +29,7 @@ export function useSharedRideSession() {
       return;
     }
 
-    const unsubSharedRide = onSnapshot(doc(firestore, 'shared_rides', sharedRideId), (snap) => {
+    const unsubSharedRide = onSnapshot(doc(firestore, LEGACY_SHARED_RIDES_COLLECTION, sharedRideId), (snap) => {
       if (snap.exists()) {
         setSharedRide(snap.data() as SharedRideDoc);
       } else {

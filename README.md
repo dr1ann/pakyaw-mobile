@@ -50,6 +50,18 @@ npm install
 npx expo start
 ```
 
+## Firebase boundary
+
+This repository is a Firebase client only. Firebase backend deployment must
+be run from [`pakyaw-admin`](../pakyaw-admin/docs/firebase-deployment.md),
+which is the sole source of truth for Firestore rules and indexes, Storage
+rules, and Cloud Functions. This repository intentionally does not contain a
+Firebase CLI project configuration or deployable backend rules.
+
+For local backend emulation, start the Firebase Emulator Suite from
+`pakyaw-admin` and point the app at it with the documented emulator
+environment variables. See [`docs/firebase-backend.md`](docs/firebase-backend.md).
+
 For the local Android helper when applicable:
 
 ```powershell

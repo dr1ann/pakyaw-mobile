@@ -15,6 +15,7 @@ import { httpsCallable } from 'firebase/functions';
 import { AcceptTripError } from '@/features/matching/errors';
 import type { IncomingRequest } from '@/features/matching/types';
 import { logger } from '@pakyaw/shared/lib/logger';
+import { isPassengerCountAllowed, isRideMode, isTripOfferStatus } from '@pakyaw/shared/transport/contract';
 import { firestore, functions } from '@/services/firebase/firebase';
 
 function offerPlace(value: unknown): IncomingRequest['pickup'] | null {
@@ -38,23 +39,40 @@ function mapOfferToIncomingRequest(
 ): IncomingRequest | null {
   const data = snap.data();
   const tripId = data.tripId;
+  const mode = data.mode;
+  const passengerCount = data.passengerCount;
+  const billedSeats = data.billedSeats;
+  const fare = data.fare;
   const pickup = offerPlace(data.pickup);
   const destination = offerPlace(data.destination);
-  if (typeof tripId !== 'string' || pickup === null || destination === null) {
+  if (
+    typeof tripId !== 'string' ||
+    !isRideMode(mode) ||
+    !isTripOfferStatus(data.status) ||
+    data.status !== 'pending' ||
+    typeof passengerCount !== 'number' ||
+    !isPassengerCountAllowed(mode, passengerCount) ||
+    typeof billedSeats !== 'number' ||
+    !Number.isInteger(billedSeats) ||
+    billedSeats < 1 ||
+    typeof fare !== 'number' ||
+    !Number.isFinite(fare) ||
+    pickup === null ||
+    destination === null
+  ) {
     logger.warn('[matching] dropped malformed offer', { offerId: snap.id });
     return null;
   }
   return {
     offerId: snap.id,
     tripId,
-    // Offer documents deliberately do not disclose a passenger identity.
-    passengerId: '',
-    mode: 'solo',
+    mode,
     pickup,
     destination,
-    passengerCount: 1,
-    billedSeats: 1,
-    fare: typeof data.fare === 'number' ? data.fare : undefined,
+    passengerCount,
+    billedSeats,
+    status: 'pending',
+    fare,
     offeredAt: timestampMillis(data.offeredAt),
     expiresAt: timestampMillis(data.expiresAt),
   };

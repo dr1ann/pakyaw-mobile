@@ -95,6 +95,16 @@ requested
 
 Do not use the obsolete `request` status from old branches. The maintained shared matching contract uses `requested`.
 
+### Firebase deployment authority
+
+`pakyaw-admin` is the sole Firebase backend deployment root. It owns the
+canonical Firestore rules and indexes, Storage rules, and Cloud Functions.
+This Driver repository is a Firebase client only and intentionally has no
+Firebase CLI project configuration or deployable backend rules. Start local
+Firebase emulators from `pakyaw-admin`; do not recreate or restore mobile
+`firebase.json`, `.firebaserc`, `firestore.rules`, or `firestore.indexes.json`
+files.
+
 ## 5. Driver availability and location
 
 Availability/location are Driver-owned operational signals only where allowed by the deployed security contract.
@@ -119,6 +129,13 @@ Cross-repository or cross-branch contract changes include:
 - server-owned fare/assignment fields.
 
 These changes require checking both maintained mobile branches and backend tests before completion.
+
+Phase 1 canonical transport contracts live in
+`packages/shared/src/transport/contract.ts` and the deployable mirror at
+`pakyaw-admin/functions/src/lib/transport-contract.ts`. Internal ride modes
+are only `solo`, `shared`, and `hop`; `sharedRides` is the canonical SharedRide
+collection and `shared_rides` is legacy. The Admin contract document is the
+cross-repository reference for ownership and the deferred migration path.
 
 ## 7. Source-of-truth order for agents
 

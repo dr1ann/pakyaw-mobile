@@ -102,7 +102,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
             </Text>
           </View>
           <Text style={styles.seats}>
-            {request.mode === 'shared' ? request.seatsCovered : request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
+            {request.mode === 'shared' ? request.billedSeats : request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
             {isMinimized && tripDistanceKm && ` · ${tripDistanceKm} km`}
           </Text>
         </View>
