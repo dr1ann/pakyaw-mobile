@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ServiceAreaError, TripDistanceTooShortError } from '@/lib/serviceArea';
+import { toRideMode } from '@/features/booking/types';
 
 const mocks = vi.hoisted(() => ({
   callable: vi.fn(),
@@ -62,6 +63,10 @@ describe('booking.service — createTrip()', () => {
       passengerCount: 3,
       displayedFare: null,
     });
+  });
+
+  it('maps the Book Pakyaw UI selection to the canonical Solo mode', () => {
+    expect(toRideMode('private')).toBe('solo');
   });
 
   it('never calls the server when a location is outside the service area', async () => {

@@ -21,7 +21,13 @@ import {
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { logger } from '@pakyaw/shared/lib/logger';
+import { isRideMode } from '@pakyaw/shared/transport/contract';
 import { firestore } from '@/services/firebase/firebase';
+
+/** Historical trip reads may encounter documents written before Phase 1. */
+function historicalRideMode(value: unknown): TripDetail['mode'] {
+  return isRideMode(value) ? value : 'solo';
+}
 
 function translateFirebaseError(err: unknown): Error {
   if (err instanceof FirebaseError) {
@@ -112,7 +118,7 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
     const data = snap.data();
     return {
       id: snap.id,
-      mode: data.mode ?? 'solo',
+      mode: historicalRideMode(data.mode),
       status: data.status,
       passengerId: data.passengerId,
       driverId: data.driverId ?? null,

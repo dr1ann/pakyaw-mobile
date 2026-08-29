@@ -10,7 +10,7 @@ vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
 
 describe('useNavigationPhase', () => {
   describe('getNavPhase', () => {
-    it('returns idle when status is request or null', () => {
+    it('returns idle when status is requested or null', () => {
       expect(getNavPhase(null)).toBe('idle');
       expect(getNavPhase('requested')).toBe('idle');
     });
