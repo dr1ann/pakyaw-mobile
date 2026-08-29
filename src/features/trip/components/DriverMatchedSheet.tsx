@@ -5,39 +5,23 @@
  * confirmation. No transition buttons on the passenger side.
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { doc, onSnapshot } from 'firebase/firestore';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
-import { firestore } from '@/services/firebase/firebase';
-import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
-import { SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 
 import { HopDriverMatchLobby } from '@/features/booking/components/HopDriverMatchLobby';
 
 export function DriverMatchedSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: cancel, isPending } = useCancelTrip();
-  const [sharedRide, setSharedRide] = useState<SharedRideDoc | null>(null);
-
-  useEffect(() => {
-    if (!trip?.sharedRideId) return;
-    const ref = doc(firestore, SHARED_RIDES_COLLECTION, trip.sharedRideId);
-    const unsub = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        setSharedRide({ id: snap.id, ...snap.data() } as SharedRideDoc);
-      }
-    });
-    return () => unsub();
-  }, [trip?.sharedRideId]);
 
   if (trip) {
-    return <HopDriverMatchLobby trip={trip} sharedRide={sharedRide} />;
+    return <HopDriverMatchLobby trip={trip} sharedRideSummary={trip.sharedRideSummary} />;
   }
 
   function handleCancel() {

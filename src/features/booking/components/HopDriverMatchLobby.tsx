@@ -4,13 +4,14 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
-import type { TripDoc, SharedRideDoc } from '@pakyaw/shared/features/trip/types';
+import type { TripDoc } from '@pakyaw/shared/features/trip/types';
+import type { SharedRideSummary } from '@pakyaw/shared/transport/contract';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { firestore } from '@/services/firebase/firebase';
 
 type HopDriverMatchLobbyProps = {
   readonly trip: TripDoc;
-  readonly sharedRide?: SharedRideDoc | null;
+  readonly sharedRideSummary?: SharedRideSummary | null;
 };
 
 const formatName = (data: any) => {
@@ -21,7 +22,7 @@ const formatName = (data: any) => {
   return data.displayName || data.fullName || data.name;
 };
 
-export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyProps) {
+export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDriverMatchLobbyProps) {
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -56,7 +57,11 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
   const [driverDoc, setDriverDoc] = useState<{ name?: string; vehicleModel?: string; vehiclePlate?: string } | null>(null);
 
   useEffect(() => {
-    if (!trip?.driverId) return;
+    // The Solo driver-read rule follows the driver's activeTripId. A Shared
+    // Driver can have several Passenger Trips, so Shared presentation must
+    // stay on this Passenger's Trip summary until a scoped public snapshot is
+    // introduced by a later phase.
+    if (!trip?.driverId || trip.mode === 'shared') return;
     const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
@@ -82,24 +87,27 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
       unsub1();
       unsub2();
     };
-  }, [trip?.driverId]);
+  }, [trip?.driverId, trip?.mode]);
 
   const mode = trip?.mode || 'hop';
   const isHop = mode === 'hop';
   const isShared = mode === 'shared';
   const isPakyaw = mode === 'solo';
 
-  const driverName = sharedRide?.driverName || driverDoc?.name || 'Ormoc Pakyaw Driver';
-  const vehicleModel = sharedRide?.vehicleModel || driverDoc?.vehicleModel || 'Pakyaw Fleet Tricycle';
-  const vehiclePlate = sharedRide?.vehiclePlate || driverDoc?.vehiclePlate || 'ORM-2026';
-  const driverPhoto = sharedRide?.driverPhotoUrl;
+  const driverName = driverDoc?.name || (isShared ? 'Assigned driver' : 'Ormoc Pakyaw Driver');
+  const vehicleModel = driverDoc?.vehicleModel || (isShared ? 'Vehicle details unavailable' : 'Pakyaw Fleet Tricycle');
+  const vehiclePlate = driverDoc?.vehiclePlate || (isShared ? 'Plate unavailable' : 'ORM-2026');
+  const driverPhoto = trip.driverPublic?.photoUrl ?? undefined;
 
-  // Compute maxSeats dynamically so if user selected 6 seats in Pakyaw/Solo mode, 6 slots display
-  const maxSeats = Math.max(sharedRide?.maxSeats || 0, trip.passengerCount || 0, trip.billedSeats || 0, isPakyaw ? 4 : 6);
+  // Shared occupancy is a backend-owned summary on the passenger's Trip. Do
+  // not read the internal SharedRide or invent a capacity when it is absent.
+  const maxSeats = isShared
+    ? (sharedRideSummary?.maxSeats ?? 0)
+    : Math.max(trip.passengerCount || 0, trip.billedSeats || 0, isPakyaw ? 4 : 6);
   
   // Sum seatsCovered across passengers so booking 3 seats shows 3/6 seats occupied
-  const totalOccupied = sharedRide?.passengers && sharedRide.passengers.length > 0
-    ? sharedRide.passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0)
+  const totalOccupied = isShared
+    ? (sharedRideSummary?.seatsOccupied ?? 0)
     : (trip.seatsCovered || trip.billedSeats || trip.passengerCount || 1);
 
   // Status-driven labels
@@ -146,12 +154,10 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
 
   // Generate seat slots representation
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
-    const passenger = sharedRide?.passengers?.[index];
     const isOccupied = index < totalOccupied;
     return {
       index,
       isOccupied,
-      passenger,
     };
   });
 
@@ -248,12 +254,14 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
           <View style={styles.seatsHeader}>
             <Text style={styles.seatsTitle}>PASSENGER SEAT SLOTS</Text>
             <Text style={styles.seatsCount}>
-              {totalOccupied} of {maxSeats} Seats Occupied
+              {isShared && sharedRideSummary == null
+                ? 'Occupancy pending'
+                : `${totalOccupied} of ${maxSeats} Seats Occupied`}
             </Text>
           </View>
 
           <View style={styles.slotsRow}>
-            {seats.map((seat) => (
+            {maxSeats > 0 && seats.map((seat) => (
               <View
                 key={seat.index}
                 style={[
@@ -261,12 +269,7 @@ export function HopDriverMatchLobby({ trip, sharedRide }: HopDriverMatchLobbyPro
                   seat.isOccupied ? styles.seatOccupied : styles.seatEmpty,
                 ]}
               >
-                {seat.passenger?.passengerPhotoUrl ? (
-                  <Image
-                    source={{ uri: seat.passenger.passengerPhotoUrl }}
-                    style={styles.passengerAvatar}
-                  />
-                ) : seat.isOccupied ? (
+                {seat.isOccupied ? (
                   <View style={styles.occupiedAvatarIcon}>
                     <SymbolIcon name="person.fill" size={14} tintColor={colors.blue.primary} />
                   </View>
