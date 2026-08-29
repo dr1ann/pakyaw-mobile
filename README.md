@@ -1,62 +1,79 @@
-# Welcome to your Expo app 👋
+# Pakyaw Driver
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+React Native / Expo Driver application for Pakyaw.
 
-## Get started
+## Branch status
 
-1. Install dependencies
+This repository is maintained as two role-specific mobile branches:
 
-   ```bash
-   npm install
-   ```
+- **`driver-app`** — active Driver application. This branch.
+- **`passenger-app`** — active Passenger application.
 
-2. Start the app
+`main`, `map-fix`, and other historical branches are not current implementation sources.
 
-   ```bash
-   npx expo start
-   ```
+The repository was intentionally split by role; see [`BRANCH_SPLIT_MANIFEST.md`](./BRANCH_SPLIT_MANIFEST.md). For current Driver architecture and backend boundaries, read [`docs/branch_architecture.md`](./docs/branch_architecture.md) before the older general architecture docs.
 
-3. James Bobo
+## What this branch owns
 
-   ```bash
-   ./run-android.ps1
-   ```
+The Driver branch contains Driver-specific flows such as:
 
-In the output, you'll find options to open the app in a
+- registration, sign-in, and Driver onboarding;
+- application/document submission;
+- online/offline availability and location publishing;
+- addressed trip-offer subscription and acceptance;
+- Driver trip lifecycle controls;
+- navigation, guidance, maps, and Picture-in-Picture support;
+- safety/SOS, support, and Driver account flows.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Passenger booking and Passenger-only screens belong in `passenger-app`.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Backend model
 
-## Get a fresh project
+The maintained app uses Pakyaw's server-authoritative backend integration.
 
-When you're ready, run:
+- Driver offers are read from `tripOffers` scoped to the authenticated Driver.
+- Offer acceptance goes through the `acceptTripOffer` Cloud Function.
+- Sensitive trip lifecycle changes are backend-authoritative.
+- The canonical initial trip status is `requested`.
+- Do not restore old direct-open-trip claiming or obsolete `request` status behavior from historical branches.
+
+Permitted Firestore subscriptions remain useful for realtime state; backend commands remain authoritative for sensitive transitions and assignment.
+
+## Shared code
+
+Cross-role code is kept under `packages/shared/` where applicable. Because Driver and Passenger are separate Git branches, a shared-contract change must be intentionally reconciled on both `driver-app` and `passenger-app`.
+
+## Setup
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+For the local Android helper when applicable:
 
-### Other setup steps
+```powershell
+./run-android.ps1
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Validation
 
-## Learn more
+Before completing changes:
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm run typecheck
+npm run lint
+npm test
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Use a focused test subset while iterating when appropriate.
 
-## Join the community
+## Documentation priority
 
-Join our community of developers creating universal apps.
+For Driver work:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. Current `driver-app` code and tests.
+2. [`docs/branch_architecture.md`](./docs/branch_architecture.md).
+3. Current Driver-specific docs such as `docs/driver_navigation_architecture_v2.md` where compatible.
+4. [`BRANCH_SPLIT_MANIFEST.md`](./BRANCH_SPLIT_MANIFEST.md).
+5. Older general docs only where they do not conflict with the maintained branch.
