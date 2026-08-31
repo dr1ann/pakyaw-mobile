@@ -1,3 +1,8 @@
 # Fare Engine Boundary
 
-Pricing is deferred. Do not add fields here without re-opening §0 of requirements.md and the architecture.md hard rule. The MVP must continue to grep clean for `fare|peso|₱|amount|total|commission|wallet` across `src/app/`, `src/features/`, and `src/components/`.
+Transport fare display and server-generated fare snapshots are part of the
+current V1 contract. This legacy client helper is not an authority for quote
+or booking calculations; those remain backend-owned. Do not add wallet,
+stored-value, payment-processing, settlement, payout, or PSP behavior here.
+`check:no-money` enforces that deferred payment domain while allowing ordinary
+transport fare and Driver-earnings presentation.
