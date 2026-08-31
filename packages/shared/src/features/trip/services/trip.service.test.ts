@@ -48,6 +48,13 @@ describe('Day 3 callable trip actions', () => {
             total: 55,
             driverEarnings: 50,
           },
+          driverPublic: {
+            driverId: 'driver-1',
+            displayName: 'Ada Driver',
+            profilePhotoUrl: null,
+            vehicle: { type: 'tricycle', description: 'Blue tricycle', plateNumber: 'ABC-1234', unitBodyNumber: 'UNIT-001' },
+            verification: { verified: true },
+          },
         }),
       });
       return mocks.unsubscribe;
@@ -67,7 +74,32 @@ describe('Day 3 callable trip actions', () => {
         durationSeconds: 480,
         polyline: 'encoded-route',
       }),
+      driverPublic: expect.objectContaining({
+        displayName: 'Ada Driver',
+        vehicle: expect.objectContaining({ plateNumber: 'ABC-1234' }),
+      }),
     }));
+  });
+
+  it('drops malformed or legacy Driver identity data instead of presenting it', () => {
+    const onSnap = vi.fn();
+    mocks.onSnapshot.mockImplementation((_ref, onNext) => {
+      onNext({
+        id: 'trip-invalid-driver-public',
+        exists: () => true,
+        data: () => ({
+          passengerId: 'passenger-1',
+          driverPublic: { name: 'Legacy driver', plateNumber: 'FAKE-1' },
+          pickup: { latitude: 11.005, longitude: 124.6075 },
+          destination: { latitude: 11.012, longitude: 124.615 },
+        }),
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribe('trip-invalid-driver-public', onSnap, vi.fn());
+
+    expect(onSnap).toHaveBeenCalledWith(expect.objectContaining({ driverPublic: null }));
   });
 
   it('keeps legacy Trip defaults isolated to the compatibility reader', () => {

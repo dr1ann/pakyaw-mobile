@@ -177,14 +177,28 @@ describe('history.service', () => {
             tripCount: 100,
             plate: 'ABC-123',
           },
+          driverPublic: {
+            driverId: 'd-1',
+            displayName: 'Verified Driver',
+            profilePhotoUrl: null,
+            vehicle: {
+              type: 'tricycle',
+              description: 'Blue tricycle',
+              plateNumber: 'SAFE-123',
+              unitBodyNumber: null,
+            },
+            verification: { verified: true },
+          },
         }),
       });
 
       const trip = await getTrip('trip-abc');
 
       expect(trip.id).toBe('trip-abc');
-      expect(trip.driver?.displayName).toBe('John Driver');
-      expect(trip.driver?.plate).toBe('ABC-123');
+      expect(trip.driver?.displayName).toBe('Verified Driver');
+      expect(trip.driver?.plate).toBe('SAFE-123');
+      expect(trip.driver).not.toHaveProperty('rating');
+      expect(trip.driver).not.toHaveProperty('phone');
     });
 
     it('throws NotFoundError when trip does not exist', async () => {

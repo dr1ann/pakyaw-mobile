@@ -8,6 +8,7 @@ import {
   SHARED_RIDES_COLLECTION,
   TRIP_OFFER_STATUSES,
   TRIP_STATUSES,
+  isDriverPublicSnapshot,
   isPassengerCountAllowed,
   isRideMode,
 } from './contract';
@@ -42,5 +43,24 @@ describe('transport contract', () => {
   it('names sharedRides as canonical and shared_rides as legacy', () => {
     expect(SHARED_RIDES_COLLECTION).toBe('sharedRides');
     expect(LEGACY_SHARED_RIDES_COLLECTION).toBe('shared_rides');
+  });
+
+  it('accepts only the backend-generated Passenger-safe Driver snapshot', () => {
+    const snapshot = {
+      driverId: 'driver-1',
+      displayName: 'Ada Driver',
+      profilePhotoUrl: null,
+      vehicle: {
+        type: 'tricycle',
+        description: 'Blue tricycle',
+        plateNumber: 'ABC-1234',
+        unitBodyNumber: 'UNIT-001',
+      },
+      verification: { verified: true as const },
+    };
+
+    expect(isDriverPublicSnapshot(snapshot)).toBe(true);
+    expect(isDriverPublicSnapshot({ name: 'Legacy driver', plateNumber: 'ABC-1234' })).toBe(false);
+    expect(isDriverPublicSnapshot({ ...snapshot, licenseNumber: 'PRIVATE' })).toBe(false);
   });
 });

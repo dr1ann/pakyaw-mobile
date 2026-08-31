@@ -137,6 +137,12 @@ are only `solo`, `shared`, and `hop`; `sharedRides` is the canonical SharedRide
 collection and `shared_rides` is legacy. The Admin contract document is the
 cross-repository reference for ownership and the deferred migration path.
 
+Phase 6 identity and safety details are documented in
+[`phase6-identity-safety.md`](./phase6-identity-safety.md). The backend owns
+Driver eligibility and generates the historical `Trip.driverPublic` snapshot;
+this app only consumes the result and submits Driver intents through backend
+boundaries.
+
 ## 7. Source-of-truth order for agents
 
 For work on `driver-app`, use this order:

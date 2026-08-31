@@ -52,7 +52,7 @@ export function OfflineSheet({
               accessibilityRole="alert"
               testID="availability-error"
             >
-              <Text style={styles.availabilityErrorTitle}>Account verification required</Text>
+              <Text style={styles.availabilityErrorTitle}>Cannot go online</Text>
               <Text style={styles.availabilityErrorBody}>{availabilityErrorMessage}</Text>
             </View>
           ) : null}

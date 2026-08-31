@@ -48,7 +48,6 @@ export function PersistentDriverTripDashboard({
   const [isExpanded, setIsExpanded] = useState(true);
   const [activePassengerIndex, setActivePassengerIndex] = useState(0);
 
-  const [driverDoc, setDriverDoc] = useState<{ name?: string; vehicleModel?: string; vehiclePlate?: string } | null>(null);
   const [passengerDoc, setPassengerDoc] = useState<{ name?: string } | null>(null);
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
@@ -75,36 +74,6 @@ export function PersistentDriverTripDashboard({
       }),
     ]).start();
   }, [fadeAnim, slideAnim]);
-
-  // Subscribe to driver profile snapshot across drivers & users collections for clean driver name display
-  useEffect(() => {
-    if (!trip?.driverId) return;
-    const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        const name = formatName(d);
-        setDriverDoc((prev) => ({
-          ...prev,
-          ...(name && { name }),
-          vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
-          vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
-        }));
-      }
-    });
-    const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
-      if (snap.exists()) {
-        const u = snap.data();
-        const name = formatName(u);
-        if (name) {
-          setDriverDoc((prev) => ({ ...prev, name }));
-        }
-      }
-    });
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  }, [trip?.driverId]);
 
   // Subscribe to passenger user profile snapshot for clean passenger name display
   useEffect(() => {
@@ -140,9 +109,12 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [status, buttonPulseAnim]);
 
-  const driverName = sharedRide?.driverName || driverDoc?.name || 'Ormoc Pakyaw Driver';
-  const vehicleModel = sharedRide?.vehicleModel || driverDoc?.vehicleModel || 'Pakyaw Fleet Tricycle';
-  const vehiclePlate = sharedRide?.vehiclePlate || driverDoc?.vehiclePlate || 'ORM-2026';
+  // Driver identity is the backend-generated Trip snapshot. The dashboard
+  // never reads the Driver's private profile or invents vehicle values.
+  const driverPublic = trip?.driverPublic ?? null;
+  const driverName = driverPublic?.displayName ?? 'Driver identity unavailable';
+  const vehicleDetails = driverPublic?.vehicle.description ?? driverPublic?.vehicle.type ?? null;
+  const vehiclePlate = driverPublic?.vehicle.plateNumber ?? null;
 
   const defaultPassengerName = trip?.passengerName || passengerDoc?.name || 'Passenger';
 
@@ -329,9 +301,11 @@ export function PersistentDriverTripDashboard({
           <View style={styles.avatarFallback}>
             <SymbolIcon name="person.fill" size={24} tintColor={colors.white} />
           </View>
-          <View style={styles.verifiedCheck}>
-            <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
-          </View>
+          {driverPublic?.verification.verified === true ? (
+            <View style={styles.verifiedCheck}>
+              <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.driverMeta}>
@@ -339,13 +313,15 @@ export function PersistentDriverTripDashboard({
             {driverName}
           </Text>
           <Text style={styles.vehicleDetails}>
-            {sharedRide?.vehicleModel || 'Pakyaw Fleet Tricycle'}
+            {vehicleDetails || 'Vehicle details unavailable'}
           </Text>
         </View>
 
-        <View style={styles.plateTag}>
-          <Text style={styles.plateText}>{sharedRide?.vehiclePlate || 'ORM-2026'}</Text>
-        </View>
+        {vehiclePlate ? (
+          <View style={styles.plateTag}>
+            <Text style={styles.plateText}>{vehiclePlate}</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Primary Transition Action Control & Driver Cancel (Testing) */}

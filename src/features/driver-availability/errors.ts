@@ -56,23 +56,67 @@ export class PresenceWriteError extends Error {
  */
 export class DriverAccountNotReadyError extends Error {
   readonly kind = 'DriverAccountNotReadyError' as const;
-  constructor() {
-    super(
-      'Your driver account is still being verified. You can go online once verification is complete.',
-    );
+  readonly reason: DriverEligibilityBlockedReason;
+  constructor(reason: DriverEligibilityBlockedReason = 'verification_required') {
+    super(publicEligibilityMessage(reason));
     this.name = 'DriverAccountNotReadyError';
+    this.reason = reason;
   }
+}
+
+export type DriverEligibilityBlockedReason =
+  | 'application_not_approved'
+  | 'account_suspended'
+  | 'account_blocked'
+  | 'documents_incomplete'
+  | 'documents_expired'
+  | 'verification_required';
+
+function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): string {
+  switch (reason) {
+    case 'application_not_approved':
+      return 'Your Driver application is still under review. You can go online after Operations approval.';
+    case 'account_suspended':
+      return 'Your Driver account is suspended. Please contact Operations.';
+    case 'account_blocked':
+      return 'Your Driver account is unavailable. Please contact Operations.';
+    case 'documents_incomplete':
+      return 'Complete and submit all required Driver documents before going online.';
+    case 'documents_expired':
+      return 'A required Driver document has expired. Update it before going online.';
+    case 'verification_required':
+      return 'Complete Driver verification before going online.';
+  }
+}
+
+function parseEligibilityReason(message: string): DriverEligibilityBlockedReason | null {
+  const match = /cannot go online:\s*([a-z_]+)/i.exec(message);
+  if (match === null) return null;
+  const reason = match[1] as DriverEligibilityBlockedReason;
+  return reason === 'application_not_approved'
+    || reason === 'account_suspended'
+    || reason === 'account_blocked'
+    || reason === 'documents_incomplete'
+    || reason === 'documents_expired'
+    || reason === 'verification_required'
+    ? reason
+    : null;
 }
 
 /** Maps infrastructure errors to product-safe availability errors. */
 export function translatePresenceWriteError(cause: unknown): DriverAvailabilityError {
+  const firebaseCode = cause instanceof FirebaseError ? cause.code : null;
+  const firebaseMessage = cause instanceof FirebaseError ? cause.message : '';
+  const eligibilityReason = parseEligibilityReason(firebaseMessage);
   if (cause instanceof FirebaseError && (
-    cause.code === 'permission-denied'
-    || cause.code === 'functions/permission-denied'
-    || ((cause.code === 'failed-precondition' || cause.code === 'functions/failed-precondition')
-      && cause.message.toLowerCase().includes('account is not ready'))
+    firebaseCode === 'permission-denied'
+    || firebaseCode === 'functions/permission-denied'
+    || eligibilityReason !== null
+    || ((firebaseCode === 'failed-precondition' || firebaseCode === 'functions/failed-precondition')
+      && firebaseMessage.toLowerCase().includes('account is not ready'))
   )) {
-    return new DriverAccountNotReadyError();
+    const reason = eligibilityReason ?? 'verification_required';
+    return new DriverAccountNotReadyError(reason);
   }
   return new PresenceWriteError(cause);
 }

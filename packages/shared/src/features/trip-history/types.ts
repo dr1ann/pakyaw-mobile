@@ -29,9 +29,6 @@ export type HistoryCursor = {
 export type TripDetail = TripDoc & {
   readonly driver?: {
     readonly displayName: string;
-    readonly phone: string;
-    readonly rating: number;
-    readonly tripCount: number;
     readonly plate: string;
   } | null;
   readonly passenger?: {
