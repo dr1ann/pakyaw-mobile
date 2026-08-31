@@ -2,7 +2,7 @@
  * Location service — manages the foreground watchPositionAsync subscription
  * and throttled Firestore writes to drivers/{uid}.
  *
- * Architecture constraints (Phase 5):
+ * Architecture constraints (Phase 7):
  * - Background tracking uses the same drivers/{uid} write contract.
  * - Watch is started/stopped by useLocationPublisher (never directly by screens).
  * - Throttle: ~4–5 s elapsed OR ~25 m moved (lib/throttle.shouldEmit).
@@ -145,12 +145,16 @@ export function getLocationPublishPayload(
   locationObject: Location.LocationObject,
 ): LocationPublishPayload {
   const { latitude, longitude, heading, accuracy } = locationObject.coords;
-  const accuracyMeters = typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0
-    ? accuracy
-    : null;
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+    || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error('Cannot publish an invalid Driver location.');
+  }
+  if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1_000) {
+    throw new Error('Cannot publish Driver location without valid GPS accuracy.');
+  }
 
   return {
-    location: { latitude, longitude, accuracyMeters },
+    location: { latitude, longitude, accuracyMeters: accuracy },
     geohash: geohashOf({ lat: latitude, lng: longitude }, 7),
     heading: heading ?? null,
     locationUpdatedAt: serverTimestamp(),

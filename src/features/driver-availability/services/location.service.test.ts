@@ -139,4 +139,16 @@ describe('location.service background tracking', () => {
       }),
     );
   });
+
+  it('fails closed instead of publishing invalid coordinates or GPS accuracy', () => {
+    const invalidCoordinate = {
+      coords: { latitude: 91, longitude: 124.002, heading: null, accuracy: 6.5 },
+    } as Location.LocationObject;
+    const invalidAccuracy = {
+      coords: { latitude: 11.001, longitude: 124.002, heading: null, accuracy: null },
+    } as Location.LocationObject;
+
+    expect(() => getLocationPublishPayload(invalidCoordinate)).toThrow('invalid Driver location');
+    expect(() => getLocationPublishPayload(invalidAccuracy)).toThrow('valid GPS accuracy');
+  });
 });

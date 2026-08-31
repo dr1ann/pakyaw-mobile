@@ -139,3 +139,21 @@ export async function acceptTripOffer(
     throw new AcceptTripError(err);
   }
 }
+
+/** Expires this Driver's addressed offer and prompts backend retry when safe. */
+export async function declineTripOffer(
+  tripId: string,
+  offerId: string,
+  driverUid: string,
+): Promise<'declined' | 'already_closed' | 'invalid'> {
+  try {
+    const result = await httpsCallable<
+      { readonly tripId: string; readonly offerId: string; readonly driverId: string },
+      { readonly result: 'declined' | 'already_closed' | 'invalid' }
+    >(functions, 'declineTripOffer')({ tripId, offerId, driverId: driverUid });
+    return result.data.result;
+  } catch (err) {
+    logger.error('[matching] declineTripOffer failed', { err, tripId, offerId });
+    throw err;
+  }
+}

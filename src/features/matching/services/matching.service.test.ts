@@ -27,7 +27,7 @@ vi.mock('@pakyaw/shared/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn() },
 }));
 
-import { acceptTripOffer, subscribeDriverOffers } from '@/features/matching/services/matching.service';
+import { acceptTripOffer, declineTripOffer, subscribeDriverOffers } from '@/features/matching/services/matching.service';
 
 describe('matching.service — server offers', () => {
   beforeEach(() => {
@@ -187,6 +187,18 @@ describe('matching.service — server offers', () => {
 
     await expect(acceptTripOffer('trip-1', 'offer-1', 'driver-1')).resolves.toBe('accepted');
     expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'acceptTripOffer');
+    expect(mocks.callable).toHaveBeenCalledWith({
+      tripId: 'trip-1',
+      offerId: 'offer-1',
+      driverId: 'driver-1',
+    });
+  });
+
+  it('declines a specific addressed offer through the server callable', async () => {
+    mocks.callable.mockResolvedValue({ data: { result: 'declined' } });
+
+    await expect(declineTripOffer('trip-1', 'offer-1', 'driver-1')).resolves.toBe('declined');
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'declineTripOffer');
     expect(mocks.callable).toHaveBeenCalledWith({
       tripId: 'trip-1',
       offerId: 'offer-1',

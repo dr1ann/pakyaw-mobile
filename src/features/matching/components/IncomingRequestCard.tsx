@@ -6,8 +6,8 @@
  * Accept  → useAcceptTrip mutation. TripAlreadyTakenError is swallowed by
  *           the hook (no toast, no alert) — the card is silently removed
  *           from the local mirror.
- * Decline → removeIncomingRequest only. NEVER writes to Firestore; the trip
- *           remains claimable by other drivers.
+ * Decline → expire this addressed offer through the backend. The backend
+ *           schedules an immediate retry only when no other offer is pending.
  */
 
 import { useState, useEffect } from 'react';
@@ -25,6 +25,7 @@ import {
 
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
+import { declineTripOffer } from '@/features/matching/services/matching.service';
 import type { IncomingRequest } from '@/features/matching/types';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
@@ -85,8 +86,10 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   }
 
   function handleDecline() {
-    // Local-only removal — no Firestore write.
     useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
+    if (driverUid !== null) {
+      void declineTripOffer(request.tripId, request.offerId, driverUid).catch(() => undefined);
+    }
   }
 
   function handleToggleMinimize() {
