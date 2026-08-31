@@ -1,7 +1,7 @@
 import { FirebaseError } from 'firebase/app';
 import { httpsCallable } from 'firebase/functions';
 
-import type { FareBreakdown, QuoteTripInput, QuoteTripResult, RideMode } from '@pakyaw/shared/transport/contract';
+import { isRideMode, type FareBreakdown, type QuoteTripInput, type QuoteTripResult, type RideMode } from '@pakyaw/shared/transport/contract';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { functions } from '@/services/firebase/firebase';
 import type { CreateBookingInput } from '@/features/booking/types';
@@ -51,8 +51,13 @@ export async function quoteTrip(input: CreateBookingInput): Promise<PassengerFar
   try {
     const call = httpsCallable<QuoteTripInput, QuoteTripResult>(functions, 'quoteTrip');
     const result = await call(payload);
-    if ((result.data.mode !== 'solo' && result.data.mode !== 'shared')
-      || result.data.billedSeats !== result.data.passengerCount) {
+    if (!isRideMode(result.data.mode)
+      || !Number.isInteger(result.data.passengerCount)
+      || result.data.passengerCount < 1
+      || !Number.isInteger(result.data.billedSeats)
+      || result.data.billedSeats < 1
+      || !result.data.fare
+      || !Number.isFinite(result.data.fare.total)) {
       throw new Error('Quote returned an invalid canonical result');
     }
     return result.data;

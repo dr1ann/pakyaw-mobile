@@ -47,4 +47,19 @@ describe('quote.service — server-authoritative quote boundary', () => {
     expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('billedSeats');
     expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('fare');
   });
+
+  it('accepts a canonical Hop quote without sending a SharedRide target', async () => {
+    mocks.callable.mockResolvedValueOnce({
+      data: {
+        mode: 'hop',
+        passengerCount: 1,
+        billedSeats: 1,
+        fare: { baseFare: 55, distanceFare: 0, surcharges: 0, techFee: 0, total: 55, driverEarnings: 55 },
+      },
+    });
+
+    await expect(quoteTrip({ ...input, mode: 'hop' })).resolves.toMatchObject({ mode: 'hop', billedSeats: 1 });
+    expect(mocks.callable).toHaveBeenCalledWith(expect.objectContaining({ mode: 'hop', passengerCount: 1 }));
+    expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('sharedRideId');
+  });
 });

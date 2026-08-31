@@ -1,25 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Animated, Easing } from 'react-native';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
 import type { SharedRideSummary } from '@pakyaw/shared/transport/contract';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
-import { firestore } from '@/services/firebase/firebase';
 
 type HopDriverMatchLobbyProps = {
   readonly trip: TripDoc;
   readonly sharedRideSummary?: SharedRideSummary | null;
-};
-
-const formatName = (data: any) => {
-  if (!data) return undefined;
-  if (data.firstName || data.lastName) {
-    return `${data.firstName || ''} ${data.lastName || ''}`.trim();
-  }
-  return data.displayName || data.fullName || data.name;
 };
 
 export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDriverMatchLobbyProps) {
@@ -54,59 +44,27 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
-  const [driverDoc, setDriverDoc] = useState<{ name?: string; vehicleModel?: string; vehiclePlate?: string } | null>(null);
-
-  useEffect(() => {
-    // The Solo driver-read rule follows the driver's activeTripId. A Shared
-    // Driver can have several Passenger Trips, so Shared presentation must
-    // stay on this Passenger's Trip summary until a scoped public snapshot is
-    // introduced by a later phase.
-    if (!trip?.driverId || trip.mode === 'shared') return;
-    const unsub1 = onSnapshot(doc(firestore, 'drivers', trip.driverId), (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        const name = formatName(d);
-        setDriverDoc((prev) => ({
-          ...prev,
-          ...(name && { name }),
-          vehicleModel: d.vehicleModel || d.vehicle?.model || 'Pakyaw Fleet Tricycle',
-          vehiclePlate: d.vehiclePlate || d.plateNumber || d.vehicle?.plate || 'ORM-2026',
-        }));
-      }
-    });
-    const unsub2 = onSnapshot(doc(firestore, 'users', trip.driverId), (snap) => {
-      if (snap.exists()) {
-        const u = snap.data();
-        const name = formatName(u);
-        if (name) {
-          setDriverDoc((prev) => ({ ...prev, name }));
-        }
-      }
-    });
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  }, [trip?.driverId, trip?.mode]);
-
   const mode = trip?.mode || 'hop';
   const isHop = mode === 'hop';
   const isShared = mode === 'shared';
   const isPakyaw = mode === 'solo';
 
-  const driverName = driverDoc?.name || (isShared ? 'Assigned driver' : 'Ormoc Pakyaw Driver');
-  const vehicleModel = driverDoc?.vehicleModel || (isShared ? 'Vehicle details unavailable' : 'Pakyaw Fleet Tricycle');
-  const vehiclePlate = driverDoc?.vehiclePlate || (isShared ? 'Plate unavailable' : 'ORM-2026');
+  // Driver identity/vehicle data remains unavailable until the scoped public
+  // snapshot phase. Never read private Driver/User documents or invent values.
+  const driverName = trip.driverPublic?.name ?? 'Assigned driver';
+  const vehicleModel = trip.driverPublic?.vehicleModel ?? 'Vehicle details unavailable';
+  const vehiclePlate = trip.driverPublic?.plateNumber ?? 'Plate unavailable';
   const driverPhoto = trip.driverPublic?.photoUrl ?? undefined;
 
   // Shared occupancy is a backend-owned summary on the passenger's Trip. Do
   // not read the internal SharedRide or invent a capacity when it is absent.
-  const maxSeats = isShared
+  const isSharedSession = isShared || isHop;
+  const maxSeats = isSharedSession
     ? (sharedRideSummary?.maxSeats ?? 0)
     : Math.max(trip.passengerCount || 0, trip.billedSeats || 0, isPakyaw ? 4 : 6);
   
   // Sum seatsCovered across passengers so booking 3 seats shows 3/6 seats occupied
-  const totalOccupied = isShared
+  const totalOccupied = isSharedSession
     ? (sharedRideSummary?.seatsOccupied ?? 0)
     : (trip.seatsCovered || trip.billedSeats || trip.passengerCount || 1);
 
@@ -130,7 +88,7 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
     ? 'At Pickup'
     : status === 'in_progress'
     ? 'En Route'
-    : 'ETA ~3 mins';
+    : 'ETA unavailable';
 
   const titleText = status === 'driver_arriving'
     ? 'Driver is heading to your location'
@@ -245,7 +203,7 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
 
           <View style={styles.ratingBadge}>
             <SymbolIcon name="star.fill" size={14} tintColor={colors.amber.primary} />
-            <Text style={styles.ratingText}>4.9</Text>
+            <Text style={styles.ratingText}>Rating unavailable</Text>
           </View>
         </View>
 
@@ -254,7 +212,7 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
           <View style={styles.seatsHeader}>
             <Text style={styles.seatsTitle}>PASSENGER SEAT SLOTS</Text>
             <Text style={styles.seatsCount}>
-              {isShared && sharedRideSummary == null
+              {isSharedSession && sharedRideSummary == null
                 ? 'Occupancy pending'
                 : `${totalOccupied} of ${maxSeats} Seats Occupied`}
             </Text>
@@ -284,9 +242,11 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
         {/* Fare Summary Bar */}
         <View style={styles.fareSummaryRow}>
           <View>
-            <Text style={styles.fareLabel}>HOP FARE</Text>
+            <Text style={styles.fareLabel}>{isHop ? 'HOP FARE' : isShared ? 'SHARED FARE' : 'FARE'}</Text>
             <Text style={styles.fareAmount}>
-              ₱{(trip.fare || 15.0).toFixed(2)}
+              {trip.fareBreakdown?.total != null || trip.fare != null
+                ? `₱${(trip.fareBreakdown?.total ?? trip.fare ?? 0).toFixed(2)}`
+                : 'Fare unavailable'}
             </Text>
           </View>
           <View style={styles.paymentBadge}>
