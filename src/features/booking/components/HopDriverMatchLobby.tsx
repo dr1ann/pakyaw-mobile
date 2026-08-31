@@ -49,12 +49,18 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
   const isShared = mode === 'shared';
   const isPakyaw = mode === 'solo';
 
-  // Driver identity/vehicle data remains unavailable until the scoped public
-  // snapshot phase. Never read private Driver/User documents or invent values.
-  const driverName = trip.driverPublic?.name ?? 'Assigned driver';
-  const vehicleModel = trip.driverPublic?.vehicleModel ?? 'Vehicle details unavailable';
-  const vehiclePlate = trip.driverPublic?.plateNumber ?? 'Plate unavailable';
-  const driverPhoto = trip.driverPublic?.photoUrl ?? undefined;
+  // Passenger identity data comes only from the backend-generated Trip
+  // snapshot. Never read private Driver/User documents or invent values.
+  const driverPublic = trip.driverPublic;
+  const driverName = driverPublic?.displayName ?? 'Driver details unavailable';
+  const vehicleDetails = driverPublic?.vehicle.description ?? driverPublic?.vehicle.type ?? null;
+  const vehiclePlate = driverPublic?.vehicle.plateNumber ?? null;
+  const vehicleUnitBodyNumber = driverPublic?.vehicle.unitBodyNumber ?? null;
+  const vehicleSummary = [vehicleDetails, vehiclePlate, vehicleUnitBodyNumber]
+    .filter((value): value is string => Boolean(value))
+    .join(' • ');
+  const driverPhoto = driverPublic?.profilePhotoUrl ?? undefined;
+  const isVerified = driverPublic?.verification.verified === true;
 
   // Shared occupancy is a backend-owned summary on the passenger's Trip. Do
   // not read the internal SharedRide or invent a capacity when it is absent.
@@ -169,7 +175,7 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
         <Pressable onPress={() => setIsCollapsed(false)} style={styles.collapsedBar}>
           <View style={styles.collapsedMeta}>
             <Text style={styles.driverName}>{driverName}</Text>
-            <Text style={styles.vehicleDetails}>{vehicleModel} • {vehiclePlate}</Text>
+            <Text style={styles.vehicleDetails}>{vehicleSummary || 'Vehicle details unavailable'}</Text>
           </View>
           <Text style={styles.expandHintText}>Tap to view Lobby details ➔</Text>
         </Pressable>
@@ -188,23 +194,29 @@ export function HopDriverMatchLobby({ trip, sharedRideSummary = null }: HopDrive
                 <SymbolIcon name="person.fill" size={28} tintColor={colors.white} />
               </View>
             )}
-            <View style={styles.verifiedCheck}>
-              <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
-            </View>
+            {isVerified ? (
+              <View style={styles.verifiedCheck}>
+                <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.driverMeta}>
             <Text style={styles.driverName}>{driverName}</Text>
-            <Text style={styles.vehicleDetails}>{vehicleModel}</Text>
-            <View style={styles.plateContainer}>
-              <Text style={styles.plateText}>{vehiclePlate}</Text>
-            </View>
+            <Text style={styles.vehicleDetails}>{vehicleDetails || 'Vehicle details unavailable'}</Text>
+            {vehiclePlate ? (
+              <View style={styles.plateContainer}>
+                <Text style={styles.plateText}>{vehiclePlate}</Text>
+              </View>
+            ) : null}
           </View>
 
-          <View style={styles.ratingBadge}>
-            <SymbolIcon name="star.fill" size={14} tintColor={colors.amber.primary} />
-            <Text style={styles.ratingText}>Rating unavailable</Text>
-          </View>
+          {isVerified ? (
+            <View style={styles.verifiedLabel}>
+              <SymbolIcon name="checkmark.seal.fill" size={14} tintColor={colors.green.primary} />
+              <Text style={styles.verifiedText}>Verified</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Seat Allocation Indicator */}
@@ -444,19 +456,19 @@ const styles = StyleSheet.create({
     color: colors.ink[700],
     letterSpacing: 0.5,
   },
-  ratingBadge: {
+  verifiedLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.amber.tint,
+    backgroundColor: colors.green.tint,
     paddingHorizontal: spacing[2],
     paddingVertical: spacing[1],
     borderRadius: radius.pill,
     gap: 4,
   },
-  ratingText: {
+  verifiedText: {
     fontSize: typography.size.label,
     fontWeight: typography.weight.bold,
-    color: colors.amber.primary,
+    color: colors.green.primary,
   },
   seatsSection: {
     borderTopWidth: 1,

@@ -66,12 +66,48 @@ export type TripOfferFare = {
 };
 
 export type DriverPublicSnapshot = {
-  name: string;
-  photoUrl?: string | null;
-  vehicleType?: string | null;
-  vehicleModel?: string | null;
-  plateNumber?: string | null;
+  driverId: string;
+  displayName: string;
+  profilePhotoUrl?: string | null;
+  vehicle: {
+    type?: string | null;
+    description?: string | null;
+    plateNumber: string;
+    unitBodyNumber?: string | null;
+  };
+  verification: { verified: true };
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+/** Accept only the backend-generated, Passenger-safe identity shape. */
+export function isDriverPublicSnapshot(value: unknown): value is DriverPublicSnapshot {
+  if (!isRecord(value)
+    || typeof value.driverId !== 'string'
+    || value.driverId.trim().length === 0
+    || typeof value.displayName !== 'string'
+    || value.displayName.trim().length === 0
+    || !isRecord(value.vehicle)
+    || typeof value.vehicle.plateNumber !== 'string'
+    || value.vehicle.plateNumber.trim().length === 0
+    || !isRecord(value.verification)
+    || value.verification.verified !== true) {
+    return false;
+  }
+  if (!hasOnlyKeys(value, ['driverId', 'displayName', 'profilePhotoUrl', 'vehicle', 'verification'])
+    || !hasOnlyKeys(value.vehicle, ['type', 'description', 'plateNumber', 'unitBodyNumber'])
+    || !hasOnlyKeys(value.verification, ['verified'])) return false;
+  return (value.profilePhotoUrl === undefined || value.profilePhotoUrl === null || typeof value.profilePhotoUrl === 'string')
+    && (value.vehicle.type === undefined || value.vehicle.type === null || typeof value.vehicle.type === 'string')
+    && (value.vehicle.description === undefined || value.vehicle.description === null || typeof value.vehicle.description === 'string')
+    && (value.vehicle.unitBodyNumber === undefined || value.vehicle.unitBodyNumber === null || typeof value.vehicle.unitBodyNumber === 'string');
+}
 
 export type Trip = {
   passengerId: string;

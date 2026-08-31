@@ -170,6 +170,18 @@ describe('history.service', () => {
           billedSeats: 4,
           geohash: '9q5',
           requestedAt: null,
+          driverPublic: {
+            driverId: 'd-1',
+            displayName: 'John Driver',
+            profilePhotoUrl: null,
+            vehicle: {
+              type: 'tricycle',
+              description: 'Blue tricycle',
+              plateNumber: 'ABC-123',
+              unitBodyNumber: 'UNIT-001',
+            },
+            verification: { verified: true },
+          },
           driver: {
             displayName: 'John Driver',
             phone: '123',
@@ -185,6 +197,9 @@ describe('history.service', () => {
       expect(trip.id).toBe('trip-abc');
       expect(trip.driver?.displayName).toBe('John Driver');
       expect(trip.driver?.plate).toBe('ABC-123');
+      expect(trip.driverPublic?.vehicle.plateNumber).toBe('ABC-123');
+      expect(trip.driver).not.toHaveProperty('rating');
+      expect(trip.driver).not.toHaveProperty('phone');
     });
 
     it('throws NotFoundError when trip does not exist', async () => {

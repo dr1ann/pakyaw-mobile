@@ -141,6 +141,11 @@ are only `solo`, `shared`, and `hop`; `sharedRides` is the canonical SharedRide
 collection and `shared_rides` is legacy. The Admin contract document is the
 cross-repository reference for ownership and the deferred migration path.
 
+Phase 6 identity and safety details are documented in
+[`phase6-identity-safety.md`](./phase6-identity-safety.md). Passenger ride
+screens consume the backend-generated historical `Trip.driverPublic` snapshot
+and never read a Driver's private profile or verification records.
+
 ## 7. Source-of-truth order for agents
 
 For work on `passenger-app`, use this order:

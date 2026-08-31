@@ -36,8 +36,8 @@ export default function TripDetailScreen() {
     );
   }
 
-  const driverName = trip.driver?.displayName ?? 'Cancelled request';
-  const plate = trip.driver?.plate ?? '—';
+  const driverName = trip.driver?.displayName ?? 'Driver details unavailable';
+  const plate = trip.driver?.plate ?? 'Plate unavailable';
   const dateStr = formatDate(trip.requestedAt);
 
   return (
@@ -93,14 +93,6 @@ export default function TripDetailScreen() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>License Plate</Text>
               <Text style={styles.detailValue}>{plate}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Driver Rating</Text>
-              <Text style={styles.detailValue}>★ {trip.driver.rating.toFixed(1)}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Completed Trips</Text>
-              <Text style={styles.detailValue}>{trip.driver.tripCount}</Text>
             </View>
           </>
         ) : null}

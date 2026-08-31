@@ -21,7 +21,7 @@ import {
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isRideMode } from '@pakyaw/shared/transport/contract';
+import { isDriverPublicSnapshot, isRideMode } from '@pakyaw/shared/transport/contract';
 import { firestore } from '@/services/firebase/firebase';
 
 /** Historical trip reads may encounter documents written before Phase 1. */
@@ -50,6 +50,18 @@ function translateFirebaseError(err: unknown): Error {
 }
 
 function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryItem {
+  const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
+  const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
+  const driver = driverPublic
+    ? { displayName: driverPublic.displayName, plate: driverPublic.vehicle.plateNumber }
+    : historicalDriver && (typeof historicalDriver.displayName === 'string' || typeof historicalDriver.plate === 'string')
+      ? {
+          displayName: typeof historicalDriver.displayName === 'string'
+            ? historicalDriver.displayName
+            : 'Driver details unavailable',
+          plate: typeof historicalDriver.plate === 'string' ? historicalDriver.plate : 'Plate unavailable',
+        }
+      : null;
   return {
     tripId: id,
     status: data.status as string,
@@ -63,12 +75,7 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
     requestedAt: (data.requestedAt as Timestamp) ?? null,
     completedAt: (data.completedAt as Timestamp) ?? null,
     cancelledAt: (data.cancelledAt as Timestamp) ?? null,
-    driver: data.driver
-      ? {
-          displayName: (data.driver.displayName as string) ?? 'Driver',
-          plate: (data.driver.plate as string) ?? '—',
-        }
-      : null,
+    driver,
   };
 }
 
@@ -116,6 +123,8 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
       throw new NotFoundError();
     }
     const data = snap.data();
+    const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
+    const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
     return {
       id: snap.id,
       mode: historicalRideMode(data.mode),
@@ -133,15 +142,20 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
       cancelledAt: (data.cancelledAt as Timestamp) ?? null,
       cancelledBy: data.cancelledBy ?? null,
       cancelReason: data.cancelReason ?? null,
-      driver: data.driver
+      driverPublic,
+      driver: driverPublic
         ? {
-            displayName: data.driver.displayName ?? 'Driver',
-            phone: data.driver.phone ?? '',
-            rating: data.driver.rating ?? 5.0,
-            tripCount: data.driver.tripCount ?? 0,
-            plate: data.driver.plate ?? '—',
+            displayName: driverPublic.displayName,
+            plate: driverPublic.vehicle.plateNumber,
           }
-        : null,
+        : historicalDriver && (typeof historicalDriver.displayName === 'string' || typeof historicalDriver.plate === 'string')
+          ? {
+              displayName: typeof historicalDriver.displayName === 'string'
+                ? historicalDriver.displayName
+                : 'Driver details unavailable',
+              plate: typeof historicalDriver.plate === 'string' ? historicalDriver.plate : 'Plate unavailable',
+            }
+          : null,
       passenger: data.passenger
         ? {
             displayName: data.passenger.displayName ?? 'Passenger',

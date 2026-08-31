@@ -36,7 +36,7 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
+import { isDriverPublicSnapshot, isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
 import { firestore, functions } from '@/services/firebase/firebase';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
@@ -142,7 +142,7 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
     status: data.status,
     passengerId: data.passengerId,
     driverId: data.driverId,
-    driverPublic: data.driverPublic ?? null,
+    driverPublic: isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null,
     sharedRideId: typeof data.sharedRideId === 'string' ? data.sharedRideId : null,
     sharedRideSummary: isSharedRideSummary(data.sharedRideSummary) ? data.sharedRideSummary : null,
     pickup: safePlace(data.pickup),
@@ -205,7 +205,7 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
     status: isTripStatus(data.status) ? data.status : 'requested',
     passengerId: data.passengerId as string,
     driverId: (data.driverId as string) ?? null,
-    driverPublic: data.driverPublic ?? null,
+    driverPublic: isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null,
     sharedRideId: typeof data.sharedRideId === 'string' ? data.sharedRideId : null,
     sharedRideSummary: isSharedRideSummary(data.sharedRideSummary) ? data.sharedRideSummary : null,
     pickup: safePlace(data.pickup),
