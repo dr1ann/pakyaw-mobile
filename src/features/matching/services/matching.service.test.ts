@@ -146,6 +146,42 @@ describe('matching.service — server offers', () => {
     expect(onOffers).toHaveBeenCalledWith([]);
   });
 
+  it('maps a server-created Hop offer without inventing mode or seat values', () => {
+    const onOffers = vi.fn();
+    mocks.onSnapshot.mockImplementation((_query, onNext) => {
+      onNext({
+        docs: [{
+          id: 'hop-offer',
+          data: () => ({
+            tripId: 'hop-trip',
+            driverId: 'driver-1',
+            status: 'pending',
+            mode: 'hop',
+            passengerCount: 1,
+            billedSeats: 1,
+            pickup: { latitude: 11.0, longitude: 124.6, label: 'Hop pickup' },
+            destination: { latitude: 11.1, longitude: 124.7, label: 'Hop destination' },
+            fare: { total: 45, driverEarnings: 40 },
+            sharedRideId: 'shared-1',
+            offeredAt: { toMillis: () => 1_700_000_000_000 },
+            expiresAt: { toMillis: () => Date.now() + 30_000 },
+          }),
+        }],
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribeDriverOffers('driver-1', onOffers, vi.fn());
+
+    expect(onOffers.mock.calls[0][0][0]).toMatchObject({
+      mode: 'hop',
+      passengerCount: 1,
+      billedSeats: 1,
+      fare: { total: 45, driverEarnings: 40 },
+      sharedRideId: 'shared-1',
+    });
+  });
+
   it('accepts a specific offer through the server callable', async () => {
     mocks.callable.mockResolvedValue({ data: { result: 'accepted' } });
 

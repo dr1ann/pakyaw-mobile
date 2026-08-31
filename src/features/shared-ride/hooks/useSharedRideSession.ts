@@ -69,6 +69,7 @@ function mapCanonicalSharedRide(id: string, value: Record<string, unknown>): Sha
       pickup: { label: pickup.label, coords: { lat: pickup.lat, lng: pickup.lng } },
       destination: { label: destination.label, coords: { lat: destination.lat, lng: destination.lng } },
       status: member.status === 'dropped_off' || member.status === 'cancelled' ? 'dropped_off' as const : 'active' as const,
+      isHop: member.mode === 'hop',
     }];
   });
   const activeMemberSeats = members.reduce((total, item) => {

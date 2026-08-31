@@ -35,7 +35,6 @@ export const LEGACY_SHARED_RIDES_COLLECTION = 'shared_rides' as const;
 export const INITIAL_PASSENGER_COUNT = 1;
 export const INITIAL_BILLED_SEATS = 1;
 export const MAX_PASSENGER_COUNT = 6;
-export const MAX_HOP_SEATS_PER_PASSENGER = 1;
 
 export type LatLng = {
   latitude: number;
@@ -113,6 +112,7 @@ export type TripOffer = {
   billedSeats: number;
 
   fare: TripOfferFare;
+  sharedRideId?: string;
 
   status: TripOfferStatus;
   offeredAt: Timestamp;
@@ -143,11 +143,11 @@ export type QuoteTripResult = {
 };
 
 export function isPassengerCountAllowed(mode: RideMode, passengerCount: number): boolean {
+  void mode;
   return (
     Number.isInteger(passengerCount) &&
     passengerCount >= 1 &&
-    passengerCount <= MAX_PASSENGER_COUNT &&
-    (mode !== 'hop' || passengerCount <= MAX_HOP_SEATS_PER_PASSENGER)
+    passengerCount <= MAX_PASSENGER_COUNT
   );
 }
 
@@ -166,6 +166,7 @@ export type SharedRideMember = {
   seats: number;
   pickup: Place;
   destination: Place;
+  mode?: 'shared' | 'hop';
   status: SharedRideMemberStatus;
 };
 
@@ -177,6 +178,7 @@ export type SharedRideSummary = {
 
 export type SharedRide = {
   driverId: string;
+  originMode?: 'shared';
   status: SharedRideStatus;
 
   maxSeats: number;

@@ -32,11 +32,11 @@ describe('transport contract', () => {
     expect(TRIP_OFFER_STATUSES).toEqual(['pending', 'accepted', 'expired']);
   });
 
-  it('enforces the initial Hop seat restriction', () => {
+  it('keeps the initial Hop seat policy explicit while runtime config owns limits', () => {
     expect(INITIAL_PASSENGER_COUNT).toBe(1);
     expect(INITIAL_BILLED_SEATS).toBe(1);
     expect(isPassengerCountAllowed('hop', 1)).toBe(true);
-    expect(isPassengerCountAllowed('hop', 2)).toBe(false);
+    expect(isPassengerCountAllowed('hop', 2)).toBe(true);
   });
 
   it('names sharedRides as canonical and shared_rides as legacy', () => {

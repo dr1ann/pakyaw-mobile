@@ -27,6 +27,7 @@ export type IncomingRequest = {
     readonly polyline: string;
   } | null;
   readonly fare: TripOfferFare;
+  readonly sharedRideId?: string;
   readonly offeredAt: number;
   readonly expiresAt: number;
 };

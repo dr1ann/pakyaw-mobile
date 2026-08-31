@@ -67,6 +67,8 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
   const isPending = acceptMutation.isPending;
   const disabled = isPending || driverUid == null;
+  const isShared = request.mode === 'shared';
+  const isHop = request.mode === 'hop';
 
   const tripDistanceKm = request.route
     ? (request.route.distanceMeters / 1000).toFixed(1)
@@ -96,13 +98,13 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     <View style={[styles.card, shadow.float]} testID="incoming-request-card">
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <View style={[styles.badge, request.mode === 'shared' ? styles.badgeShared : styles.badgePrivate]}>
-            <Text style={[styles.badgeText, request.mode === 'shared' ? styles.badgeTextShared : styles.badgeTextPrivate]}>
-              {request.mode === 'shared' ? 'SHARED RIDE' : 'PAKYAW PRIVATE'}
+          <View style={[styles.badge, isHop ? styles.badgeHop : isShared ? styles.badgeShared : styles.badgePrivate]}>
+            <Text style={[styles.badgeText, isHop ? styles.badgeTextHop : isShared ? styles.badgeTextShared : styles.badgeTextPrivate]}>
+              {isHop ? 'HOP' : isShared ? 'SHARED RIDE' : 'SOLO'}
             </Text>
           </View>
           <Text style={styles.seats}>
-            {request.mode === 'shared' ? request.billedSeats : request.passengerCount} {request.passengerCount === 1 ? 'rider' : 'riders'}
+            {request.billedSeats} {request.billedSeats === 1 ? 'seat' : 'seats'}
             {isMinimized && tripDistanceKm && ` · ${tripDistanceKm} km`}
           </Text>
         </View>
@@ -167,11 +169,11 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
               <Text style={styles.infoValue}>{`₱${request.fare.total.toFixed(2)}`}</Text>
             </View>
           </View>
-          {request.mode === 'shared' && (
+          {(isShared || isHop) && (
             <View style={styles.sharedNotice}>
               <SymbolIcon name="person.3.fill" size={14} tintColor={colors.blue.primary} style={{ marginTop: 2 }} />
               <Text style={styles.sharedNoticeText}>
-                This is a shared ride. After pickup, other passengers may hop on along your route.
+                {isHop ? 'This Hop request joins the existing Shared Ride only after you accept it.' : 'This is a shared ride. Other passengers may join along the route.'}
               </Text>
             </View>
           )}
@@ -261,6 +263,9 @@ const styles = StyleSheet.create({
   badgeShared: {
     backgroundColor: colors.blue.tint,
   },
+  badgeHop: {
+    backgroundColor: colors.amber.tint,
+  },
   badgePrivate: {
     backgroundColor: colors.green.tint,
   },
@@ -271,6 +276,9 @@ const styles = StyleSheet.create({
   },
   badgeTextShared: {
     color: colors.blue.primary,
+  },
+  badgeTextHop: {
+    color: colors.amber.primary,
   },
   badgeTextPrivate: {
     color: colors.green.primary,

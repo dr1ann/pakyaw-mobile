@@ -56,7 +56,6 @@ function mapOfferToIncomingRequest(
   if (
     typeof tripId !== 'string' ||
     !isRideMode(mode) ||
-    (mode !== 'solo' && mode !== 'shared') ||
     !isTripOfferStatus(data.status) ||
     data.status !== 'pending' ||
     typeof passengerCount !== 'number' ||
@@ -94,6 +93,7 @@ function mapOfferToIncomingRequest(
       total: offerFare.total,
       driverEarnings: offerFare.driverEarnings,
     },
+    ...(typeof data.sharedRideId === 'string' ? { sharedRideId: data.sharedRideId } : {}),
     offeredAt,
     expiresAt,
   };
