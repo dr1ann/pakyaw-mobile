@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import * as DocumentPicker from 'expo-document-picker';
 import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
@@ -106,6 +105,7 @@ export default function DriverApplicationScreen() {
 
     setUploadMessage(null);
     try {
+      const DocumentPicker = await import('expo-document-picker');
       const result = await DocumentPicker.getDocumentAsync({
         type: ['image/*', 'application/pdf'], multiple: false, copyToCacheDirectory: true,
       });

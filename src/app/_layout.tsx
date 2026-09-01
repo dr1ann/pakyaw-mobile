@@ -102,7 +102,9 @@ export default function RootLayout() {
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={persistOptions}
-      onSuccess={() => setQueryRestored(true)}
+      onSuccess={() => {
+        setTimeout(() => setQueryRestored(true), 0);
+      }}
     >
       <SafeAreaProvider>
         {isReady ? <AppNavigator /> : null}

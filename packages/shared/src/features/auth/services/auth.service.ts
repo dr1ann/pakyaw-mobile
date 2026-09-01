@@ -9,6 +9,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 
 import {
@@ -145,14 +146,9 @@ export async function signInDriver(
         'Driver profile not found. Contact your fleet manager.',
       );
     }
-    const driverData = driverSnap.data() as {
-      applicationStatus?: string;
-      accountStatus?: string;
-    };
-    if (
-      driverData.applicationStatus !== 'approved'
-      || driverData.accountStatus !== 'active'
-    ) {
+    const driverData = driverSnap.data() as { approved?: boolean; applicationStatus?: string };
+    const isApproved = driverData.approved === true || driverData.applicationStatus === 'approved';
+    if (!isApproved) {
       throw new AuthError(
         'Your driver account is pending approval. Please wait for confirmation.',
       );
@@ -160,7 +156,11 @@ export async function signInDriver(
 
     return { uid, role: 'driver' };
   } catch (err) {
-    await signOut(auth).catch(() => undefined);
+    try {
+      await signOut(auth);
+    } catch {
+      // Ignore cleanup sign-out errors
+    }
     if (
       err instanceof AuthError ||
       err instanceof NotFoundError ||
@@ -192,12 +192,38 @@ export async function signOutUser(): Promise<void> {
 
 export async function createUserDoc(
   uid: string,
-  data: UserDocInput,
+  data: Partial<UserDocInput>,
 ): Promise<void> {
   try {
+    const name = data.name ?? `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim();
+    const mobile = data.mobile ?? data.phone ?? '';
     await setDoc(doc(firestore, 'users', uid), {
-      ...data,
+      uid,
+      name: name.length >= 2 ? name : 'Passenger',
+      mobile,
+      role: data.role ?? 'passenger',
+      accountStatus: data.accountStatus ?? 'active',
+      termsAcceptedAt: data.termsAcceptedAt ?? serverTimestamp(),
+      privacyAcceptedAt: data.privacyAcceptedAt ?? serverTimestamp(),
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    throw translateFirebaseError(err);
+  }
+}
+
+export async function updatePassengerName(
+  uid: string,
+  name: string,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) {
+    throw new ValidationError('Name must be at least 2 characters.');
+  }
+  try {
+    await updateDoc(doc(firestore, 'users', uid), {
+      name: trimmed,
       updatedAt: serverTimestamp(),
     });
   } catch (err) {
@@ -216,4 +242,3 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
 }
 
 export { auth as firebaseAuth };
-

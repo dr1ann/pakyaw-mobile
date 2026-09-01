@@ -15,23 +15,55 @@ export type UserRole = 'passenger' | 'driver';
 export type RiderType = 'regular' | 'student' | 'pwd' | 'senior';
 
 /**
- * User document shape — matches database_schema.md §2.
- * Keyed by Firebase Auth uid in users/{uid}.
+ * Account status — controls booking and driver eligibility.
+ */
+export type AccountStatus = 'active' | 'suspended' | 'blocked';
+
+/**
+ * Canonical User document shape — matches Firestore security rules and schema §2.
+ * Keyed by Firebase Auth UID in users/{uid}.
  */
 export interface UserDoc {
+  /** Firebase Auth UID (document ID == uid) */
   uid: string;
+  /** Full passenger name (minimum 2 characters) */
+  name: string;
+  /** Philippine E.164 mobile number verified via Firebase Phone Auth */
+  mobile: string;
+  /** Role discriminator */
   role: UserRole;
-  firstName: string;
-  lastName: string;
-  phone: string; // +63 E.164 format (NFR-2)
-  phoneVerified: boolean; // set true after SMS OTP (FR-1.1.3)
-  email: string | null; // passengers sign up with email; driver may be null
-  riderType: RiderType; // FR-1.1.4 — STORED ONLY, not priced in MVP
+  /** Account lifecycle status */
+  accountStatus: AccountStatus;
+  /** Server timestamp when Terms of Service were accepted */
+  termsAcceptedAt?: Timestamp;
+  /** Server timestamp when Privacy Policy was accepted */
+  privacyAcceptedAt?: Timestamp;
+  /** Server timestamp when the user profile was created */
   createdAt: Timestamp;
+  /** Server timestamp when the user profile was last modified */
   updatedAt: Timestamp;
+
+  /**
+   * Optional / Legacy Compatibility Fields
+   * Preserved for backward compatibility with existing tests and UI screens.
+   */
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  phoneVerified?: boolean;
+  email?: string | null;
+  riderType?: RiderType;
+  birthday?: string;
+  gender?: string;
+  address?: string;
 }
 
 /**
  * The shape written to Firestore at sign-up (without server-set timestamps).
  */
-export type UserDocInput = Omit<UserDoc, 'createdAt' | 'updatedAt'>;
+export type UserDocInput = Omit<UserDoc, 'createdAt' | 'updatedAt' | 'termsAcceptedAt' | 'privacyAcceptedAt'> & {
+  termsAcceptedAt?: Timestamp;
+  privacyAcceptedAt?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+};

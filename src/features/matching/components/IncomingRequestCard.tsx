@@ -14,11 +14,9 @@ import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
   Vibration,
 } from 'react-native';
@@ -34,10 +32,6 @@ import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 type IncomingRequestCardProps = {
   request: IncomingRequest;
 };
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const driverUid = useSessionStore((s) => s.uid);
