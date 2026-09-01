@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@pakyaw/shared': path.resolve(__dirname, './packages/shared/src'),
+      'react-native': 'react-native-web',
     },
   },
   test: {

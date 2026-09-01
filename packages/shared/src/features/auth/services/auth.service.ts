@@ -9,6 +9,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 
 import {
@@ -186,12 +187,38 @@ export async function signOutUser(): Promise<void> {
 
 export async function createUserDoc(
   uid: string,
-  data: UserDocInput,
+  data: Partial<UserDocInput>,
 ): Promise<void> {
   try {
+    const name = data.name ?? `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim();
+    const mobile = data.mobile ?? data.phone ?? '';
     await setDoc(doc(firestore, 'users', uid), {
-      ...data,
+      uid,
+      name: name.length >= 2 ? name : 'Passenger',
+      mobile,
+      role: data.role ?? 'passenger',
+      accountStatus: data.accountStatus ?? 'active',
+      termsAcceptedAt: data.termsAcceptedAt ?? serverTimestamp(),
+      privacyAcceptedAt: data.privacyAcceptedAt ?? serverTimestamp(),
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    throw translateFirebaseError(err);
+  }
+}
+
+export async function updatePassengerName(
+  uid: string,
+  name: string,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) {
+    throw new ValidationError('Name must be at least 2 characters.');
+  }
+  try {
+    await updateDoc(doc(firestore, 'users', uid), {
+      name: trimmed,
       updatedAt: serverTimestamp(),
     });
   } catch (err) {
@@ -210,4 +237,5 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
 }
 
 export { auth as firebaseAuth };
+
 

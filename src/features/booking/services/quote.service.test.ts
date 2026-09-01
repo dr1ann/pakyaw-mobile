@@ -27,14 +27,28 @@ describe('quote.service — server-authoritative quote boundary', () => {
       data: {
         mode: 'solo',
         passengerCount: 1,
-        billedSeats: 1,
-        fare: { baseFare: 55, distanceFare: 0, surcharges: 0, techFee: 0, total: 55, driverEarnings: 55 },
+        billedSeats: 4,
+        fare: {
+          baseFare: 220,
+          succeedingKmCharge: 0,
+          distanceFare: 0,
+          surcharges: 0,
+          techFee: 15,
+          total: 235,
+          driverEarnings: 220,
+        },
       },
     });
   });
 
   it('sends intent only and returns the structured server quote', async () => {
-    await expect(quoteTrip(input)).resolves.toMatchObject({ mode: 'solo', billedSeats: 1, fare: { total: 55 } });
+    const quote = await quoteTrip(input);
+    expect(quote).toMatchObject({
+      mode: 'solo',
+      passengerCount: 1,
+      billedSeats: 4,
+      fare: { total: 235, baseFare: 220, techFee: 15 },
+    });
     expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'quoteTrip');
     expect(mocks.callable).toHaveBeenCalledWith({
       mode: 'solo',
@@ -43,9 +57,49 @@ describe('quote.service — server-authoritative quote boundary', () => {
       route: input.route,
       passengerCount: 1,
     });
-    expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('driverId');
-    expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('billedSeats');
-    expect(mocks.callable.mock.calls[0][0]).not.toHaveProperty('fare');
+    // Verifies passenger client cannot send or forge authoritative fields
+    const sentPayload = mocks.callable.mock.calls[0][0];
+    expect(sentPayload).not.toHaveProperty('driverId');
+    expect(sentPayload).not.toHaveProperty('billedSeats');
+    expect(sentPayload).not.toHaveProperty('fare');
+    expect(sentPayload).not.toHaveProperty('serviceFee');
+    expect(sentPayload).not.toHaveProperty('driverEarnings');
+    expect(sentPayload).not.toHaveProperty('surcharges');
+  });
+
+  it('returns 4-seat buyout for Solo even when 1 passenger is boarding', async () => {
+    const quote = await quoteTrip({ ...input, passengerCount: 1 });
+    expect(quote.passengerCount).toBe(1);
+    expect(quote.billedSeats).toBe(4);
+    expect(quote.fare.total).toBe(235);
+  });
+
+  it('accepts a canonical Shared quote with reserved seats', async () => {
+    mocks.callable.mockResolvedValueOnce({
+      data: {
+        mode: 'shared',
+        passengerCount: 2,
+        billedSeats: 2,
+        fare: {
+          baseFare: 110,
+          succeedingKmCharge: 0,
+          distanceFare: 0,
+          surcharges: 0,
+          techFee: 15,
+          total: 125,
+          driverEarnings: 110,
+        },
+      },
+    });
+
+    const quote = await quoteTrip({ ...input, mode: 'shared', passengerCount: 2 });
+    expect(quote).toMatchObject({
+      mode: 'shared',
+      passengerCount: 2,
+      billedSeats: 2,
+      fare: { total: 125 },
+    });
+    expect(mocks.callable).toHaveBeenCalledWith(expect.objectContaining({ mode: 'shared', passengerCount: 2 }));
   });
 
   it('accepts a canonical Hop quote without sending a SharedRide target', async () => {
@@ -54,7 +108,15 @@ describe('quote.service — server-authoritative quote boundary', () => {
         mode: 'hop',
         passengerCount: 1,
         billedSeats: 1,
-        fare: { baseFare: 55, distanceFare: 0, surcharges: 0, techFee: 0, total: 55, driverEarnings: 55 },
+        fare: {
+          baseFare: 55,
+          succeedingKmCharge: 0,
+          distanceFare: 0,
+          surcharges: 0,
+          techFee: 15,
+          total: 70,
+          driverEarnings: 55,
+        },
       },
     });
 

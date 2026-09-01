@@ -18,7 +18,7 @@ import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/us
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, Platform, StyleSheet, Text, UIManager, View } from 'react-native';
+import { Alert, LayoutAnimation, Modal, StyleSheet, Text, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -52,11 +52,6 @@ import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
-
-// Enable LayoutAnimation for Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export default function RideScreen() {
   const trip = useActiveTripStore((s) => s.trip);

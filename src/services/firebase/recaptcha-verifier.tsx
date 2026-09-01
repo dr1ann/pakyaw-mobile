@@ -1,7 +1,21 @@
-import { Component } from 'react';
+import { Component, type ComponentType } from 'react';
 import { Button, Modal, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 import type { ApplicationVerifier } from 'firebase/auth';
+import type { WebViewProps } from 'react-native-webview';
+
+let WebViewComponent: ComponentType<WebViewProps> | null = null;
+function getWebView(): ComponentType<WebViewProps> | null {
+  if (!WebViewComponent) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const module = require('react-native-webview');
+      WebViewComponent = module.WebView ?? module.default ?? module;
+    } catch {
+      return null;
+    }
+  }
+  return WebViewComponent;
+}
 
 type FirebaseWebConfig = Readonly<{
   apiKey: string;
@@ -70,6 +84,11 @@ export class FirebaseRecaptchaVerifierModal
       return Promise.reject(new Error('A mobile verification request is already in progress.'));
     }
 
+    const WebView = getWebView();
+    if (!WebView) {
+      return Promise.reject(new Error('In-app security verification is not supported in this environment.'));
+    }
+
     return new Promise<string>((resolve, reject) => {
       this.pending = { resolve, reject };
       this.setState((current) => ({ visible: true, key: current.key + 1 }));
@@ -110,12 +129,42 @@ export class FirebaseRecaptchaVerifierModal
   };
 
   render() {
-    return <Modal visible={this.state.visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => this.fail('Security check cancelled.')}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}><Text style={styles.title}>Security check</Text><Button title="Cancel" onPress={() => this.fail('Security check cancelled.')} /></View>
-        <WebView key={this.state.key} source={{ html: createRecaptchaDocument(this.props.firebaseConfig), baseUrl: `https://${this.props.firebaseConfig.authDomain}` }} javaScriptEnabled domStorageEnabled thirdPartyCookiesEnabled onMessage={this.onMessage} onError={() => this.fail('Unable to load the security check. Please check your connection and try again.')} />
-      </SafeAreaView>
-    </Modal>;
+    if (!this.state.visible) {
+      return null;
+    }
+
+    const WebView = getWebView();
+    if (!WebView) {
+      return null;
+    }
+
+    return (
+      <Modal
+        visible={this.state.visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => this.fail('Security check cancelled.')}
+      >
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Security check</Text>
+            <Button title="Cancel" onPress={() => this.fail('Security check cancelled.')} />
+          </View>
+          <WebView
+            key={this.state.key}
+            source={{
+              html: createRecaptchaDocument(this.props.firebaseConfig),
+              baseUrl: `https://${this.props.firebaseConfig.authDomain}`,
+            }}
+            javaScriptEnabled
+            domStorageEnabled
+            thirdPartyCookiesEnabled
+            onMessage={this.onMessage}
+            onError={() => this.fail('Unable to load the security check. Please check your connection and try again.')}
+          />
+        </SafeAreaView>
+      </Modal>
+    );
   }
 }
 

@@ -53,11 +53,19 @@ export type RouteSnapshot = {
 
 export type FareBreakdown = {
   baseFare: number;
+  succeedingKmCharge?: number;
   distanceFare: number;
   surcharges: number;
   techFee: number;
   total: number;
   driverEarnings?: number;
+  perSeat?: {
+    baseFare: number;
+    succeedingKmCharge: number;
+    distanceFare: number;
+    surchargeTotal: number;
+    transportFare: number;
+  };
 };
 
 export type TripOfferFare = {

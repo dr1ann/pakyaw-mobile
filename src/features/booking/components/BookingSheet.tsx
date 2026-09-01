@@ -9,6 +9,8 @@ import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftS
 import { logger } from '@pakyaw/shared/lib/logger';
 import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
+import { FareQuoteBreakdown } from './FareQuoteBreakdown';
+import { useQuote } from '@/features/booking/hooks/useQuote';
 import { toRideMode, type CreateBookingInput } from '../types';
 
 type BookingSheetProps = {
@@ -35,6 +37,13 @@ export function BookingSheet({
   const [dismissedOnboardingMode, setDismissedOnboardingMode] = useState<typeof draft.rideMode | null>(null);
 
   const { mutate, isPending } = useCreateBooking();
+  const {
+    quote,
+    isLoading: isQuoteLoading,
+    isError: isQuoteError,
+    error: quoteError,
+    refetch: refetchQuote,
+  } = useQuote();
 
   const routeIsCurrent = routeMatchesInputs(draft);
   const currentRoute = routeIsCurrent ? draft.route : null;
@@ -73,6 +82,7 @@ export function BookingSheet({
         durationSeconds: draft.route.durationSeconds,
         polyline: draft.route.polyline,
       },
+      displayedFare: quote?.fare.total ?? null,
     };
 
     logger.info('[BookingSheet] Submitting trip booking request', payload);
@@ -255,9 +265,11 @@ export function BookingSheet({
             {/* Passenger Stepper */}
             <View style={styles.formRow}>
               <View style={styles.labelContainer}>
-                <Text style={styles.rowTitle}>Passengers boarding</Text>
+                <Text style={styles.rowTitle}>How many riders?</Text>
                 <Text style={styles.rowSubtitle}>
-                  {draft.rideMode === 'private' ? 'Min 4-seat buyout enforced' : 'How many seats do you need?'}
+                  {draft.rideMode === 'private'
+                    ? 'Solo includes up to 4 riders. Extra riders are charged per seat.'
+                    : 'Cover 1–3 seats.'}
                 </Text>
               </View>
               <View style={styles.stepperContainer}>
@@ -269,7 +281,7 @@ export function BookingSheet({
                     draft.passengerCount <= 1 && styles.stepperDisabled,
                     pressed && styles.stepperPressed,
                   ]}
-                  accessibilityLabel="Decrease passenger count"
+                  accessibilityLabel="Decrease rider count"
                 >
                   <Text style={styles.stepperButtonText}>−</Text>
                 </Pressable>
@@ -282,7 +294,7 @@ export function BookingSheet({
                     (draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6) && styles.stepperDisabled,
                     pressed && styles.stepperPressed,
                   ]}
-                  accessibilityLabel="Increase passenger count"
+                  accessibilityLabel="Increase rider count"
                 >
                   <Text style={styles.stepperButtonText}>+</Text>
                 </Pressable>
@@ -291,15 +303,18 @@ export function BookingSheet({
           </View>
         )}
 
-      {/* Fare remains server-authoritative for the Day 3 booking contract. */}
-      <View style={styles.detailsContainer}>
-          <Text style={styles.detailsHeader}>FARE</Text>
-          <View style={styles.placeholderCard}>
-            <SymbolIcon name="info.circle" size={16} tintColor={colors.ink[500]} style={styles.infoIcon} />
-            <Text style={styles.placeholderText}>
-              Your fare is calculated securely when the booking request is created.
-            </Text>
-          </View>
+        {/* Fare Quote Breakdown */}
+        <View style={styles.detailsContainer}>
+          <FareQuoteBreakdown
+            quote={quote}
+            isLoading={isQuoteLoading}
+            isError={isQuoteError}
+            error={quoteError}
+            onRetry={refetchQuote}
+            mode={draft.rideMode}
+            hasValidRoute={hasValidRoute}
+            riderCount={draft.passengerCount}
+          />
         </View>
       </ScrollView>
 
@@ -335,7 +350,7 @@ export function BookingSheet({
             label={confirmButtonLabel}
             onPress={handleConfirm}
             loading={isPending}
-            disabled={isPending || !hasValidRoute || isLoadingRoute}
+            disabled={isPending || !hasValidRoute || isLoadingRoute || isQuoteLoading || isQuoteError || !quote}
             testID="booking-confirm"
             style={styles.confirmButton}
           />

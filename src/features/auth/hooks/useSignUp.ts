@@ -88,6 +88,7 @@ export function useSignUp() {
         birthday,
         gender,
         address,
+        accountStatus: 'active',
       });
       return uid;
     },

@@ -9,3 +9,5 @@ process.env.EXPO_PUBLIC_FIREBASE_APP_ID =
   process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '1:test';
 process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? 'AIzaSy_test_key';
+
+(globalThis as any).__DEV__ = true;

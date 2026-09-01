@@ -22,7 +22,9 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE"
       ],
       "package": "com.example.pakyaw",
       "googleServicesFile": "./google-services.json"
@@ -68,8 +70,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f0724121-aea9-4ba2-8fe3-98eb536a7239"
+        "projectId": "40b0edd2-d2db-42ef-8600-23b61b4315b4"
       }
-    }
+    },
+    "owner": "dreeeeeeeee"
   }
 }
