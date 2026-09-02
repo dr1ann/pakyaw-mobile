@@ -141,9 +141,11 @@ async function logStorageRuleDiagnostics(
   const applicationVehicleTypeId = applicationVehicle && typeof applicationVehicle === 'object'
     ? (applicationVehicle as Record<string, unknown>).vehicleTypeId
     : undefined;
-  const vehicleTypeId = typeof applicationVehicleTypeId === 'string' && applicationVehicleTypeId.trim().length > 0
+  // Storage Rules read the persisted application, not unsaved form state.
+  // Report that exact predicate so diagnostics cannot hide a draft-save race.
+  const vehicleTypeId = typeof applicationVehicleTypeId === 'string'
     ? applicationVehicleTypeId
-    : context?.vehicleTypeId;
+    : undefined;
   const applicationExists = snapshotExists(applicationSnapshot);
   const applicationStatus = typeof application?.status === 'string'
     ? application.status
@@ -159,8 +161,10 @@ async function logStorageRuleDiagnostics(
   const requiredForApplication: RuleCheck = requirement === undefined
     ? 'unknown'
     : requirement === null ? false : requirement.requiredForApplication === true;
-  const vehicleApplicable: RuleCheck = requirement === undefined || !vehicleTypeIdPresent
-    ? 'unknown'
+  const vehicleApplicable: RuleCheck = !vehicleTypeIdPresent
+    ? false
+    : requirement === undefined
+      ? 'unknown'
     : requirement === null
       ? false
       : requirement.vehicleTypeIds.length === 0 || requirement.vehicleTypeIds.includes(vehicleTypeId as string);
@@ -236,6 +240,13 @@ export async function uploadDriverDocument(
 
   logUploadStage('starting storage upload');
   const task = putFile(ref(storage, storagePath), asset.uri, { contentType });
+  // React Native Firebase's StorageTask owns an internal promise in addition
+  // to its state_changed callbacks. The callback below remains authoritative,
+  // while this handler prevents the same native rejection from surfacing as an
+  // unrelated unhandled promise after we have already converted the error.
+  if (typeof task?.catch === 'function') {
+    void task.catch(() => undefined);
+  }
   try {
     await new Promise<void>((resolve, reject) => {
       task.on(

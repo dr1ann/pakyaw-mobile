@@ -271,6 +271,18 @@ function DriverApplicationWizard({
     setUploadingKey(requirementKey);
     setUploadProgress(0);
     try {
+      // Storage Rules authorize draft uploads against the application state
+      // already persisted in Firestore. Flush the latest vehicle selection
+      // before starting putFile so a quick tap cannot race the draft save.
+      if (application?.status === 'draft') {
+        const latestDraft = adaptDynamicRequirementsToLegacyForm(
+          form,
+          metadataState,
+          selectedVehicleType?.type,
+        );
+        await saveMutation.mutateAsync(latestDraft);
+      }
+
       const currentMeta = metadataState[requirementKey] || {};
       await uploadDriverDocument(
         uid,
@@ -353,14 +365,27 @@ function DriverApplicationWizard({
       return;
     }
 
-    // Autosave on step change
+    // Storage authorization for Step 4 reads the persisted application. Wait
+    // for the draft write before rendering upload controls so the vehicle type
+    // cannot still be missing when the Driver taps Upload.
     if (uid && application?.status === 'draft') {
       const adapted = adaptDynamicRequirementsToLegacyForm(
         form,
         metadataState,
         selectedVehicleType?.type,
       );
-      saveMutation.mutate(adapted);
+      setIsTransitioningStep(true);
+      setSaveStatus('saving');
+      try {
+        await saveMutation.mutateAsync(adapted);
+        setSaveStatus('saved');
+      } catch (error) {
+        setSaveStatus('idle');
+        setSubmitError(error instanceof Error ? error.message : 'We couldn’t save your application. Try again.');
+        return;
+      } finally {
+        setIsTransitioningStep(false);
+      }
     }
     setCurrentStep(step);
   }

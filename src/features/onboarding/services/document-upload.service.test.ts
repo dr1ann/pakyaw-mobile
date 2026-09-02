@@ -274,8 +274,10 @@ describe('uploadDriverDocument', () => {
   it('logs safe diagnostic error without PII when native storage upload fails', async () => {
     vi.stubGlobal('__DEV__', true);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const taskCatch = vi.fn(() => Promise.resolve());
 
     vi.mocked(putFile).mockReturnValue({
+      catch: taskCatch,
       on: vi.fn((_event, _onProgress, onError) => {
         onError({ code: 'storage/unauthorized', message: 'User is not authorized' });
       }),
@@ -293,6 +295,7 @@ describe('uploadDriverDocument', () => {
     ).rejects.toThrow('We couldn’t upload that file. Try again.');
 
     expect(setDoc).not.toHaveBeenCalled();
+    expect(taskCatch).toHaveBeenCalledOnce();
 
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Driver Document Upload] storage upload failed:\ncode=storage/unauthorized\nrequirementKey=valid_id\ncontentType=image/jpeg\nsizeBytes=2048\napplicationStatus=draft'),
