@@ -1,11 +1,11 @@
 import {
   doc,
   firestore,
+  putFile,
   ref,
   serverTimestamp,
   setDoc,
   storage,
-  uploadBytesResumable,
 } from '@/services/firebase/firebase';
 import type { DriverDocumentMetadata } from '@pakyaw/shared/onboarding';
 
@@ -34,6 +34,11 @@ export function validatePickedDriverDocument(asset: PickedDriverDocument): strin
     throw new DriverDocumentUploadError('Choose a file smaller than 10 MB.');
   }
   return contentType;
+}
+
+export function getUriScheme(uri: string): string {
+  const match = uri.match(/^([a-zA-Z0-9+.-]+):/);
+  return match ? match[1] : 'unknown';
 }
 
 function isDevelopmentBuild(): boolean {
@@ -84,27 +89,33 @@ export async function uploadDriverDocument(
     throw new DriverDocumentUploadError('This document type is not required.');
   }
   const contentType = validatePickedDriverDocument(asset);
-  const response = await fetch(asset.uri);
-  if (!response.ok) throw new DriverDocumentUploadError('We couldn’t read that file. Choose it again.');
-  const blob = await response.blob();
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const storagePath = `driver-documents/${uid}/${documentType}/${fileId}`;
 
   const diagnostic = {
     requirementKey: documentType,
     contentType,
-    sizeBytes: asset.size ?? blob.size,
+    sizeBytes: asset.size,
     applicationStatus,
   };
 
+  if (isDevelopmentBuild()) {
+    const uriScheme = getUriScheme(asset.uri);
+    console.log(
+      `[Driver Document Upload] diagnostics:\nuriScheme=${uriScheme}\ncontentType=${contentType}\nsizeBytes=${asset.size ?? 'unknown'}\nuploadMethod=putFile`,
+    );
+  }
+
   logUploadStage('starting storage upload');
-  const task = uploadBytesResumable(ref(storage, storagePath), blob, { contentType });
+  const task = putFile(ref(storage, storagePath), asset.uri, { contentType });
   try {
     await new Promise<void>((resolve, reject) => {
       task.on(
         'state_changed',
         (snapshot: any) => {
-          onProgress?.(snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes : 0);
+          if (snapshot && typeof snapshot.bytesTransferred === 'number' && typeof snapshot.totalBytes === 'number') {
+            onProgress?.(snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes : 0);
+          }
         },
         (error: any) => reject(error),
         () => resolve(),
@@ -127,7 +138,7 @@ export async function uploadDriverDocument(
       state: 'uploaded',
       storagePath,
       contentType,
-      sizeBytes: asset.size ?? blob.size,
+      sizeBytes: asset.size ?? null,
       uploadedAt: serverTimestamp(),
       ...normalizedMetadata,
     });

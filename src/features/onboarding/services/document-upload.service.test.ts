@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DriverDocumentUploadError,
   MAX_DRIVER_DOCUMENT_BYTES,
+  getUriScheme,
   uploadDriverDocument,
   validatePickedDriverDocument,
 } from '@/features/onboarding/services/document-upload.service';
@@ -11,13 +12,16 @@ vi.mock('@/services/firebase/firebase', () => ({
   firestore: {},
   storage: {},
   ref: vi.fn((_storage: unknown, path: string) => ({ fullPath: path })),
+  putFile: vi.fn(),
   uploadBytesResumable: vi.fn(),
   doc: vi.fn((_db: unknown, ...parts: string[]) => parts.join('/')),
-  serverTimestamp: vi.fn(() => ({ _type: 'serverTimestamp' })),
+  serverTimestamp: vi.fn(() => ({ _methodName: 'serverTimestamp', _elements: undefined })),
   setDoc: vi.fn(),
+  FieldValue: class MockFieldValue {},
+  Timestamp: class MockTimestamp {},
 }));
 
-import { setDoc, uploadBytesResumable } from '@/services/firebase/firebase';
+import { putFile, setDoc } from '@/services/firebase/firebase';
 
 describe('driver document selection validation', () => {
   it('accepts images and PDFs below the private upload limit', () => {
@@ -49,6 +53,12 @@ describe('driver document selection validation', () => {
       }),
     ).toThrow(DriverDocumentUploadError);
   });
+
+  it('extracts URI scheme correctly for content and file URIs', () => {
+    expect(getUriScheme('content://media/external/images/media/123')).toBe('content');
+    expect(getUriScheme('file:///var/mobile/Containers/Data/temp.jpg')).toBe('file');
+    expect(getUriScheme('invalid-uri')).toBe('unknown');
+  });
 });
 
 describe('uploadDriverDocument', () => {
@@ -57,41 +67,63 @@ describe('uploadDriverDocument', () => {
     vi.unstubAllGlobals();
   });
 
-  const validAsset = {
+  const validImageAsset = {
     uri: 'file:///data/user/0/com.example.pakyaw/cache/test-doc.jpg',
     name: 'test-doc.jpg',
     size: 2048,
     mimeType: 'image/jpeg',
   };
 
-  it('logs upload stages and writes metadata on success', async () => {
+  const validPdfAsset = {
+    uri: 'content://com.android.providers.media.documents/document/123',
+    name: 'franchise.pdf',
+    size: 4096,
+    mimeType: 'application/pdf',
+  };
+
+  it('uploads image file via native putFile and writes metadata without Blob conversion', async () => {
     vi.stubGlobal('__DEV__', true);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(new Blob(['test'], { type: 'image/jpeg' })),
-      }),
-    );
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    vi.mocked(uploadBytesResumable).mockReturnValue({
-      on: vi.fn((_event, _onProgress, _onError, onComplete) => {
+    let capturedProgressCb: ((snapshot: any) => void) | undefined;
+    vi.mocked(putFile).mockReturnValue({
+      on: vi.fn((_event, onProgress, _onError, onComplete) => {
+        capturedProgressCb = onProgress;
         onComplete();
       }),
     } as any);
     vi.mocked(setDoc).mockResolvedValueOnce(undefined);
 
+    const progressReports: number[] = [];
     const result = await uploadDriverDocument(
       'driver-uid-123',
       'drivers_license',
-      validAsset,
+      validImageAsset,
       { identificationNumber: 'N01-12-345678' },
-      undefined,
+      (ratio) => progressReports.push(ratio),
       'draft',
     );
 
+    // Verify putFile was called with file URI directly
+    expect(putFile).toHaveBeenCalledWith(
+      expect.objectContaining({ fullPath: expect.stringMatching(/^driver-documents\/driver-uid-123\/drivers_license\//) }),
+      validImageAsset.uri,
+      { contentType: 'image/jpeg' },
+    );
+
+    // Verify Blob / fetch conversion was NEVER called
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Verify progress forwarding
+    if (capturedProgressCb) {
+      capturedProgressCb({ bytesTransferred: 1024, totalBytes: 2048 });
+      expect(progressReports).toContain(0.5);
+    }
+
+    // Verify metadata write
     expect(result.storagePath).toMatch(/^driver-documents\/driver-uid-123\/drivers_license\//);
     expect(setDoc).toHaveBeenCalledWith(
       'drivers/driver-uid-123/driverDocuments/drivers_license',
@@ -110,19 +142,38 @@ describe('uploadDriverDocument', () => {
     expect(logSpy).toHaveBeenCalledWith('[Driver Document Upload] document metadata written');
   });
 
-  it('logs safe diagnostic error without PII when storage upload fails', async () => {
+  it('uploads PDF file via native putFile with content URI', async () => {
     vi.stubGlobal('__DEV__', true);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(new Blob(['test'], { type: 'image/jpeg' })),
+    vi.mocked(putFile).mockReturnValue({
+      on: vi.fn((_event, _onProgress, _onError, onComplete) => {
+        onComplete();
       }),
+    } as any);
+    vi.mocked(setDoc).mockResolvedValueOnce(undefined);
+
+    const result = await uploadDriverDocument(
+      'driver-uid-123',
+      'franchise',
+      validPdfAsset,
+      { identificationNumber: 'FR-9988' },
+      undefined,
+      'draft',
     );
 
+    expect(putFile).toHaveBeenCalledWith(
+      expect.objectContaining({ fullPath: expect.stringMatching(/^driver-documents\/driver-uid-123\/franchise\//) }),
+      validPdfAsset.uri,
+      { contentType: 'application/pdf' },
+    );
+
+    expect(result.storagePath).toMatch(/^driver-documents\/driver-uid-123\/franchise\//);
+  });
+
+  it('logs safe diagnostic error without PII when native storage upload fails', async () => {
+    vi.stubGlobal('__DEV__', true);
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    vi.mocked(uploadBytesResumable).mockReturnValue({
+    vi.mocked(putFile).mockReturnValue({
       on: vi.fn((_event, _onProgress, onError) => {
         onError({ code: 'storage/unauthorized', message: 'User is not authorized' });
       }),
@@ -132,12 +183,14 @@ describe('uploadDriverDocument', () => {
       uploadDriverDocument(
         'secret-uid-999',
         'valid_id',
-        validAsset,
+        validImageAsset,
         {},
         undefined,
         'draft',
       ),
     ).rejects.toThrow('We couldn’t upload that file. Try again.');
+
+    expect(setDoc).not.toHaveBeenCalled();
 
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Driver Document Upload] storage upload failed:\ncode=storage/unauthorized\nrequirementKey=valid_id\ncontentType=image/jpeg\nsizeBytes=2048\napplicationStatus=draft'),
@@ -154,17 +207,9 @@ describe('uploadDriverDocument', () => {
 
   it('logs safe diagnostic error when storage succeeds but metadata write fails', async () => {
     vi.stubGlobal('__DEV__', true);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(new Blob(['test'], { type: 'image/jpeg' })),
-      }),
-    );
-
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    vi.mocked(uploadBytesResumable).mockReturnValue({
+    vi.mocked(putFile).mockReturnValue({
       on: vi.fn((_event, _onProgress, _onError, onComplete) => {
         onComplete();
       }),
@@ -179,7 +224,7 @@ describe('uploadDriverDocument', () => {
       uploadDriverDocument(
         'secret-uid-999',
         'orcr',
-        validAsset,
+        validImageAsset,
         {},
         undefined,
         'draft',

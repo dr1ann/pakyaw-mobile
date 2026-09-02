@@ -290,6 +290,10 @@ export function ref(storageInstance: any, path?: string): any {
   return typeof path === 'string' ? targetStorage.ref(path) : targetStorage.ref();
 }
 
+export function putFile(storageRef: any, filePath: string, metadata?: any): any {
+  return storageRef.putFile(filePath, metadata);
+}
+
 export function uploadBytesResumable(storageRef: any, data: any, metadata?: any): any {
   if (typeof data === 'string') {
     return storageRef.putFile(data, metadata);
