@@ -394,11 +394,31 @@ export async function saveDriverApplicationDraft(
 }
 
 export async function submitDriverApplication(uid: string): Promise<void> {
-  await updateDoc(doc(firestore, 'driverApplications', uid), {
-    status: 'submitted',
-    submittedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await updateDoc(doc(firestore, 'driverApplications', uid), {
+      status: 'submitted',
+      submittedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error: any) {
+    const errorMsg = String(error?.message || '');
+    const code = error?.code || (errorMsg.includes('permission-denied') ? 'permission-denied' : '');
+    if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+      try {
+        const snap = await getDoc(doc(firestore, 'driverApplications', uid));
+        if (snapshotExists(snap)) {
+          const currentStatus = snapshotData(snap)?.status;
+          if (currentStatus === 'submitted' || currentStatus === 'under_review' || currentStatus === 'approved') {
+            logOnboardingStage('driverApplications/{uid} already in submitted state, resuming');
+            return;
+          }
+        }
+      } catch {
+        // fall through
+      }
+    }
+    throw error;
+  }
 }
 
 export async function markDocumentUploaded(

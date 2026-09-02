@@ -242,6 +242,7 @@ function DriverApplicationWizard({
   const latestAdaptedFormRef = useRef<DriverApplicationForm>(initialForm);
   const initialDraftCreatedRef = useRef(false);
   const initialDraftCreatingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const selectedVehicleType = useMemo(() => {
     return catalog?.vehicleTypes.find((vt) => vt.id === form.vehicle.vehicleTypeId);
@@ -511,6 +512,11 @@ function DriverApplicationWizard({
 
   // Handle Application Submit
   async function handleSubmitApplication() {
+    const appStatus = application?.status as string | undefined;
+    if (isSubmittingRef.current || appStatus === 'submitted' || appStatus === 'under_review') {
+      return;
+    }
+    isSubmittingRef.current = true;
     setSubmitError(null);
     try {
       if (saveTimeoutRef.current) {
@@ -533,8 +539,15 @@ function DriverApplicationWizard({
       });
       setCorrectionMode(false);
     } catch (err: any) {
+      // If the application was already submitted or under review, suppress redundant error
+      const postStatus = application?.status as string | undefined;
+      if (postStatus === 'submitted' || postStatus === 'under_review') {
+        return;
+      }
       console.error('[Driver Application] Submit failed:', err);
       setSubmitError(err?.message || 'We couldn’t submit your application. Check the highlighted fields.');
+    } finally {
+      isSubmittingRef.current = false;
     }
   }
 
