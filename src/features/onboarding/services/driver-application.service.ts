@@ -411,6 +411,33 @@ export async function markDocumentUploaded(
   });
 }
 
+const activeDocumentEmitters = new Map<string, (key: string, data: DocumentData) => void>();
+
+export function notifyDocumentUploaded(uid: string, documentType: string, data: DocumentData): void {
+  const notify = activeDocumentEmitters.get(uid);
+  if (notify) {
+    notify(documentType, data);
+  }
+}
+
+export async function syncDriverDocuments(uid: string, requirementKeys: readonly string[]): Promise<void> {
+  const notify = activeDocumentEmitters.get(uid);
+  if (!notify || !requirementKeys.length) return;
+  await Promise.all(
+    requirementKeys.map(async (key) => {
+      try {
+        const snap = await getDoc(doc(firestore, 'drivers', uid, 'driverDocuments', key));
+        if (snapshotExists(snap)) {
+          const data = snapshotData(snap);
+          if (data) notify(key, data);
+        }
+      } catch {
+        // non-blocking
+      }
+    }),
+  );
+}
+
 export function subscribeDriverApplication(
   uid: string,
   onValue: (application: DriverApplicationSnapshot | null) => void,
@@ -419,6 +446,11 @@ export function subscribeDriverApplication(
   let applicationData: DocumentData | null = null;
   let uploadedDocuments: Record<string, DocumentData> = {};
   const emit = () => onValue(applicationData ? asApplication(uid, applicationData, uploadedDocuments) : null);
+
+  activeDocumentEmitters.set(uid, (key, data) => {
+    uploadedDocuments[key] = data;
+    emit();
+  });
 
   const fetchKnownDocuments = async (knownKeys: string[]) => {
     if (!knownKeys.length) return;
@@ -472,6 +504,7 @@ export function subscribeDriverApplication(
   );
 
   return () => {
+    activeDocumentEmitters.delete(uid);
     unsubscribeApplication();
     unsubscribeDocuments();
   };

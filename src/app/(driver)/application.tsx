@@ -36,14 +36,15 @@ import {
   validateStep4Prerequisites,
 } from '@/features/onboarding/services/driver-application.service';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
+import { auth, doc, firestore, getDoc } from '@/services/firebase/firebase';
 import {
   REQUIRED_DOCUMENT_TYPES,
   composeStructuredLegalName,
   requirementAppliesToVehicle,
+  type DocumentState,
   type DriverDocumentMetadata,
   type DriverOnboardingCatalog,
 } from '@pakyaw/shared/onboarding';
-import { auth } from '@/services/firebase/firebase';
 
 const emptyForm: DriverApplicationForm = {
   personalDetails: {
@@ -169,6 +170,73 @@ function DriverApplicationWizard({
   const [correctionMode, setCorrectionMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isTransitioningStep, setIsTransitioningStep] = useState(false);
+  const [localDocuments, setLocalDocuments] = useState<Record<string, DocumentState>>({});
+
+  // Sync persisted documents from drivers/{uid}/driverDocuments on mount & catalog load
+  useEffect(() => {
+    if (!uid || !catalog?.documentRequirements) return;
+    let cancelled = false;
+
+    const loadPersistedDocuments = async () => {
+      const fetched: Record<string, DocumentState> = {};
+      const fetchedMeta: Record<string, DriverDocumentMetadata> = {};
+
+      await Promise.all(
+        catalog.documentRequirements.map(async (req) => {
+          try {
+            const snap = await getDoc(doc(firestore, 'drivers', uid, 'driverDocuments', req.key));
+            if (snap && (typeof snap.exists === 'function' ? snap.exists() : snap.exists)) {
+              const data = typeof snap.data === 'function' ? snap.data() : snap.data;
+              const state = data?.state;
+              if (
+                state === 'uploaded' ||
+                state === 'approved' ||
+                state === 'under_review' ||
+                state === 'rejected' ||
+                state === 'needs_correction'
+              ) {
+                fetched[req.key] = state;
+              }
+              if (data && (data.identificationNumber || data.issuanceDate || data.expiryDate)) {
+                fetchedMeta[req.key] = {
+                  identificationNumber: typeof data.identificationNumber === 'string' ? data.identificationNumber : undefined,
+                  issuanceDate: typeof data.issuanceDate === 'string' ? data.issuanceDate : undefined,
+                  expiryDate: typeof data.expiryDate === 'string' ? data.expiryDate : undefined,
+                };
+              }
+            }
+          } catch {
+            // non-blocking
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        if (Object.keys(fetched).length > 0) {
+          setLocalDocuments((prev) => ({ ...prev, ...fetched }));
+        }
+        if (Object.keys(fetchedMeta).length > 0) {
+          setMetadataState((prev) => {
+            const next = { ...prev };
+            for (const [k, v] of Object.entries(fetchedMeta)) {
+              next[k] = { ...next[k], ...v };
+            }
+            return next;
+          });
+        }
+      }
+    };
+
+    loadPersistedDocuments();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, catalog?.documentRequirements]);
+
+  const effectiveDocuments = useMemo(() => ({
+    ...(application?.documents ?? {}),
+    ...localDocuments,
+  }), [application?.documents, localDocuments]);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestAdaptedFormRef = useRef<DriverApplicationForm>(initialForm);
@@ -306,6 +374,12 @@ function DriverApplicationWizard({
           vehicleTypeId: form.vehicle.vehicleTypeId,
         } satisfies DriverDocumentUploadRuleContext,
       );
+
+      // Immediately update local document state so the UI reflects uploaded state
+      setLocalDocuments((prev) => ({
+        ...prev,
+        [requirementKey]: 'uploaded',
+      }));
 
       // Merge into adapted form and save
       const adapted = adaptDynamicRequirementsToLegacyForm(
@@ -570,7 +644,7 @@ function DriverApplicationWizard({
           catalog={catalog}
           isLoadingCatalog={isLoadingCatalog}
           selectedVehicleTypeId={form.vehicle.vehicleTypeId || ''}
-          documents={application?.documents ?? {}}
+          documents={effectiveDocuments}
           documentMetadata={metadataState}
           onMetadataChange={handleMetadataChange}
           onUploadDocument={handleUploadDocument}
@@ -587,7 +661,7 @@ function DriverApplicationWizard({
         <StepReview
           form={form}
           catalog={catalog}
-          documents={application?.documents ?? {}}
+          documents={effectiveDocuments}
           documentMetadata={metadataState}
           onEditStep={goToStep}
           onSubmit={handleSubmitApplication}

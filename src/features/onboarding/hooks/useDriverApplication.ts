@@ -13,6 +13,7 @@ import {
   saveDriverApplicationDraft,
   submitDriverApplication,
   subscribeDriverApplication,
+  syncDriverDocuments,
 } from '@/features/onboarding/services/driver-application.service';
 import { getDriverOnboardingCatalog } from '@/features/onboarding/services/onboarding-catalog.service';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
@@ -48,6 +49,12 @@ export function useDriverApplication() {
       setSnapshot({ uid, application: null, error: nextError, loaded: true });
     });
   }, [queryClient, uid]);
+
+  useEffect(() => {
+    if (!uid || !catalogQuery.data?.documentRequirements) return;
+    const keys = catalogQuery.data.documentRequirements.map((r) => r.key);
+    syncDriverDocuments(uid, keys);
+  }, [uid, catalogQuery.data]);
 
   const activeSnapshot = snapshot.uid === uid ? snapshot : null;
   const application = activeSnapshot?.application ?? null;

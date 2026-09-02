@@ -14,6 +14,7 @@ import type {
   DriverOnboardingCatalog,
   OnboardingDocumentRequirement,
 } from '@pakyaw/shared/onboarding';
+import { notifyDocumentUploaded } from '@/features/onboarding/services/driver-application.service';
 
 export const MAX_DRIVER_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPES = ['application/pdf'] as const;
@@ -351,6 +352,15 @@ export async function uploadDriverDocument(
       },
       { merge: true },
     );
+
+    notifyDocumentUploaded(uid, documentType, {
+      requirementKey: documentType,
+      state: 'uploaded',
+      storagePath,
+      contentType,
+      sizeBytes: safeSizeBytes,
+      ...filteredMetadata,
+    });
   } catch (firestoreError: any) {
     const code = extractFirebaseErrorCode(firestoreError);
 
@@ -363,6 +373,12 @@ export async function uploadDriverDocument(
           const existingData = typeof existingSnap.data === 'function' ? existingSnap.data() : existingSnap.data;
           if (existingData?.state === 'uploaded' || existingData?.state === 'approved') {
             logUploadStage('document already uploaded in Firestore, resuming');
+            notifyDocumentUploaded(uid, documentType, {
+              requirementKey: documentType,
+              state: existingData?.state ?? 'uploaded',
+              storagePath: (existingData?.storagePath as string) || storagePath,
+              ...filteredMetadata,
+            });
             return { storagePath: (existingData?.storagePath as string) || storagePath };
           }
         }
