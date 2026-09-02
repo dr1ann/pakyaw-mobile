@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   firestore,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   setDoc,
@@ -430,4 +431,166 @@ export function subscribeDriverApplication(
     unsubscribeApplication();
     unsubscribeDocuments();
   };
+}
+
+function snapshotExists(snapshot: any): boolean {
+  if (!snapshot) return false;
+  return typeof snapshot.exists === 'function' ? Boolean(snapshot.exists()) : Boolean(snapshot.exists);
+}
+
+function snapshotData(snapshot: any): DocumentData | null {
+  if (!snapshot || !snapshotExists(snapshot)) return null;
+  const value = typeof snapshot.data === 'function' ? snapshot.data() : snapshot.data;
+  return value && typeof value === 'object' ? (value as DocumentData) : null;
+}
+
+export async function validateStep4Prerequisites(
+  uid: string,
+  form: DriverApplicationForm,
+  catalog?: DriverOnboardingCatalog | null,
+  canonicalProfileOverride?: CanonicalDriverAccount | DriverOnboardingProfile | null,
+): Promise<{ readonly canonicalProfile: CanonicalDriverAccount | DriverOnboardingProfile }> {
+  // 1. Account ready
+  let canonicalProfile = canonicalProfileOverride;
+  if (!canonicalProfile) {
+    try {
+      canonicalProfile = await resolveCanonicalDriverAccount(uid);
+    } catch (error) {
+      if (isDevelopmentBuild()) {
+        console.warn('[Driver Onboarding] account identity not ready');
+      }
+      throw error;
+    }
+  }
+
+  // 2. vehicleTypeId present
+  const vehicleTypeId = form.vehicle?.vehicleTypeId?.trim();
+  if (!vehicleTypeId) {
+    throw new Error('Please select a vehicle type.');
+  }
+
+  // 3. VehicleType active
+  if (catalog) {
+    const vehicleType = catalog.vehicleTypes?.find((vt) => vt.id === vehicleTypeId);
+    if (!vehicleType) {
+      throw new Error('The selected vehicle type is not available. Please choose another.');
+    }
+    if (vehicleType.status !== 'active') {
+      throw new Error('The selected vehicle type is currently inactive.');
+    }
+  }
+
+  return { canonicalProfile };
+}
+
+export type EnsureDriverApplicationAction =
+  | 'created_draft'
+  | 'resumed_draft'
+  | 'route_review'
+  | 'needs_correction'
+  | 'approved'
+  | 'rejected';
+
+export type EnsureDriverApplicationResult = {
+  readonly status: string;
+  readonly action: EnsureDriverApplicationAction;
+  readonly application?: DriverApplicationSnapshot | null;
+};
+
+const inFlightEnsureByUid = new Map<string, Promise<EnsureDriverApplicationResult>>();
+
+export function _resetInFlightEnsureTasks(): void {
+  inFlightEnsureByUid.clear();
+}
+
+export async function ensureDriverApplicationDraft(
+  uid: string,
+  form: DriverApplicationForm,
+  requirementKeys: readonly string[] = REQUIRED_DOCUMENT_TYPES,
+  canonicalProfileOverride?: CanonicalDriverAccount | DriverOnboardingProfile | null,
+  catalog?: DriverOnboardingCatalog | null,
+): Promise<EnsureDriverApplicationResult> {
+  const inFlight = inFlightEnsureByUid.get(uid);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const task = (async (): Promise<EnsureDriverApplicationResult> => {
+    try {
+      const appRef = doc(firestore, 'driverApplications', uid);
+      const appSnap = await getDoc(appRef);
+
+      if (snapshotExists(appSnap)) {
+        const data = snapshotData(appSnap);
+        const status = data?.status;
+
+        if (status === 'draft') {
+          await saveDriverApplicationDraft(uid, form);
+          const app = asApplication(uid, { ...data, ...buildDriverApplicationDraftPatch(form) });
+          return { status: 'draft', action: 'resumed_draft', application: app };
+        }
+
+        if (status === 'submitted' || status === 'under_review') {
+          return { status, action: 'route_review', application: asApplication(uid, data ?? {}) };
+        }
+
+        if (status === 'needs_correction') {
+          return { status: 'needs_correction', action: 'needs_correction', application: asApplication(uid, data ?? {}) };
+        }
+
+        if (status === 'approved') {
+          return { status: 'approved', action: 'approved', application: asApplication(uid, data ?? {}) };
+        }
+
+        if (status === 'rejected') {
+          return { status: 'rejected', action: 'rejected', application: asApplication(uid, data ?? {}) };
+        }
+
+        return { status: status ?? 'draft', action: 'resumed_draft', application: asApplication(uid, data ?? {}) };
+      }
+
+      // Absent -> attempt create
+      try {
+        await createDriverApplicationDraft(uid, form, requirementKeys, canonicalProfileOverride, catalog);
+        return { status: 'draft', action: 'created_draft' };
+      } catch (createError: any) {
+        // Recovery fallback: if create returns permission-denied, immediately re-read driverApplications/{uid} once
+        const code = createError?.code;
+        if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+          const recoverySnap = await getDoc(appRef);
+          if (snapshotExists(recoverySnap)) {
+            const recoveryData = snapshotData(recoverySnap);
+            if (recoveryData?.status === 'draft') {
+              console.log('[Driver Onboarding] existing draft detected, resuming');
+              await saveDriverApplicationDraft(uid, form);
+              return {
+                status: 'draft',
+                action: 'resumed_draft',
+                application: asApplication(uid, { ...recoveryData, ...buildDriverApplicationDraftPatch(form) }),
+              };
+            }
+            if (recoveryData?.status === 'submitted' || recoveryData?.status === 'under_review') {
+              return { status: recoveryData.status, action: 'route_review', application: asApplication(uid, recoveryData) };
+            }
+            if (recoveryData?.status === 'needs_correction') {
+              return { status: 'needs_correction', action: 'needs_correction', application: asApplication(uid, recoveryData) };
+            }
+            if (recoveryData?.status === 'approved') {
+              return { status: 'approved', action: 'approved', application: asApplication(uid, recoveryData) };
+            }
+            if (recoveryData?.status === 'rejected') {
+              return { status: 'rejected', action: 'rejected', application: asApplication(uid, recoveryData) };
+            }
+          }
+        }
+        // If no application exists after re-read or error was not permission-denied, keep the failure blocking
+        throw createError;
+      }
+    } finally {
+      inFlightEnsureByUid.delete(uid);
+    }
+  })();
+
+  inFlightEnsureByUid.set(uid, task);
+  return task;
 }

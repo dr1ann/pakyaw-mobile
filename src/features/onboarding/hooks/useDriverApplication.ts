@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  REQUIRED_DOCUMENT_TYPES,
   getSubmissionReadiness,
   requirementAppliesToVehicle,
   type DriverApplication,
 } from '@pakyaw/shared/onboarding';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import {
-  createDriverApplicationDraft,
+  ensureDriverApplicationDraft,
   saveDriverApplicationDraft,
   submitDriverApplication,
   subscribeDriverApplication,
@@ -57,21 +58,17 @@ export function useDriverApplication() {
     mutationFn: async (form: DriverApplicationForm) => {
       if (!uid) throw new Error('Sign in before completing an application.');
       if (application === null) {
-        if (draftCreatedRef.current) {
-          await saveDriverApplicationDraft(uid, form);
-        } else {
-          const catalog = catalogQuery.data;
-          if (!catalog) {
-            throw new Error('The current onboarding catalog is unavailable. Try again.');
-          }
-          const requirementKeys = catalog.documentRequirements
-            .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
-            .map((requirement) => requirement.key);
-          await createDriverApplicationDraft(uid, form, requirementKeys, undefined, catalog);
-          draftCreatedRef.current = true;
-        }
-      }
-      else {
+        const catalog = catalogQuery.data;
+        const requirementKeys = catalog
+          ? catalog.documentRequirements
+              .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
+              .map((requirement) => requirement.key)
+          : REQUIRED_DOCUMENT_TYPES;
+
+        const result = await ensureDriverApplicationDraft(uid, form, requirementKeys, undefined, catalog);
+        draftCreatedRef.current = true;
+        return result;
+      } else {
         draftCreatedRef.current = true;
         await saveDriverApplicationDraft(uid, form);
       }

@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { DriverOnboardingCatalog } from '@pakyaw/shared/onboarding';
 import type { DriverApplicationForm } from '@/features/onboarding/types';
 import {
+  _resetInFlightEnsureTasks,
   assertNoUndefinedProperties,
   buildDriverApplicationCreatePayload,
   buildDriverApplicationDraftPatch,
   createDriverApplicationDraft,
+  ensureDriverApplicationDraft,
   saveDriverApplicationDraft,
+  validateStep4Prerequisites,
 } from './driver-application.service';
 import { DriverAccountNotReadyError } from './driver-profile.service';
 
@@ -477,5 +481,285 @@ describe('saveDriverApplicationDraft', () => {
     );
     expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('Driver One'));
     expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('driver-1'));
+  });
+});
+
+describe('ensureDriverApplicationDraft', () => {
+  const canonicalUserDoc = {
+    exists: () => true,
+    data: () => ({
+      uid: 'driver-1',
+      name: 'Canonical Driver Name',
+      mobile: '+639171234567',
+      role: 'driver',
+      accountStatus: 'active',
+    }),
+  };
+
+  beforeEach(() => {
+    _resetInFlightEnsureTasks();
+    vi.mocked(setDoc).mockReset();
+    vi.mocked(updateDoc).mockReset();
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'users/driver-1') return canonicalUserDoc as any;
+      return { exists: () => false, data: () => null } as any;
+    });
+  });
+
+  afterEach(() => {
+    _resetInFlightEnsureTasks();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('existing draft → create never called and update succeeds', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'driverApplications/driver-1') {
+        return {
+          exists: () => true,
+          data: () => ({
+            status: 'draft',
+            vehicle: { vehicleTypeId: 'tricycle' },
+            documents: {},
+          }),
+        } as any;
+      }
+      return canonicalUserDoc as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']);
+
+    expect(setDoc).not.toHaveBeenCalled();
+    expect(updateDoc).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('draft');
+    expect(result.action).toBe('resumed_draft');
+    expect(result.application?.status).toBe('draft');
+  });
+
+  it('absent → create once', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'users/driver-1') return canonicalUserDoc as any;
+      return { exists: () => false, data: () => null } as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']);
+
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('draft');
+    expect(result.action).toBe('created_draft');
+  });
+
+  it('create permission-denied + existing draft → resumes successfully', async () => {
+    let callCount = 0;
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'users/driver-1') return canonicalUserDoc as any;
+      if (ref === 'driverApplications/driver-1') {
+        callCount++;
+        // Initial pre-check reports absent
+        if (callCount === 1) {
+          return { exists: () => false, data: () => null } as any;
+        }
+        // Recovery re-read reports existing draft
+        return {
+          exists: () => true,
+          data: () => ({
+            status: 'draft',
+            vehicle: { vehicleTypeId: 'tricycle' },
+            documents: {},
+          }),
+        } as any;
+      }
+      return { exists: () => false, data: () => null } as any;
+    });
+
+    vi.mocked(setDoc).mockRejectedValueOnce({ code: 'permission-denied' });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']);
+
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    expect(updateDoc).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith('[Driver Onboarding] existing draft detected, resuming');
+    expect(result.status).toBe('draft');
+    expect(result.action).toBe('resumed_draft');
+  });
+
+  it('create permission-denied + no document → real error', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'users/driver-1') return canonicalUserDoc as any;
+      // Both initial check and recovery re-read find no document
+      return { exists: () => false, data: () => null } as any;
+    });
+
+    vi.mocked(setDoc).mockRejectedValueOnce({ code: 'permission-denied' });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']),
+    ).rejects.toMatchObject({ code: 'permission-denied' });
+
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    expect(updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('double tap → one operation', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'users/driver-1') return canonicalUserDoc as any;
+      return { exists: () => false, data: () => null } as any;
+    });
+
+    const [r1, r2] = await Promise.all([
+      ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']),
+      ensureDriverApplicationDraft('driver-1', baseForm, ['tricycle_requirement']),
+    ]);
+
+    expect(r1.status).toBe('draft');
+    expect(r2.status).toBe('draft');
+    expect(setDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes to review when existing application is submitted or under_review', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'driverApplications/driver-1') {
+        return {
+          exists: () => true,
+          data: () => ({ status: 'submitted', vehicle: { vehicleTypeId: 'tricycle' } }),
+        } as any;
+      }
+      return canonicalUserDoc as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm);
+    expect(result.status).toBe('submitted');
+    expect(result.action).toBe('route_review');
+    expect(setDoc).not.toHaveBeenCalled();
+    expect(updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('routes to correction when existing application needs_correction', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'driverApplications/driver-1') {
+        return {
+          exists: () => true,
+          data: () => ({ status: 'needs_correction', correctionReason: 'Update ORCR' }),
+        } as any;
+      }
+      return canonicalUserDoc as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm);
+    expect(result.status).toBe('needs_correction');
+    expect(result.action).toBe('needs_correction');
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('routes to workspace when existing application is approved', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'driverApplications/driver-1') {
+        return {
+          exists: () => true,
+          data: () => ({ status: 'approved' }),
+        } as any;
+      }
+      return canonicalUserDoc as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm);
+    expect(result.status).toBe('approved');
+    expect(result.action).toBe('approved');
+  });
+
+  it('routes to rejected screen when existing application is rejected', async () => {
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'driverApplications/driver-1') {
+        return {
+          exists: () => true,
+          data: () => ({ status: 'rejected', rejectionReason: 'Documents invalid' }),
+        } as any;
+      }
+      return canonicalUserDoc as any;
+    });
+
+    const result = await ensureDriverApplicationDraft('driver-1', baseForm);
+    expect(result.status).toBe('rejected');
+    expect(result.action).toBe('rejected');
+  });
+});
+
+describe('validateStep4Prerequisites', () => {
+  const canonicalUserDoc = {
+    exists: () => true,
+    data: () => ({
+      uid: 'driver-1',
+      name: 'Canonical Driver Name',
+      mobile: '+639171234567',
+      role: 'driver',
+      accountStatus: 'active',
+    }),
+  };
+
+  const sampleCatalog = {
+    vehicleTypes: [
+      { id: 'tricycle', type: 'Tricycle', capacity: 3, wheels: 3, status: 'active' as const, icon: null },
+      { id: 'habal_habal', type: 'Motorcycle', capacity: 1, wheels: 2, status: 'inactive' as const, icon: null },
+    ],
+    documentRequirements: [],
+  } as unknown as DriverOnboardingCatalog;
+
+  beforeEach(() => {
+    vi.mocked(getDoc).mockResolvedValue(canonicalUserDoc as any);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes when account is ready, vehicleTypeId is present, and vehicleType is active', async () => {
+    await expect(
+      validateStep4Prerequisites('driver-1', baseForm, sampleCatalog),
+    ).resolves.toMatchObject({
+      canonicalProfile: expect.objectContaining({ name: 'Canonical Driver Name' }),
+    });
+  });
+
+  it('fails if vehicleTypeId is empty or missing', async () => {
+    const invalidForm = {
+      ...baseForm,
+      vehicle: { ...baseForm.vehicle, vehicleTypeId: '' },
+    };
+
+    await expect(
+      validateStep4Prerequisites('driver-1', invalidForm, sampleCatalog),
+    ).rejects.toThrow('Please select a vehicle type.');
+  });
+
+  it('fails if vehicleType is inactive in catalog', async () => {
+    const inactiveVehicleForm = {
+      ...baseForm,
+      vehicle: { ...baseForm.vehicle, vehicleTypeId: 'habal_habal' },
+    };
+
+    await expect(
+      validateStep4Prerequisites('driver-1', inactiveVehicleForm, sampleCatalog),
+    ).rejects.toThrow('The selected vehicle type is currently inactive.');
+  });
+
+  it('fails if vehicleType is not in catalog', async () => {
+    const unknownVehicleForm = {
+      ...baseForm,
+      vehicle: { ...baseForm.vehicle, vehicleTypeId: 'submarine' },
+    };
+
+    await expect(
+      validateStep4Prerequisites('driver-1', unknownVehicleForm, sampleCatalog),
+    ).rejects.toThrow('The selected vehicle type is not available.');
+  });
+
+  it('fails if driver account is not ready (missing)', async () => {
+    vi.mocked(getDoc).mockResolvedValue({ exists: () => false, data: () => null } as any);
+
+    await expect(
+      validateStep4Prerequisites('driver-1', baseForm, sampleCatalog),
+    ).rejects.toThrow(DriverAccountNotReadyError);
   });
 });

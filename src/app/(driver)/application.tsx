@@ -31,8 +31,18 @@ import {
   adaptDynamicRequirementsToLegacyForm,
   adaptLegacyFormToRequirementMetadata,
 } from '@/features/onboarding/services/compatibility-adapter';
+import {
+  ensureDriverApplicationDraft,
+  validateStep4Prerequisites,
+} from '@/features/onboarding/services/driver-application.service';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
-import { composeStructuredLegalName, type DriverDocumentMetadata, type DriverOnboardingCatalog } from '@pakyaw/shared/onboarding';
+import {
+  REQUIRED_DOCUMENT_TYPES,
+  composeStructuredLegalName,
+  requirementAppliesToVehicle,
+  type DriverDocumentMetadata,
+  type DriverOnboardingCatalog,
+} from '@pakyaw/shared/onboarding';
 import { auth } from '@/services/firebase/firebase';
 
 const emptyForm: DriverApplicationForm = {
@@ -324,21 +334,58 @@ function DriverApplicationWizard({
       saveTimeoutRef.current = null;
     }
 
-    if (uid && application === null && step === 4 && !initialDraftCreatedRef.current) {
-      if (initialDraftCreatingRef.current) return;
+    if (uid && step === 4) {
+      if (initialDraftCreatingRef.current || isTransitioningStep) return;
       initialDraftCreatingRef.current = true;
       setIsTransitioningStep(true);
-      const adapted = adaptDynamicRequirementsToLegacyForm(
-        form,
-        metadataState,
-        selectedVehicleType?.type,
-      );
       setSaveStatus('saving');
       try {
-        await saveMutation.mutateAsync(adapted);
+        // Step 4 prerequisite validation:
+        // account ready, vehicleTypeId present, VehicleType active
+        await validateStep4Prerequisites(uid, form, catalog);
+
+        const adapted = adaptDynamicRequirementsToLegacyForm(
+          form,
+          metadataState,
+          selectedVehicleType?.type,
+        );
+
+        const requirementKeys = catalog
+          ? catalog.documentRequirements
+              .filter((req) => requirementAppliesToVehicle(req, adapted.vehicle.vehicleTypeId))
+              .map((req) => req.key)
+          : REQUIRED_DOCUMENT_TYPES;
+
+        const result = await ensureDriverApplicationDraft(
+          uid,
+          adapted,
+          requirementKeys,
+          undefined,
+          catalog,
+        );
+
         initialDraftCreatedRef.current = true;
         setSaveStatus('saved');
-        setCurrentStep(step);
+
+        if (result.status === 'approved') {
+          router.replace('./');
+          return;
+        }
+        if (result.status === 'rejected') {
+          return;
+        }
+        if (result.status === 'submitted' || result.status === 'under_review') {
+          setCurrentStep(5);
+          return;
+        }
+        if (result.status === 'needs_correction') {
+          setCorrectionMode(true);
+          setCurrentStep(4);
+          return;
+        }
+
+        // status === 'draft' -> proceed to requirements step
+        setCurrentStep(4);
       } catch (error) {
         setSaveStatus('idle');
         if (error instanceof DriverAccountNotReadyError && uid) {
@@ -365,9 +412,7 @@ function DriverApplicationWizard({
       return;
     }
 
-    // Storage authorization for Step 4 reads the persisted application. Wait
-    // for the draft write before rendering upload controls so the vehicle type
-    // cannot still be missing when the Driver taps Upload.
+    // Step navigation for other steps (e.g. step 2 -> step 3, step 4 -> step 5)
     if (uid && application?.status === 'draft') {
       const adapted = adaptDynamicRequirementsToLegacyForm(
         form,
