@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { OnboardingTextField } from './application-field';
 import { sanitizeMobileInput, sanitizeNamePart } from '../input-validation';
@@ -10,6 +10,8 @@ type StepAboutYouProps = {
   readonly onChange: (path: string, value: string | boolean) => void;
   readonly onNext: () => void;
   readonly isReadOnly?: boolean;
+  readonly isSaving?: boolean;
+  readonly error?: string | null;
 };
 
 export function StepAboutYou({
@@ -17,6 +19,8 @@ export function StepAboutYou({
   onChange,
   onNext,
   isReadOnly = false,
+  isSaving = false,
+  error = null,
 }: StepAboutYouProps) {
   const { personalDetails } = form;
   const isAddressValid = personalDetails.barangayAddress.trim().length >= 3;
@@ -94,15 +98,30 @@ export function StepAboutYou({
         />
       </View>
 
+      {/* Error Alert */}
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
       {/* Bottom CTA */}
       <View style={styles.footer}>
         <Pressable
-          style={[styles.nextButton, (!canContinue || isReadOnly) && styles.nextButtonDisabled]}
+          style={[styles.nextButton, (!canContinue || isReadOnly || isSaving) && styles.nextButtonDisabled]}
           onPress={onNext}
-          disabled={!canContinue || isReadOnly}
+          disabled={!canContinue || isReadOnly || isSaving}
           accessibilityRole="button"
         >
-          <Text style={styles.nextButtonText}>Continue to vehicle</Text>
+          {isSaving ? (
+            <View style={styles.savingRow}>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.nextButtonText}>Saving details</Text>
+            </View>
+          ) : (
+            <Text style={styles.nextButtonText}>Continue to vehicle</Text>
+          )}
         </Pressable>
       </View>
     </ScrollView>
@@ -218,5 +237,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: typography.family.bold,
     color: '#FFFFFF',
+  },
+  savingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: radius.md,
+    padding: spacing[3],
+  },
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: typography.family.medium,
+    color: '#DC2626',
+    lineHeight: 18,
   },
 });

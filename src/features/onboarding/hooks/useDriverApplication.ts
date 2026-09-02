@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getSubmissionReadiness, requirementAppliesToVehicle, type DriverApplication } from '@pakyaw/shared/onboarding';
+import {
+  REQUIRED_DOCUMENT_TYPES,
+  getSubmissionReadiness,
+  requirementAppliesToVehicle,
+  type DriverApplication,
+} from '@pakyaw/shared/onboarding';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import {
   createDriverApplicationDraft,
@@ -53,14 +58,16 @@ export function useDriverApplication() {
     mutationFn: async (form: DriverApplicationForm) => {
       if (!uid) throw new Error('Sign in before completing an application.');
       if (application === null) {
-        if (!catalogQuery.data) throw new Error('The current onboarding catalog is unavailable. Try again.');
         if (draftCreatedRef.current) {
           await saveDriverApplicationDraft(uid, form);
         } else {
-          const requirementKeys = catalogQuery.data.documentRequirements
-            .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
-            .map((requirement) => requirement.key);
-          await createDriverApplicationDraft(uid, form, requirementKeys);
+          const docReqs = catalogQuery.data?.documentRequirements;
+          const requirementKeys = docReqs && docReqs.length > 0
+            ? docReqs
+                .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
+                .map((requirement) => requirement.key)
+            : REQUIRED_DOCUMENT_TYPES;
+          await createDriverApplicationDraft(uid, form, requirementKeys.length > 0 ? requirementKeys : REQUIRED_DOCUMENT_TYPES);
           draftCreatedRef.current = true;
         }
       }

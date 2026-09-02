@@ -154,6 +154,7 @@ function DriverApplicationWizard({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [correctionMode, setCorrectionMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isTransitioningStep, setIsTransitioningStep] = useState(false);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestAdaptedFormRef = useRef<DriverApplicationForm>(initialForm);
@@ -297,21 +298,16 @@ function DriverApplicationWizard({
   // Navigation between steps
   async function goToStep(step: number) {
     if (step < 2 || step > 5) return;
+    setSubmitError(null);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
-    // Autosave on step change
-    if (uid && application?.status === 'draft') {
-      const adapted = adaptDynamicRequirementsToLegacyForm(
-        form,
-        metadataState,
-        selectedVehicleType?.type,
-      );
-      saveMutation.mutate(adapted);
-    } else if (uid && application === null && step === 4 && !initialDraftCreatedRef.current) {
+
+    if (uid && application === null && step === 4 && !initialDraftCreatedRef.current) {
       if (initialDraftCreatingRef.current) return;
       initialDraftCreatingRef.current = true;
+      setIsTransitioningStep(true);
       const adapted = adaptDynamicRequirementsToLegacyForm(
         form,
         metadataState,
@@ -322,6 +318,7 @@ function DriverApplicationWizard({
         await saveMutation.mutateAsync(adapted);
         initialDraftCreatedRef.current = true;
         setSaveStatus('saved');
+        setCurrentStep(step);
       } catch (error) {
         setSaveStatus('idle');
         if (error instanceof DriverAccountNotReadyError && uid) {
@@ -343,7 +340,19 @@ function DriverApplicationWizard({
         return;
       } finally {
         initialDraftCreatingRef.current = false;
+        setIsTransitioningStep(false);
       }
+      return;
+    }
+
+    // Autosave on step change
+    if (uid && application?.status === 'draft') {
+      const adapted = adaptDynamicRequirementsToLegacyForm(
+        form,
+        metadataState,
+        selectedVehicleType?.type,
+      );
+      saveMutation.mutate(adapted);
     }
     setCurrentStep(step);
   }
@@ -461,6 +470,8 @@ function DriverApplicationWizard({
           form={form}
           onChange={handleFieldChange}
           onNext={() => goToStep(3)}
+          isSaving={isTransitioningStep || (saveStatus === 'saving' && currentStep === 2)}
+          error={currentStep === 2 ? submitError : null}
         />
       ) : null}
 
@@ -471,6 +482,8 @@ function DriverApplicationWizard({
           isLoadingCatalog={isLoadingCatalog}
           onChange={handleFieldChange}
           onNext={() => goToStep(4)}
+          isSaving={isTransitioningStep || (saveStatus === 'saving' && currentStep === 3)}
+          error={currentStep === 3 ? submitError : null}
         />
       ) : null}
 
@@ -541,7 +554,7 @@ export default function DriverApplicationScreen() {
 
   return (
     <DriverApplicationWizard
-      key={application?.id ?? 'initial'}
+      key={uid ?? 'driver-wizard'}
       uid={uid}
       application={application}
       profile={profile}

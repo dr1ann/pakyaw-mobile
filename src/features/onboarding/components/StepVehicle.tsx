@@ -12,6 +12,8 @@ type StepVehicleProps = {
   readonly onChange: (path: string, value: string | boolean) => void;
   readonly onNext: () => void;
   readonly isReadOnly?: boolean;
+  readonly isSaving?: boolean;
+  readonly error?: string | null;
 };
 
 function getVehicleIcon(vt: OnboardingVehicleType): string {
@@ -30,6 +32,8 @@ export function StepVehicle({
   onChange,
   onNext,
   isReadOnly = false,
+  isSaving = false,
+  error = null,
 }: StepVehicleProps) {
   const { vehicle, personalDetails } = form;
   const activeVehicleTypes = (catalog?.vehicleTypes ?? []).filter((vt) => vt.status === 'active');
@@ -195,15 +199,30 @@ export function StepVehicle({
         </View>
       ) : null}
 
+      {/* Error Alert */}
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
       {/* Footer */}
       <View style={styles.footer}>
         <Pressable
-          style={[styles.nextButton, (!canContinue || isReadOnly) && styles.nextButtonDisabled]}
+          style={[styles.nextButton, (!canContinue || isReadOnly || isSaving) && styles.nextButtonDisabled]}
           onPress={onNext}
-          disabled={!canContinue || isReadOnly}
+          disabled={!canContinue || isReadOnly || isSaving}
           accessibilityRole="button"
         >
-          <Text style={styles.nextButtonText}>Continue to requirements</Text>
+          {isSaving ? (
+            <View style={styles.savingRow}>
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.nextButtonText}>Saving vehicle details</Text>
+            </View>
+          ) : (
+            <Text style={styles.nextButtonText}>Continue to requirements</Text>
+          )}
         </Pressable>
       </View>
     </ScrollView>
@@ -407,5 +426,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: typography.family.bold,
     color: '#FFFFFF',
+  },
+  savingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: radius.md,
+    padding: spacing[3],
+  },
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: typography.family.medium,
+    color: '#DC2626',
+    lineHeight: 18,
   },
 });
