@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   storage,
+  updateDoc,
 } from '@/services/firebase/firebase';
 import type {
   DriverDocumentMetadata,
@@ -304,29 +305,80 @@ export async function uploadDriverDocument(
   }
   logUploadStage('storage upload completed');
 
-  const normalizedMetadata = Object.fromEntries(
-    Object.entries(metadata).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
-  );
+  const allowedKeys = ['identificationNumber', 'issuanceDate', 'expiryDate'] as const;
+  const filteredMetadata: Record<string, string> = {};
+  for (const key of allowedKeys) {
+    const val = metadata[key];
+    if (typeof val === 'string' && val.trim().length > 0) {
+      if (key === 'issuanceDate' || key === 'expiryDate') {
+        if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(val.trim())) {
+          filteredMetadata[key] = val.trim();
+        }
+      } else {
+        filteredMetadata[key] = val.trim();
+      }
+    }
+  }
+
+  const safeSizeBytes = typeof asset.size === 'number' && asset.size > 0 ? Math.round(asset.size) : 1024;
+  const docRef = doc(firestore, 'drivers', uid, 'driverDocuments', documentType);
 
   logUploadStage('writing document metadata');
   try {
     await setDoc(
-      doc(firestore, 'drivers', uid, 'driverDocuments', documentType),
+      docRef,
       {
         requirementKey: documentType,
         state: 'uploaded',
         storagePath,
         contentType,
-        sizeBytes: asset.size ?? null,
+        sizeBytes: safeSizeBytes,
         uploadedAt: serverTimestamp(),
-        ...normalizedMetadata,
+        ...filteredMetadata,
       },
       { merge: true },
     );
-  } catch (firestoreError) {
+
+    // Also mirror to driverApplications/{uid}.documents map
+    try {
+      await updateDoc(doc(firestore, 'driverApplications', uid), {
+        [`documents.${documentType}`]: 'uploaded',
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      // Non-blocking mirror update
+    }
+  } catch (firestoreError: any) {
+    const code = extractFirebaseErrorCode(firestoreError);
+
+    // If permission-denied: check if the document is already recorded in Firestore as uploaded
+    if (code === 'permission-denied') {
+      try {
+        const existingSnap = await getDoc(docRef);
+        const exists = existingSnap && (typeof existingSnap.exists === 'function' ? existingSnap.exists() : existingSnap.exists);
+        if (exists) {
+          const existingData = typeof existingSnap.data === 'function' ? existingSnap.data() : existingSnap.data;
+          if (existingData?.state === 'uploaded' || existingData?.state === 'approved') {
+            logUploadStage('document already uploaded in Firestore, resuming');
+            try {
+              await updateDoc(doc(firestore, 'driverApplications', uid), {
+                [`documents.${documentType}`]: existingData?.state ?? 'uploaded',
+                updatedAt: serverTimestamp(),
+              });
+            } catch {
+              // Non-blocking
+            }
+            return { storagePath: existingData?.storagePath || storagePath };
+          }
+        }
+      } catch {
+        // Fall through to regular error handling
+      }
+    }
+
     logUploadFailure('document metadata write', firestoreError, diagnostic);
     if (isDevelopmentBuild()) {
-      console.error('[Driver Document Upload] Firestore setDoc error:', firestoreError);
+      console.error(`[Driver Document Upload] Firestore setDoc error code: ${code}`);
     }
     throw new DriverDocumentUploadError(
       'The file was uploaded but we couldn\u2019t save the record. Try uploading again.',

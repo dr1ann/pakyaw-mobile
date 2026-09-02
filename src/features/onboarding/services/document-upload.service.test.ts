@@ -19,11 +19,12 @@ vi.mock('@/services/firebase/firebase', () => ({
   getDoc: vi.fn(),
   serverTimestamp: vi.fn(() => ({ _methodName: 'serverTimestamp', _elements: undefined })),
   setDoc: vi.fn(),
+  updateDoc: vi.fn(),
   FieldValue: class MockFieldValue {},
   Timestamp: class MockTimestamp {},
 }));
 
-import { getDoc, putFile, setDoc } from '@/services/firebase/firebase';
+import { getDoc, putFile, setDoc, updateDoc } from '@/services/firebase/firebase';
 
 describe('driver document selection validation', () => {
   it('accepts images and PDFs below the private upload limit', () => {
@@ -347,5 +348,47 @@ describe('uploadDriverDocument', () => {
       expect(logMessage).not.toContain('secret-uid-999');
       expect(logMessage).not.toContain('file:///data/user');
     }
+  });
+
+  it('recovers successfully when setDoc throws permission-denied but document was already recorded as uploaded', async () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    vi.mocked(putFile).mockReturnValue({
+      on: vi.fn((_event, _onProgress, _onError, onComplete) => onComplete()),
+    } as any);
+
+    vi.mocked(setDoc).mockRejectedValueOnce({
+      code: 'permission-denied',
+      message: 'Missing or insufficient permissions.',
+    });
+
+    vi.mocked(getDoc).mockImplementation(async (ref: any) => {
+      if (ref === 'drivers/driver-uid-123/driverDocuments/valid_id') {
+        return {
+          exists: () => true,
+          data: () => ({ state: 'uploaded', storagePath: 'driver-documents/driver-uid-123/valid_id/prev-123' }),
+        } as any;
+      }
+      return { exists: () => false, data: () => null } as any;
+    });
+
+    const result = await uploadDriverDocument(
+      'driver-uid-123',
+      'valid_id',
+      validImageAsset,
+      { identificationNumber: 'N01-12-345678' },
+      undefined,
+      'draft',
+    );
+
+    expect(result.storagePath).toBe('driver-documents/driver-uid-123/valid_id/prev-123');
+    expect(logSpy).toHaveBeenCalledWith('[Driver Document Upload] document already uploaded in Firestore, resuming');
+    expect(updateDoc).toHaveBeenCalledWith(
+      'driverApplications/driver-uid-123',
+      expect.objectContaining({
+        'documents.valid_id': 'uploaded',
+      }),
+    );
   });
 });
