@@ -19,12 +19,11 @@ vi.mock('@/services/firebase/firebase', () => ({
   getDoc: vi.fn(),
   serverTimestamp: vi.fn(() => ({ _methodName: 'serverTimestamp', _elements: undefined })),
   setDoc: vi.fn(),
-  updateDoc: vi.fn(),
   FieldValue: class MockFieldValue {},
   Timestamp: class MockTimestamp {},
 }));
 
-import { getDoc, putFile, setDoc, updateDoc } from '@/services/firebase/firebase';
+import { getDoc, putFile, setDoc } from '@/services/firebase/firebase';
 
 describe('driver document selection validation', () => {
   it('accepts images and PDFs below the private upload limit', () => {
@@ -359,7 +358,7 @@ describe('uploadDriverDocument', () => {
     } as any);
 
     vi.mocked(setDoc).mockRejectedValueOnce({
-      code: 'permission-denied',
+      code: 'firestore/permission-denied',
       message: 'Missing or insufficient permissions.',
     });
 
@@ -384,11 +383,5 @@ describe('uploadDriverDocument', () => {
 
     expect(result.storagePath).toBe('driver-documents/driver-uid-123/valid_id/prev-123');
     expect(logSpy).toHaveBeenCalledWith('[Driver Document Upload] document already uploaded in Firestore, resuming');
-    expect(updateDoc).toHaveBeenCalledWith(
-      'driverApplications/driver-uid-123',
-      expect.objectContaining({
-        'documents.valid_id': 'uploaded',
-      }),
-    );
   });
 });

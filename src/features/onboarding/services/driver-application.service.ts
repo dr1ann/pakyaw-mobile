@@ -419,14 +419,58 @@ export function subscribeDriverApplication(
   let applicationData: DocumentData | null = null;
   let uploadedDocuments: Record<string, DocumentData> = {};
   const emit = () => onValue(applicationData ? asApplication(uid, applicationData, uploadedDocuments) : null);
+
+  const fetchKnownDocuments = async (knownKeys: string[]) => {
+    if (!knownKeys.length) return;
+    let hasChanges = false;
+    await Promise.all(
+      knownKeys.map(async (key) => {
+        try {
+          const snap = await getDoc(doc(firestore, 'drivers', uid, 'driverDocuments', key));
+          if (snapshotExists(snap)) {
+            const data = snapshotData(snap);
+            if (data && uploadedDocuments[key] !== data) {
+              uploadedDocuments[key] = data;
+              hasChanges = true;
+            }
+          }
+        } catch {
+          // non-blocking
+        }
+      }),
+    );
+    if (hasChanges) {
+      emit();
+    }
+  };
+
   const unsubscribeApplication = onSnapshot(doc(firestore, 'driverApplications', uid), (snapshot) => {
     applicationData = snapshot.exists() ? snapshot.data() : null;
     emit();
+    if (applicationData) {
+      const storedDocs = applicationData.documents as Record<string, unknown> | undefined;
+      const keys = Array.from(
+        new Set([...REQUIRED_DOCUMENT_TYPES, ...Object.keys(storedDocs ?? {})]),
+      );
+      fetchKnownDocuments(keys);
+    }
   }, onError);
-  const unsubscribeDocuments = onSnapshot(collection(firestore, 'drivers', uid, 'driverDocuments'), (snapshot) => {
-    uploadedDocuments = Object.fromEntries(snapshot.docs.map((document: any) => [document.id, document.data()]));
-    emit();
-  }, onError);
+
+  const unsubscribeDocuments = onSnapshot(
+    collection(firestore, 'drivers', uid, 'driverDocuments'),
+    (snapshot) => {
+      uploadedDocuments = Object.fromEntries(snapshot.docs.map((document: any) => [document.id, document.data()]));
+      emit();
+    },
+    (_error) => {
+      // Drivers cannot list the driverDocuments collection (allow list: if isReviewer()).
+      // Do NOT forward this error to onError, which would destroy the entire application state!
+      if (isDevelopmentBuild()) {
+        console.warn('[Driver Onboarding] driverDocuments collection listing not permitted for driver; individual documents will be fetched directly.');
+      }
+    },
+  );
+
   return () => {
     unsubscribeApplication();
     unsubscribeDocuments();

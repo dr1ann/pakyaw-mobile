@@ -8,7 +8,6 @@ import {
   serverTimestamp,
   setDoc,
   storage,
-  updateDoc,
 } from '@/services/firebase/firebase';
 import type {
   DriverDocumentMetadata,
@@ -65,6 +64,20 @@ function extractFirebaseErrorCode(error: unknown): string {
     return error.code;
   }
   return 'unknown';
+}
+
+export function isPermissionDenied(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const message = 'message' in error && typeof error.message === 'string' ? error.message : '';
+  return (
+    code === 'permission-denied' ||
+    code === 'firestore/permission-denied' ||
+    code.endsWith('/permission-denied') ||
+    code.includes('permission-denied') ||
+    message.toLowerCase().includes('permission-denied') ||
+    message.toLowerCase().includes('insufficient permissions')
+  );
 }
 
 function logUploadStage(message: string): void {
@@ -338,21 +351,11 @@ export async function uploadDriverDocument(
       },
       { merge: true },
     );
-
-    // Also mirror to driverApplications/{uid}.documents map
-    try {
-      await updateDoc(doc(firestore, 'driverApplications', uid), {
-        [`documents.${documentType}`]: 'uploaded',
-        updatedAt: serverTimestamp(),
-      });
-    } catch {
-      // Non-blocking mirror update
-    }
   } catch (firestoreError: any) {
     const code = extractFirebaseErrorCode(firestoreError);
 
     // If permission-denied: check if the document is already recorded in Firestore as uploaded
-    if (code === 'permission-denied') {
+    if (isPermissionDenied(firestoreError)) {
       try {
         const existingSnap = await getDoc(docRef);
         const exists = existingSnap && (typeof existingSnap.exists === 'function' ? existingSnap.exists() : existingSnap.exists);
@@ -360,15 +363,7 @@ export async function uploadDriverDocument(
           const existingData = typeof existingSnap.data === 'function' ? existingSnap.data() : existingSnap.data;
           if (existingData?.state === 'uploaded' || existingData?.state === 'approved') {
             logUploadStage('document already uploaded in Firestore, resuming');
-            try {
-              await updateDoc(doc(firestore, 'driverApplications', uid), {
-                [`documents.${documentType}`]: existingData?.state ?? 'uploaded',
-                updatedAt: serverTimestamp(),
-              });
-            } catch {
-              // Non-blocking
-            }
-            return { storagePath: existingData?.storagePath || storagePath };
+            return { storagePath: (existingData?.storagePath as string) || storagePath };
           }
         }
       } catch {
