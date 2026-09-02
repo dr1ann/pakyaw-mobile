@@ -11,6 +11,7 @@ import {
 import { DriverAccountNotReadyError } from './driver-profile.service';
 
 vi.mock('@/services/firebase/firebase', () => ({
+  auth: { currentUser: { uid: 'driver-1' } },
   firestore: {},
   collection: vi.fn(),
   doc: vi.fn((_db: unknown, ...parts: string[]) => parts.join('/')),
@@ -393,6 +394,35 @@ describe('createDriverApplicationDraft', () => {
         }),
       }),
     );
+  });
+
+  it('persists exact Admin catalog keys without abbreviating them', async () => {
+    await createDriverApplicationDraft(
+      'driver-1',
+      baseForm,
+      ['barangay_clearance'],
+      undefined,
+      {
+        vehicleTypes: [{ id: 'tricycle', type: 'Tricycle', capacity: 3, wheels: 3, status: 'active', icon: null }],
+        documentRequirements: [{
+          key: 'barangay_clearance',
+          label: 'Barangay Clearance',
+          description: '',
+          active: true,
+          requiredForApplication: true,
+          requiredForOnline: true,
+          requiresIdentification: false,
+          requiresIssuanceDate: false,
+          requiresExpiryDate: false,
+          vehicleTypeIds: [],
+          sortOrder: 1,
+        }],
+      },
+    );
+
+    const [, payload] = vi.mocked(setDoc).mock.calls[0] as unknown as [unknown, Record<string, unknown>];
+    expect(payload.documents).toEqual({ barangay_clearance: 'missing' });
+    expect(payload.documents).not.toHaveProperty('brgy_clearance');
   });
 
   it('reports the application create stage and Firebase code without private data', async () => {

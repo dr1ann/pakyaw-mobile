@@ -1,4 +1,5 @@
 import {
+  auth,
   collection,
   doc,
   firestore,
@@ -16,6 +17,7 @@ import {
   type DocumentState,
   type DriverApplication,
   type DriverDocumentMetadata,
+  type DriverOnboardingCatalog,
 } from '@pakyaw/shared/onboarding';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
 import {
@@ -159,7 +161,7 @@ export function assertNoUndefinedProperties(value: unknown, path = ''): void {
 export function buildDriverApplicationCreatePayload(
   uid: string,
   form: DriverApplicationForm,
-  requirementKeys: readonly string[] = REQUIRED_DOCUMENT_TYPES,
+  requirementKeys: readonly string[],
   canonicalProfile?: { readonly name: string; readonly mobile: string } | null,
 ): Record<string, unknown> {
   const documents = Object.fromEntries(requirementKeys.map((key) => [key, 'missing' as const]));
@@ -325,8 +327,9 @@ export function buildDriverApplicationDraftPatch(
 export async function createDriverApplicationDraft(
   uid: string,
   form: DriverApplicationForm,
-  requirementKeys: readonly string[] = REQUIRED_DOCUMENT_TYPES,
+  requirementKeys: readonly string[],
   canonicalProfileOverride?: CanonicalDriverAccount | DriverOnboardingProfile | null,
+  catalog?: DriverOnboardingCatalog | null,
 ): Promise<void> {
   // 1. Explicit Account Readiness Preflight (direct read to ensure fresh, authoritative user document)
   let canonicalProfile = canonicalProfileOverride;
@@ -353,9 +356,13 @@ export async function createDriverApplicationDraft(
     const verifiedMobileMatches = payloadPersonal?.verifiedMobile === canonicalProfile.mobile.trim();
     const vehicle = payload.vehicle as Record<string, unknown> | undefined;
     const vehicleTypeValid = typeof vehicle?.vehicleTypeId === 'string' && vehicle.vehicleTypeId.trim().length > 0;
+    const vehicleType = catalog?.vehicleTypes.find((candidate) => candidate.id === vehicle?.vehicleTypeId);
+    const vehicleTypeInCatalog = catalog === undefined ? 'unknown' : Boolean(vehicleType);
+    const vehicleTypeActive = vehicleType === undefined ? 'unknown' : vehicleType.status === 'active';
+    const authUidMatchesDriver = auth?.currentUser ? auth.currentUser.uid === uid : 'unknown';
 
     console.log(
-      `[Driver Application Identity Preflight]\nuserExists=${userExists}\ndriverRole=${driverRole}\naccountActive=${accountActive}\nfullLegalNameMatches=${fullLegalNameMatches}\nverifiedMobileMatches=${verifiedMobileMatches}\nvehicleTypeValid=${vehicleTypeValid}`,
+      `[Driver Application Create Rule Diagnostics]\nauthUidMatchesDriver=${authUidMatchesDriver}\nuserExists=${userExists}\ndriverRole=${driverRole}\naccountActive=${accountActive}\nfullLegalNameMatches=${fullLegalNameMatches}\nverifiedMobileMatches=${verifiedMobileMatches}\nvehicleTypeValid=${vehicleTypeValid}\nvehicleTypeInCatalog=${vehicleTypeInCatalog}\nvehicleTypeActive=${vehicleTypeActive}`,
     );
   }
 

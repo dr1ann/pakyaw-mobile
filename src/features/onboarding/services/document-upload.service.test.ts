@@ -9,19 +9,21 @@ import {
 } from '@/features/onboarding/services/document-upload.service';
 
 vi.mock('@/services/firebase/firebase', () => ({
+  auth: { currentUser: { uid: 'driver-uid-123' } },
   firestore: {},
   storage: {},
   ref: vi.fn((_storage: unknown, path: string) => ({ fullPath: path })),
   putFile: vi.fn(),
   uploadBytesResumable: vi.fn(),
   doc: vi.fn((_db: unknown, ...parts: string[]) => parts.join('/')),
+  getDoc: vi.fn(),
   serverTimestamp: vi.fn(() => ({ _methodName: 'serverTimestamp', _elements: undefined })),
   setDoc: vi.fn(),
   FieldValue: class MockFieldValue {},
   Timestamp: class MockTimestamp {},
 }));
 
-import { putFile, setDoc } from '@/services/firebase/firebase';
+import { getDoc, putFile, setDoc } from '@/services/firebase/firebase';
 
 describe('driver document selection validation', () => {
   it('accepts images and PDFs below the private upload limit', () => {
@@ -95,7 +97,7 @@ describe('uploadDriverDocument', () => {
         onComplete();
       }),
     } as any);
-    vi.mocked(setDoc).mockResolvedValueOnce(undefined);
+    vi.mocked(setDoc).mockResolvedValue(undefined);
 
     const progressReports: number[] = [];
     const result = await uploadDriverDocument(
@@ -167,6 +169,106 @@ describe('uploadDriverDocument', () => {
     );
 
     expect(result.storagePath).toMatch(/^driver-documents\/driver-uid-123\/franchise\//);
+  });
+
+  it('uses the exact Admin catalog key and rejects an abbreviated key', async () => {
+    vi.stubGlobal('__DEV__', true);
+    const catalog = {
+      vehicleTypes: [{ id: 'tricycle', type: 'Tricycle', capacity: 3, wheels: 3, status: 'active' as const, icon: null }],
+      documentRequirements: [{
+        key: 'barangay_clearance',
+        label: 'Barangay Clearance',
+        description: '',
+        active: true,
+        requiredForApplication: true,
+        requiredForOnline: true,
+        requiresIdentification: false,
+        requiresIssuanceDate: false,
+        requiresExpiryDate: false,
+        vehicleTypeIds: [],
+        sortOrder: 1,
+      }],
+    };
+
+    await expect(
+      uploadDriverDocument(
+        'driver-uid-123',
+        'brgy_clearance',
+        validPdfAsset,
+        {},
+        undefined,
+        'draft',
+        { catalog, vehicleTypeId: 'tricycle' },
+      ),
+    ).rejects.toThrow('This document requirement is no longer available. Refresh and try again.');
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  it('logs each Storage rule predicate without private data', async () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(getDoc).mockImplementation(async (reference: any) => {
+      if (reference === 'users/driver-uid-123') {
+        return { exists: () => true, data: () => ({ role: 'driver', accountStatus: 'active' }) };
+      }
+      return {
+        exists: () => true,
+        data: () => ({ status: 'draft', vehicle: { vehicleTypeId: 'tricycle' } }),
+      };
+    });
+    vi.mocked(putFile).mockReturnValue({
+      on: vi.fn((_event, _onProgress, _onError, onComplete) => onComplete()),
+    } as any);
+    vi.mocked(setDoc).mockResolvedValue(undefined);
+
+    await uploadDriverDocument(
+      'driver-uid-123',
+      'barangay_clearance',
+      validPdfAsset,
+      {},
+      undefined,
+      'draft',
+      {
+        catalog: {
+          vehicleTypes: [{ id: 'tricycle', type: 'Tricycle', capacity: 3, wheels: 3, status: 'active', icon: null }],
+          documentRequirements: [{
+            key: 'barangay_clearance',
+            label: 'Barangay Clearance',
+            description: '',
+            active: true,
+            requiredForApplication: true,
+            requiredForOnline: true,
+            requiresIdentification: false,
+            requiresIssuanceDate: false,
+            requiresExpiryDate: false,
+            vehicleTypeIds: [],
+            sortOrder: 1,
+          }],
+        },
+        vehicleTypeId: 'tricycle',
+      },
+    );
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(
+      'requirementKey=barangay_clearance\n' +
+      'requirementKeyValid=true\n' +
+      'driverAccountExists=true\n' +
+      'driverRole=true\n' +
+      'driverAccountActive=true\n' +
+      'applicationExists=true\n' +
+      'applicationStatus=draft\n' +
+      'vehicleTypeIdPresent=true\n' +
+      'vehicleTypeInCatalog=true\n' +
+      'vehicleTypeActive=true\n' +
+      'requirementExistsInCatalog=true\n' +
+      'requirementActive=true\n' +
+      'requiredForApplication=true\n' +
+      'vehicleApplicable=true\n' +
+      'authUidMatchesDriver=true\n' +
+      'contentType=application/pdf\n' +
+      'sizeValid=true',
+    ));
+    expect(logSpy.mock.calls.flat().join(' ')).not.toContain('driver-uid-123');
   });
 
   it('logs safe diagnostic error without PII when native storage upload fails', async () => {

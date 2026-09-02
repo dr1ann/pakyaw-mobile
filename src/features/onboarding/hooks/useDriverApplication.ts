@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-  REQUIRED_DOCUMENT_TYPES,
   getSubmissionReadiness,
   requirementAppliesToVehicle,
   type DriverApplication,
@@ -61,13 +60,14 @@ export function useDriverApplication() {
         if (draftCreatedRef.current) {
           await saveDriverApplicationDraft(uid, form);
         } else {
-          const docReqs = catalogQuery.data?.documentRequirements;
-          const requirementKeys = docReqs && docReqs.length > 0
-            ? docReqs
-                .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
-                .map((requirement) => requirement.key)
-            : REQUIRED_DOCUMENT_TYPES;
-          await createDriverApplicationDraft(uid, form, requirementKeys.length > 0 ? requirementKeys : REQUIRED_DOCUMENT_TYPES);
+          const catalog = catalogQuery.data;
+          if (!catalog) {
+            throw new Error('The current onboarding catalog is unavailable. Try again.');
+          }
+          const requirementKeys = catalog.documentRequirements
+            .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
+            .map((requirement) => requirement.key);
+          await createDriverApplicationDraft(uid, form, requirementKeys, undefined, catalog);
           draftCreatedRef.current = true;
         }
       }

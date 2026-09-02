@@ -16,7 +16,11 @@ import {
   SubmittedStatusScreen,
 } from '@/features/onboarding/components/OnboardingStatusScreens';
 import { useDriverApplication } from '@/features/onboarding/hooks/useDriverApplication';
-import { uploadDriverDocument, type PickedDriverDocument } from '@/features/onboarding/services/document-upload.service';
+import {
+  uploadDriverDocument,
+  type DriverDocumentUploadRuleContext,
+  type PickedDriverDocument,
+} from '@/features/onboarding/services/document-upload.service';
 import {
   getDriverOnboardingProfile,
   DriverAccountNotReadyError,
@@ -275,6 +279,10 @@ function DriverApplicationWizard({
         currentMeta,
         (ratio) => setUploadProgress(ratio),
         application?.status,
+        {
+          catalog,
+          vehicleTypeId: form.vehicle.vehicleTypeId,
+        } satisfies DriverDocumentUploadRuleContext,
       );
 
       // Merge into adapted form and save
