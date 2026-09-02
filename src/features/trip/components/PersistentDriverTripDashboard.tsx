@@ -10,14 +10,13 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type { TripDoc, SharedRideDoc, TripStatus } from '@pakyaw/shared/features/trip/types';
 import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
-import { firestore } from '@/services/firebase/firebase';
+import { doc, firestore, onSnapshot } from '@/services/firebase/firebase';
 import { SosButton } from '@/features/safety/components/SosButton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

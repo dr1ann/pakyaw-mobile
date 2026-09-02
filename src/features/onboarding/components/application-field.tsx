@@ -16,7 +16,7 @@ export function FormField({ label, required = false, optional = false, help, err
   return (
     <View style={styles.field}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}{required ? <Text style={styles.required}> *</Text> : null}{optional ? <Text style={styles.optional}> (optional)</Text> : null}</Text>
+      <Text style={styles.label}>{label}{required ? <Text style={styles.required}> *</Text> : null}{optional ? <Text style={styles.optional}> (Optional)</Text> : null}</Text>
         {help ? <FieldHelpButton title={label} message={help} /> : null}
       </View>
       {children}

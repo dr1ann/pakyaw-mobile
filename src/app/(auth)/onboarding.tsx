@@ -1,8 +1,9 @@
 /**
- * onboarding.tsx
+ * (auth)/onboarding.tsx
  *
- * Onboarding carousel — shown once on first launch.
- * On completion sets onboardingSeen = true and navigates to /welcome.
+ * Driver Intro Experience — 3 lightweight slides.
+ * Shown once before registration.
+ * On completion sets onboardingSeen = true and navigates to welcome.
  */
 
 import { useRef, useState } from 'react';
@@ -17,37 +18,31 @@ import {
 import { useRouter } from 'expo-router';
 
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { colors, typography } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const COLORS = {
-  ink900: '#0E1726',
-  ink500: '#6B7689',
-  ink400: '#9AA4B2',
-  bluePrimary: '#2F80ED',
-  blueTint: '#E8F1FE',
-  surfaceMuted: '#F4F7FB',
-  bgPassenger: '#EAF1FB',
-};
 
 const SLIDES = [
   {
     id: '1',
     emoji: '🛺',
-    title: 'Ride instantly,\naround your city',
-    body: 'Book a Pakyaw — the whole vehicle is yours, just for you.',
+    badge: 'Ormoc City Rides',
+    title: 'Drive with Pakyaw',
+    body: 'Connect with passengers looking for local rides around Ormoc.',
   },
   {
     id: '2',
-    emoji: '📍',
-    title: 'Go where you\nneed to go',
-    body: 'Pick your destination and a driver will be on their way.',
+    emoji: '📋',
+    badge: 'Simple Process',
+    title: 'Apply one step at a time',
+    body: 'Complete your profile, vehicle information, and required documents.',
   },
   {
     id: '3',
     emoji: '✅',
-    title: 'Safe, simple,\naffordable',
-    body: 'Pre-verified drivers. Transparent pricing. No surprises.',
+    badge: 'Quick review',
+    title: 'Get approved.\nStart driving.',
+    body: 'Pakyaw Operations reviews your application before you can go online.',
   },
 ];
 
@@ -80,7 +75,7 @@ export default function OnboardingScreen() {
         onPress={finish}
         style={styles.skipBtn}
         accessibilityRole="button"
-        accessibilityLabel="Skip onboarding"
+        accessibilityLabel="Skip intro"
       >
         <Text style={styles.skipText}>Skip</Text>
       </Pressable>
@@ -100,6 +95,9 @@ export default function OnboardingScreen() {
           <View style={styles.slide}>
             <View style={styles.illustrationWrap}>
               <Text style={styles.emoji}>{item.emoji}</Text>
+            </View>
+            <View style={styles.badgeWrap}>
+              <Text style={styles.badgeText}>{item.badge}</Text>
             </View>
             <Text style={styles.slideTitle}>{item.title}</Text>
             <Text style={styles.slideBody}>{item.body}</Text>
@@ -125,7 +123,7 @@ export default function OnboardingScreen() {
           accessibilityRole="button"
           testID="onboarding-continue"
         >
-          <Text style={styles.btnLabel}>{isLast ? 'Get started' : 'Continue'}</Text>
+          <Text style={styles.btnLabel}>{isLast ? 'Start application' : 'Continue'}</Text>
         </Pressable>
       </View>
     </View>
@@ -133,57 +131,85 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgPassenger },
+  container: { flex: 1, backgroundColor: colors.surface.bgLight },
   skipBtn: {
     position: 'absolute',
-    top: 60,
-    right: 24,
+    top: 56,
+    right: 20,
     zIndex: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  skipText: { fontSize: 15, color: COLORS.ink500, fontWeight: '600' },
+  skipText: {
+    fontSize: 14,
+    color: colors.ink[500],
+    fontFamily: typography.family.semibold,
+  },
   slide: {
     width: SCREEN_WIDTH,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 80,
-    gap: 20,
+    paddingHorizontal: 28,
+    paddingTop: 60,
+    gap: 16,
   },
   illustrationWrap: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: COLORS.blueTint,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: colors.blue.tint,
+    borderWidth: 2,
+    borderColor: colors.border.subtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  emoji: { fontSize: 64 },
+  emoji: { fontSize: 60 },
+  badgeWrap: {
+    backgroundColor: colors.cyan.tint,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  badgeText: {
+    color: colors.cyan.deep,
+    fontSize: 12,
+    fontFamily: typography.family.bold,
+  },
   slideTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: COLORS.ink900,
+    fontSize: 28,
+    fontFamily: typography.family.bold,
+    color: colors.ink[900],
     textAlign: 'center',
-    lineHeight: 38,
+    lineHeight: 36,
   },
   slideBody: {
-    fontSize: 16,
-    color: COLORS.ink500,
+    fontSize: 15,
+    fontFamily: typography.family.regular,
+    color: colors.ink[500],
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
+    maxWidth: 300,
   },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 20 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.ink400 },
-  dotActive: { width: 24, backgroundColor: COLORS.bluePrimary },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 24 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.ink[400] },
+  dotActive: { width: 26, backgroundColor: colors.blue.primary },
   footer: { paddingHorizontal: 24, paddingBottom: 48 },
   btn: {
-    backgroundColor: COLORS.bluePrimary,
+    backgroundColor: colors.blue.primary,
     borderRadius: 999,
     paddingVertical: 16,
     alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  btnLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  btnLabel: {
+    fontSize: 16,
+    fontFamily: typography.family.bold,
+    color: '#FFFFFF',
+  },
 });

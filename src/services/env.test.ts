@@ -35,4 +35,34 @@ describe('env.parseEnv', () => {
       parseEnv({ ...validEnv, EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: '' }),
     ).toThrow();
   });
+
+  it('requires a configured Firebase test number when phone auth test mode is enabled', () => {
+    expect(() =>
+      parseEnv({ ...validEnv, EXPO_PUBLIC_PHONE_AUTH_TEST_MODE: 'true' }),
+    ).toThrow(/test phone number is required/);
+  });
+
+  it('rejects phone auth test mode in production', () => {
+    expect(() =>
+      parseEnv({
+        ...validEnv,
+        APP_ENV: 'production',
+        EXPO_PUBLIC_PHONE_AUTH_TEST_MODE: 'true',
+        EXPO_PUBLIC_PHONE_AUTH_TEST_NUMBER: '+639171234567',
+      }),
+    ).toThrow(/cannot be enabled in production/);
+  });
+
+  it('accepts a configured phone auth test number in development', () => {
+    expect(
+      parseEnv({
+        ...validEnv,
+        EXPO_PUBLIC_PHONE_AUTH_TEST_MODE: 'true',
+        EXPO_PUBLIC_PHONE_AUTH_TEST_NUMBER: '+639171234567',
+      }),
+    ).toMatchObject({
+      EXPO_PUBLIC_PHONE_AUTH_TEST_MODE: 'true',
+      EXPO_PUBLIC_PHONE_AUTH_TEST_NUMBER: '+639171234567',
+    });
+  });
 });

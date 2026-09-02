@@ -1,8 +1,13 @@
-import { ref, uploadBytesResumable } from 'firebase/storage';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-
-import { REQUIRED_DOCUMENT_TYPES, type RequiredDocumentType } from '@pakyaw/shared/onboarding';
-import { firestore, storage } from '@/services/firebase/firebase';
+import {
+  doc,
+  firestore,
+  ref,
+  serverTimestamp,
+  setDoc,
+  storage,
+  uploadBytesResumable,
+} from '@/services/firebase/firebase';
+import type { DriverDocumentMetadata } from '@pakyaw/shared/onboarding';
 
 export const MAX_DRIVER_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_CONTENT_TYPES = ['application/pdf'] as const;
@@ -31,34 +36,106 @@ export function validatePickedDriverDocument(asset: PickedDriverDocument): strin
   return contentType;
 }
 
+function isDevelopmentBuild(): boolean {
+  return typeof __DEV__ !== 'undefined' && __DEV__ === true;
+}
+
+function extractFirebaseErrorCode(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+  return 'unknown';
+}
+
+function logUploadStage(message: string): void {
+  if (isDevelopmentBuild()) {
+    console.log(`[Driver Document Upload] ${message}`);
+  }
+}
+
+function logUploadFailure(
+  stage: 'storage upload' | 'document metadata write',
+  error: unknown,
+  diagnostic: {
+    requirementKey: string;
+    contentType: string;
+    sizeBytes: number | null;
+    applicationStatus?: string;
+  },
+): void {
+  if (!isDevelopmentBuild()) return;
+
+  const code = extractFirebaseErrorCode(error);
+  const statusLine = diagnostic.applicationStatus ? `\napplicationStatus=${diagnostic.applicationStatus}` : '';
+  console.error(
+    `[Driver Document Upload] ${stage} failed:\ncode=${code}\nrequirementKey=${diagnostic.requirementKey}\ncontentType=${diagnostic.contentType}\nsizeBytes=${diagnostic.sizeBytes ?? 'unknown'}${statusLine}`,
+  );
+}
+
 export async function uploadDriverDocument(
   uid: string,
-  documentType: RequiredDocumentType,
+  documentType: string,
   asset: PickedDriverDocument,
+  metadata: DriverDocumentMetadata = {},
   onProgress?: (ratio: number) => void,
+  applicationStatus?: string,
 ): Promise<{ readonly storagePath: string }> {
-  if (!(REQUIRED_DOCUMENT_TYPES as readonly string[]).includes(documentType)) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{1,99}$/.test(documentType)) {
     throw new DriverDocumentUploadError('This document type is not required.');
   }
   const contentType = validatePickedDriverDocument(asset);
   const response = await fetch(asset.uri);
-  if (!response.ok) throw new DriverDocumentUploadError('The selected file could not be read. Please choose it again.');
+  if (!response.ok) throw new DriverDocumentUploadError('We couldn’t read that file. Choose it again.');
   const blob = await response.blob();
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const storagePath = `driver-documents/${uid}/${documentType}/${fileId}`;
-  const task = uploadBytesResumable(ref(storage, storagePath), blob, { contentType });
-  await new Promise<void>((resolve, reject) => {
-    task.on('state_changed', (snapshot) => {
-      onProgress?.(snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes : 0);
-    }, () => reject(new DriverDocumentUploadError('Upload failed. Please try once more.')), () => resolve());
-  });
 
-  await setDoc(doc(firestore, 'drivers', uid, 'driverDocuments', documentType), {
-    state: 'uploaded',
-    storagePath,
+  const diagnostic = {
+    requirementKey: documentType,
     contentType,
-    sizeBytes: asset.size,
-    uploadedAt: serverTimestamp(),
-  });
+    sizeBytes: asset.size ?? blob.size,
+    applicationStatus,
+  };
+
+  logUploadStage('starting storage upload');
+  const task = uploadBytesResumable(ref(storage, storagePath), blob, { contentType });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snapshot: any) => {
+          onProgress?.(snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes : 0);
+        },
+        (error: any) => reject(error),
+        () => resolve(),
+      );
+    });
+  } catch (storageError) {
+    logUploadFailure('storage upload', storageError, diagnostic);
+    throw new DriverDocumentUploadError('We couldn’t upload that file. Try again.');
+  }
+  logUploadStage('storage upload completed');
+
+  const normalizedMetadata = Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
+  );
+
+  logUploadStage('writing document metadata');
+  try {
+    await setDoc(doc(firestore, 'drivers', uid, 'driverDocuments', documentType), {
+      requirementKey: documentType,
+      state: 'uploaded',
+      storagePath,
+      contentType,
+      sizeBytes: asset.size ?? blob.size,
+      uploadedAt: serverTimestamp(),
+      ...normalizedMetadata,
+    });
+  } catch (firestoreError) {
+    logUploadFailure('document metadata write', firestoreError, diagnostic);
+    throw new DriverDocumentUploadError('We couldn’t upload that file. Try again.');
+  }
+  logUploadStage('document metadata written');
+
   return { storagePath };
 }

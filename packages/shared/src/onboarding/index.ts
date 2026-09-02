@@ -24,5 +24,14 @@ export type {
   ApplicationStatus,
   AuditEntry,
   DocumentState,
+  DriverDocumentMetadata,
   DriverApplication,
+  StructuredLegalName,
 } from './types';
+export { composeStructuredLegalName } from './types';
+export type {
+  DriverOnboardingCatalog,
+  OnboardingDocumentRequirement,
+  OnboardingVehicleType,
+} from './catalog';
+export { requirementAppliesToVehicle } from './catalog';

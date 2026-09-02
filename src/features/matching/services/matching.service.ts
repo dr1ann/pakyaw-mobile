@@ -2,21 +2,23 @@
 
 import {
   collection,
+  firestore,
+  functions,
+  httpsCallable,
   onSnapshot,
   query,
   where,
   type DocumentData,
   type FirestoreError,
   type QueryDocumentSnapshot,
+  type QuerySnapshot,
   type Unsubscribe,
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+} from '@/services/firebase/firebase';
 
 import { AcceptTripError } from '@/features/matching/errors';
 import type { IncomingRequest } from '@/features/matching/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { isPassengerCountAllowed, isRideMode, isTripOfferStatus } from '@pakyaw/shared/transport/contract';
-import { firestore, functions } from '@/services/firebase/firebase';
 
 function offerPlace(value: unknown): IncomingRequest['pickup'] | null {
   if (value === null || typeof value !== 'object') return null;
@@ -112,12 +114,13 @@ export function subscribeDriverOffers(
   );
   return onSnapshot(
     offers,
-    (snapshot) => {
+    (snapshot: QuerySnapshot<DocumentData>) => {
       const now = Date.now();
-      onSnap(snapshot.docs
+      const docs = snapshot.docs;
+      onSnap(docs
         .map(mapOfferToIncomingRequest)
-        .filter((offer): offer is IncomingRequest => offer !== null)
-        .filter((offer) => offer.expiresAt > now));
+        .filter((offer: IncomingRequest | null): offer is IncomingRequest => offer !== null)
+        .filter((offer: IncomingRequest) => offer.expiresAt > now));
     },
     onErr,
   );

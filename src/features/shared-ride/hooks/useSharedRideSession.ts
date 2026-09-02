@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { firestore } from '@/services/firebase/firebase';
+import { doc, firestore, onSnapshot } from '@/services/firebase/firebase';
 import type { SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 import { SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 

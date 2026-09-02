@@ -10,6 +10,7 @@ import type {
   DocumentState,
   DriverApplication,
 } from '@pakyaw/shared/onboarding/types';
+import type { OnboardingDocumentRequirement } from '@pakyaw/shared/onboarding/catalog';
 
 const NOW = Date.UTC(2027, 0, 15, 4, 0, 0);
 const REQUIRED_DOCUMENT_TYPES = ['drivers_license', 'orcr', 'franchise'] as const;
@@ -27,9 +28,8 @@ function createApplication(
     vehicle?: Partial<DriverApplication['vehicle']>;
     license?: Partial<DriverApplication['license']>;
     franchise?: Partial<DriverApplication['franchise']>;
-    documents?: Partial<
-      Record<'drivers_license' | 'orcr' | 'franchise', DocumentState>
-    >;
+    documents?: Partial<Record<string, DocumentState>>;
+    documentMetadata?: DriverApplication['documentMetadata'];
     status?: DriverApplication['status'];
   } = {},
 ): DriverApplication {
@@ -66,7 +66,9 @@ function createApplication(
       franchise:
         overrides.documents?.franchise ??
         VALID_DRIVER_APPLICATION.documents.franchise,
+      ...overrides.documents,
     },
+    documentMetadata: overrides.documentMetadata,
   };
 }
 
@@ -77,6 +79,56 @@ function issueCodes(application: DriverApplication): string[] {
 describe('validateDriverApplication', () => {
   it('accepts a complete application that is ready for submission', () => {
     expect(validateDriverApplication(createApplication(), NOW)).toEqual([]);
+  });
+
+  it('uses the supplied catalog instead of falling back to the legacy three-document list', () => {
+    const permitRequirement: OnboardingDocumentRequirement = {
+      key: 'ltfrb_permit',
+      label: 'LTFRB permit',
+      description: 'Current permit',
+      active: true,
+      requiredForApplication: true,
+      requiredForOnline: true,
+      requiresIdentification: true,
+      requiresIssuanceDate: false,
+      requiresExpiryDate: false,
+      vehicleTypeIds: [],
+      sortOrder: 0,
+    };
+    const application = createApplication({
+      vehicle: { vehicleTypeId: 'tricycle' },
+      documents: { drivers_license: 'missing', orcr: 'missing', franchise: 'missing', ltfrb_permit: 'uploaded' },
+      documentMetadata: { ltfrb_permit: { identificationNumber: 'PERMIT-1' } },
+    });
+
+    expect(validateDriverApplication(application, NOW, [permitRequirement])).toEqual([]);
+  });
+
+  it('validates metadata declared by an active catalog requirement', () => {
+    const requirement: OnboardingDocumentRequirement = {
+      key: 'ltfrb_permit',
+      label: 'LTFRB permit',
+      description: 'Current permit',
+      active: true,
+      requiredForApplication: true,
+      requiredForOnline: true,
+      requiresIdentification: true,
+      requiresIssuanceDate: true,
+      requiresExpiryDate: true,
+      vehicleTypeIds: [],
+      sortOrder: 0,
+    };
+    const application = createApplication({
+      vehicle: { vehicleTypeId: 'tricycle' },
+      documents: { ltfrb_permit: 'uploaded' },
+      documentMetadata: { ltfrb_permit: {} },
+    });
+
+    expect(validateDriverApplication(application, NOW, [requirement]).map((issue) => issue.code)).toEqual([
+      'document_identification_required',
+      'document_issuance_date_required',
+      'document_expiry_date_required',
+    ]);
   });
 
   it.each([

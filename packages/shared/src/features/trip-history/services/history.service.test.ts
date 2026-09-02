@@ -1,19 +1,9 @@
-import { FirebaseError } from 'firebase/app';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PermissionError, NotFoundError, NetworkError } from '../errors';
 import { listForPassenger, getTrip } from './history.service';
 
-// Mock firestore operations
-const mockGetDocs = vi.fn();
-const mockGetDoc = vi.fn();
-const mockQuery = vi.fn();
-const mockWhere = vi.fn();
-const mockOrderBy = vi.fn();
-const mockLimit = vi.fn();
-const mockStartAfter = vi.fn();
-
-vi.mock('firebase/firestore', () => {
+const mocks = vi.hoisted(() => {
   class MockTimestamp {
     seconds: number;
     nanoseconds: number;
@@ -23,37 +13,68 @@ vi.mock('firebase/firestore', () => {
     }
   }
 
+  class MockFirebaseError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'FirebaseError';
+      this.code = code;
+    }
+  }
+
   return {
-    collection: vi.fn(() => 'trips-col'),
-    doc: vi.fn((_fs, coll, id) => ({ collection: coll, id })),
-    getDocs: () => mockGetDocs(),
-    getDoc: () => mockGetDoc(),
-    query: vi.fn((...args: any[]) => {
-      mockQuery(...args);
-      return { type: 'query', args };
-    }),
-    where: vi.fn((field, op, val) => {
-      mockWhere(field, op, val);
-      return { type: 'where', field, op, val };
-    }),
-    orderBy: vi.fn((field, dir) => {
-      mockOrderBy(field, dir);
-      return { type: 'orderBy', field, dir };
-    }),
-    limit: vi.fn((n) => {
-      mockLimit(n);
-      return { type: 'limit', value: n };
-    }),
-    startAfter: vi.fn((val) => {
-      mockStartAfter(val);
-      return { type: 'startAfter', value: val };
-    }),
-    Timestamp: MockTimestamp,
+    MockTimestamp,
+    MockFirebaseError,
+    mockGetDocs: vi.fn(),
+    mockGetDoc: vi.fn(),
+    mockQuery: vi.fn(),
+    mockWhere: vi.fn(),
+    mockOrderBy: vi.fn(),
+    mockLimit: vi.fn(),
+    mockStartAfter: vi.fn(),
   };
 });
 
+const {
+  MockTimestamp,
+  MockFirebaseError,
+  mockGetDocs,
+  mockGetDoc,
+  mockQuery,
+  mockWhere,
+  mockOrderBy,
+  mockLimit,
+  mockStartAfter,
+} = mocks;
+
 vi.mock('@/services/firebase/firebase', () => ({
   firestore: {},
+  collection: vi.fn(() => 'trips-col'),
+  doc: vi.fn((_fs, coll, id) => ({ collection: coll, id })),
+  getDocs: () => mocks.mockGetDocs(),
+  getDoc: () => mocks.mockGetDoc(),
+  query: vi.fn((...args: any[]) => {
+    mocks.mockQuery(...args);
+    return { type: 'query', args };
+  }),
+  where: vi.fn((field, op, val) => {
+    mocks.mockWhere(field, op, val);
+    return { type: 'where', field, op, val };
+  }),
+  orderBy: vi.fn((field, dir) => {
+    mocks.mockOrderBy(field, dir);
+    return { type: 'orderBy', field, dir };
+  }),
+  limit: vi.fn((n) => {
+    mocks.mockLimit(n);
+    return { type: 'limit', value: n };
+  }),
+  startAfter: vi.fn((val) => {
+    mocks.mockStartAfter(val);
+    return { type: 'startAfter', value: val };
+  }),
+  Timestamp: mocks.MockTimestamp,
+  FirebaseError: mocks.MockFirebaseError,
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -211,7 +232,7 @@ describe('history.service', () => {
 
     it('translates permission-denied FirebaseError', async () => {
       mockGetDoc.mockRejectedValueOnce(
-        new FirebaseError('permission-denied', 'Missing permissions.'),
+        new MockFirebaseError('permission-denied', 'Missing permissions.'),
       );
 
       await expect(getTrip('secret-trip')).rejects.toThrow(PermissionError);
@@ -219,7 +240,7 @@ describe('history.service', () => {
 
     it('translates unavailable FirebaseError', async () => {
       mockGetDoc.mockRejectedValueOnce(
-        new FirebaseError('unavailable', 'Firestore is offline.'),
+        new MockFirebaseError('unavailable', 'Firestore is offline.'),
       );
 
       await expect(getTrip('any-trip')).rejects.toThrow(NetworkError);

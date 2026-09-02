@@ -1,7 +1,7 @@
-import { FirebaseError } from 'firebase/app';
 import {
   collection,
   doc,
+  firestore,
   getDoc,
   getDocs,
   limit as fsLimit,
@@ -10,8 +10,10 @@ import {
   startAfter,
   Timestamp,
   where,
+  FirebaseError,
   type DocumentData,
-} from 'firebase/firestore';
+  type Timestamp as TimestampType,
+} from '@/services/firebase/firebase';
 
 import {
   NetworkError,
@@ -22,7 +24,6 @@ import {
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { isDriverPublicSnapshot } from '@pakyaw/shared/transport/contract';
-import { firestore } from '@/services/firebase/firebase';
 
 function translateFirebaseError(err: unknown): Error {
   if (err instanceof FirebaseError) {
@@ -67,9 +68,9 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
       label: data.destination?.label ?? data.destination?.address ?? 'Unknown Destination',
     },
     passengerCount: (data.passengerCount as number) ?? 1,
-    requestedAt: (data.requestedAt as Timestamp) ?? null,
-    completedAt: (data.completedAt as Timestamp) ?? null,
-    cancelledAt: (data.cancelledAt as Timestamp) ?? null,
+    requestedAt: (data.requestedAt as TimestampType) ?? null,
+    completedAt: (data.completedAt as TimestampType) ?? null,
+    cancelledAt: (data.cancelledAt as TimestampType) ?? null,
     driver,
   };
 }
@@ -93,7 +94,7 @@ export async function listForPassenger(
     }
 
     const snap = await getDocs(q);
-    const trips = snap.docs.map((d) => mapDocToTripHistoryItem(d.id, d.data()));
+    const trips = snap.docs.map((d: any) => mapDocToTripHistoryItem(d.id, d.data()));
 
     const lastTrip = trips[trips.length - 1];
     const nextCursor =
@@ -131,10 +132,10 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
       passengerCount: data.passengerCount,
       billedSeats: data.billedSeats,
       geohash: data.geohash,
-      requestedAt: (data.requestedAt as Timestamp) ?? null,
-      acceptedAt: (data.acceptedAt as Timestamp) ?? null,
-      completedAt: (data.completedAt as Timestamp) ?? null,
-      cancelledAt: (data.cancelledAt as Timestamp) ?? null,
+      requestedAt: (data.requestedAt as TimestampType) ?? null,
+      acceptedAt: (data.acceptedAt as TimestampType) ?? null,
+      completedAt: (data.completedAt as TimestampType) ?? null,
+      cancelledAt: (data.cancelledAt as TimestampType) ?? null,
       cancelledBy: data.cancelledBy ?? null,
       cancelReason: data.cancelReason ?? null,
       driverPublic,

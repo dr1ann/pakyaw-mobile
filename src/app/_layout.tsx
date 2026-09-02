@@ -5,12 +5,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useSession, useSessionBootstrap } from '@pakyaw/shared/features/auth/hooks/useSession';
+import { useDriverSession, useDriverSessionStore } from '@/features/auth/stores/driver-session.store';
+import {
+  isDriverApplicationState,
+  isDriverWorkspaceState,
+} from '@/features/auth/services/driver-session.service';
+import { useDriverSessionBootstrap } from '@/features/auth/hooks/useDriverSessionBootstrap';
 import '@/features/driver-availability/services/backgroundLocationTask';
 import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { signOutUser } from '@pakyaw/shared/features/auth/services/auth.service';
+import {
+  useFonts,
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  Montserrat_600SemiBold,
+  Montserrat_700Bold,
+  Montserrat_800ExtraBold,
+} from '@expo-google-fonts/montserrat';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -20,41 +32,43 @@ export const unstable_settings = {
 };
 
 function AppNavigator() {
-  useSessionBootstrap();
+  useDriverSessionBootstrap();
 
-  const { status, role } = useSession();
-  const authed = status === 'authenticated';
-
-  console.log('[DEBUG] AppNavigator status:', status, 'role:', role, 'authed:', authed);
-
-  useEffect(() => {
-    if (status === 'authenticated' && role !== 'driver') {
-      console.log('[DEBUG] Non-driver user authenticated on driver app. Signing out...');
-      signOutUser().catch((err) => console.error('Auto-signout failed:', err));
-      useSessionStore.getState().clear();
-    }
-  }, [status, role]);
+  const { status } = useDriverSession();
+  const isWorkspace = isDriverWorkspaceState(status);
+  const isApplicationFlow = isDriverApplicationState(status) || isWorkspace;
+  const isAccountState =
+    status === 'authenticated_role_mismatch' ||
+    status === 'account_suspended' ||
+    status === 'account_blocked' ||
+    status === 'driver_session_error';
 
   const onLayoutRootView = useCallback(async () => {
-    if (status !== 'loading') {
-      try {
-        await SplashScreen.hideAsync();
-      } catch {
-        // ignore
-      }
+    try {
+      await SplashScreen.hideAsync();
+    } catch {
+      // ignore
     }
-  }, [status]);
+  }, []);
 
   if (status === 'loading') return null;
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!authed}>
+        <Stack.Protected guard={status === 'unauthenticated'}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
 
-        <Stack.Protected guard={authed && role === 'driver'}>
+        <Stack.Protected guard={status === 'authenticated_account_missing'}>
+          <Stack.Screen name="account-setup-recovery" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={isAccountState}>
+          <Stack.Screen name="driver-account-state" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={isApplicationFlow}>
           <Stack.Screen name="(driver)" />
         </Stack.Protected>
       </Stack>
@@ -65,6 +79,13 @@ function AppNavigator() {
 export default function RootLayout() {
   const [storesHydrated, setStoresHydrated] = useState(false);
   const [queryRestored, setQueryRestored] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+    Montserrat_800ExtraBold,
+  });
 
   useEffect(() => {
     // Monitor Zustand hydration
@@ -74,11 +95,15 @@ export default function RootLayout() {
     const unsubTrip = useActiveTripStore.persist.onFinishHydration(() => {
       checkZustandHydration();
     });
+    const unsubDriverSession = useDriverSessionStore.persist.onFinishHydration(() => {
+      checkZustandHydration();
+    });
 
     function checkZustandHydration() {
       if (
         useSessionStore.persist.hasHydrated() &&
-        useActiveTripStore.persist.hasHydrated()
+        useActiveTripStore.persist.hasHydrated() &&
+        useDriverSessionStore.persist.hasHydrated()
       ) {
         setStoresHydrated(true);
       }
@@ -90,10 +115,11 @@ export default function RootLayout() {
     return () => {
       unsubSession();
       unsubTrip();
+      unsubDriverSession();
     };
   }, []);
 
-  const isReady = storesHydrated && queryRestored;
+  const isReady = storesHydrated && queryRestored && (fontsLoaded || fontError !== null);
 
   console.log('[DEBUG] storesHydrated:', storesHydrated, 'queryRestored:', queryRestored);
   console.log('[DEBUG] sessionHydrated:', useSessionStore.persist.hasHydrated(), 'activeTripHydrated:', useActiveTripStore.persist.hasHydrated());

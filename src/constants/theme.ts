@@ -29,6 +29,13 @@ export const colors = {
     tint: '#EFEAFE',
   },
 
+  // Pakyaw cyan accent
+  cyan: {
+    primary: '#00C6D7',
+    tint: '#E0F9FB',
+    deep: '#008B97',
+  },
+
   // Semantic
   success: '#27AE60',
   warning: '#F2A93B',
@@ -99,6 +106,13 @@ export const shadow = {
 } as const;
 
 export const typography = {
+  family: {
+    regular: 'Montserrat_400Regular',
+    medium: 'Montserrat_500Medium',
+    semibold: 'Montserrat_600SemiBold',
+    bold: 'Montserrat_700Bold',
+    extraBold: 'Montserrat_800ExtraBold',
+  },
   size: {
     label: 11,
     bodySmall: 13,

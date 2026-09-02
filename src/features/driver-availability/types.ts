@@ -3,7 +3,8 @@
  * Matches database_schema.md §3 (drivers collection).
  */
 
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp } from '@/services/firebase/firebase';
+export type { Timestamp };
 
 /**
  * Driver online/offline states.

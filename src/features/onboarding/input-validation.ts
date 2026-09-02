@@ -9,6 +9,8 @@ export function sanitizeNamePart(value: string, maximumLength = MAX_NAME_PART_LE
     .slice(0, maximumLength);
 }
 
+export { composeStructuredLegalName, type StructuredLegalName } from '@pakyaw/shared/onboarding';
+
 export function composeFullLegalName(firstName: string, middleName: string, lastName: string): string {
   return [firstName, middleName, lastName]
     .map((part) => sanitizeNamePart(part).trim())
@@ -71,5 +73,5 @@ export function formatReadableDate(value: string): string {
   const date = dateFromDateOnly(value);
   return date
     ? new Intl.DateTimeFormat('en-PH', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
-    : 'Select expiry date';
+    : 'Choose expiry date';
 }

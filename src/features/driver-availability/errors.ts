@@ -1,4 +1,4 @@
-import { FirebaseError } from 'firebase/app';
+import { FirebaseError } from '@/services/firebase/firebase';
 
 /**
  * Domain errors for the driver-availability feature.
@@ -70,6 +70,11 @@ export type DriverEligibilityBlockedReason =
   | 'account_blocked'
   | 'documents_incomplete'
   | 'documents_expired'
+  | 'vehicle_type_inactive'
+  | 'vehicle_identity_invalid'
+  | 'stale_location'
+  | 'outside_service_area'
+  | 'poor_gps_accuracy'
   | 'verification_required';
 
 function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): string {
@@ -84,6 +89,16 @@ function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): strin
       return 'Complete and submit all required Driver documents before going online.';
     case 'documents_expired':
       return 'A required Driver document has expired. Update it before going online.';
+    case 'vehicle_type_inactive':
+      return 'Your selected Vehicle Type is inactive. Ask Operations to review your application.';
+    case 'vehicle_identity_invalid':
+      return 'Complete the vehicle identity details before going online.';
+    case 'stale_location':
+      return 'Your location is stale. Turn on location and try again.';
+    case 'outside_service_area':
+      return 'You are outside the Pakyaw service area.';
+    case 'poor_gps_accuracy':
+      return 'GPS accuracy is too low. Move to a clearer location and try again.';
     case 'verification_required':
       return 'Complete Driver verification before going online.';
   }
@@ -98,6 +113,11 @@ function parseEligibilityReason(message: string): DriverEligibilityBlockedReason
     || reason === 'account_blocked'
     || reason === 'documents_incomplete'
     || reason === 'documents_expired'
+    || reason === 'vehicle_type_inactive'
+    || reason === 'vehicle_identity_invalid'
+    || reason === 'stale_location'
+    || reason === 'outside_service_area'
+    || reason === 'poor_gps_accuracy'
     || reason === 'verification_required'
     ? reason
     : null;

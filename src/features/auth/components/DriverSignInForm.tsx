@@ -46,7 +46,7 @@ export function DriverSignInForm() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <StatusPill label="DRIVER" tone="success" />
+          <StatusPill label="Driver" tone="success" />
           <Text style={styles.title}>Driver sign-in</Text>
           <Text style={styles.subtitle}>
             Enter your credentials to access your driver account.

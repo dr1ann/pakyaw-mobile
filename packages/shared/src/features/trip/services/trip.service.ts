@@ -4,25 +4,32 @@
  * - subscribe: real-time listener on a single trip document, mapped to TripDoc.
  * - transition: server-authoritative forward lifecycle callable.
  * - cancel: server-authoritative cancellation callable. A requested
+/**
+ * trip.service — Phase 8A/8B trip lifecycle state machine.
+ *
+ * - subscribe: real-time listener on a single trip document, mapped to TripDoc.
+ * - transition: server-authoritative forward lifecycle callable.
+ * - cancel: server-authoritative cancellation callable. A requested
  *   cancellation is retained as `cancelled`, preserving audit/history data.
  *
  * The request → accepted transition belongs exclusively to Phase 7
  * acceptTrip() and is intentionally rejected here.
  */
 
-import { FirebaseError } from 'firebase/app';
 import {
   doc,
+  firestore,
+  functions,
+  httpsCallable,
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  FirebaseError,
   type DocumentData,
   type FirestoreError,
   type Timestamp,
   type Unsubscribe,
-} from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-
+} from '@/services/firebase/firebase';
 import {
   CancelNotAllowedError,
   IllegalTransitionError,
@@ -37,7 +44,6 @@ import {
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { isDriverPublicSnapshot, isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
-import { firestore, functions } from '@/services/firebase/firebase';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
 

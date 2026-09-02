@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getSubmissionReadiness, type DriverApplication } from '@pakyaw/shared/onboarding';
+import { getSubmissionReadiness, requirementAppliesToVehicle, type DriverApplication } from '@pakyaw/shared/onboarding';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import {
   createDriverApplicationDraft,
@@ -9,11 +9,18 @@ import {
   submitDriverApplication,
   subscribeDriverApplication,
 } from '@/features/onboarding/services/driver-application.service';
+import { getDriverOnboardingCatalog } from '@/features/onboarding/services/onboarding-catalog.service';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
 
 export function useDriverApplication() {
   const { uid } = useSession();
   const queryClient = useQueryClient();
+  const catalogQuery = useQuery({
+    queryKey: ['driverOnboardingCatalog', uid],
+    queryFn: getDriverOnboardingCatalog,
+    enabled: Boolean(uid),
+    staleTime: 60_000,
+  });
   const [snapshot, setSnapshot] = useState<{
     readonly uid: string | null;
     readonly application: DriverApplicationSnapshot | null;
@@ -21,6 +28,11 @@ export function useDriverApplication() {
     readonly loaded: boolean;
   }>({ uid: null, application: null, error: null, loaded: false });
   const [readinessNow] = useState(() => Date.now());
+  const draftCreatedRef = useRef(false);
+
+  useEffect(() => {
+    draftCreatedRef.current = false;
+  }, [uid]);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -40,14 +52,31 @@ export function useDriverApplication() {
   const saveMutation = useMutation({
     mutationFn: async (form: DriverApplicationForm) => {
       if (!uid) throw new Error('Sign in before completing an application.');
-      if (application === null) await createDriverApplicationDraft(uid, form);
-      else await saveDriverApplicationDraft(uid, form);
+      if (application === null) {
+        if (!catalogQuery.data) throw new Error('The current onboarding catalog is unavailable. Try again.');
+        if (draftCreatedRef.current) {
+          await saveDriverApplicationDraft(uid, form);
+        } else {
+          const requirementKeys = catalogQuery.data.documentRequirements
+            .filter((requirement) => requirementAppliesToVehicle(requirement, form.vehicle.vehicleTypeId))
+            .map((requirement) => requirement.key);
+          await createDriverApplicationDraft(uid, form, requirementKeys);
+          draftCreatedRef.current = true;
+        }
+      }
+      else {
+        draftCreatedRef.current = true;
+        await saveDriverApplicationDraft(uid, form);
+      }
     },
   });
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!uid || !application) throw new Error('Save your application before submitting.');
-      const readiness = getSubmissionReadiness(application as DriverApplication, Date.now());
+      if (!catalogQuery.data) throw new Error('The current onboarding catalog is unavailable. Try again.');
+      const requirements = catalogQuery.data.documentRequirements
+        .filter((requirement) => requirementAppliesToVehicle(requirement, application.vehicle.vehicleTypeId));
+      const readiness = getSubmissionReadiness(application as DriverApplication, Date.now(), requirements);
       if (!readiness.ready) {
         throw new Error('Complete the highlighted application fields and documents before submitting.');
       }
@@ -56,9 +85,13 @@ export function useDriverApplication() {
   });
 
   const readiness = useMemo(
-    () => application ? getSubmissionReadiness(application as DriverApplication, readinessNow) : null,
-    [application, readinessNow],
+    () => application && catalogQuery.data ? getSubmissionReadiness(
+      application as DriverApplication,
+      readinessNow,
+      catalogQuery.data.documentRequirements.filter((requirement) => requirementAppliesToVehicle(requirement, application.vehicle.vehicleTypeId)),
+    ) : null,
+    [application, readinessNow, catalogQuery.data],
   );
 
-  return { uid, application, readiness, error, isApplicationLoaded, saveMutation, submitMutation };
+  return { uid, application, readiness, error, isApplicationLoaded, saveMutation, submitMutation, catalog: catalogQuery.data ?? null, catalogQuery };
 }

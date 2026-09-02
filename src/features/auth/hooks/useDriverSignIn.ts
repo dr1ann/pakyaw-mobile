@@ -1,29 +1,26 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import {
-  getUserDoc,
   signInDriver,
 } from '@pakyaw/shared/features/auth/services/auth.service';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { resolveAndStoreDriverSession } from '@/features/auth/services/driver-session.service';
 
 export function useDriverSignIn() {
-  const setSession = useSessionStore((s) => s.setSession);
   const setSigningIn = useSessionStore((s) => s.setSigningIn);
   const queryClient = useQueryClient();
 
   const signInMutation = useMutation({
     mutationFn: async (args: { email: string; password: string }) => {
-      // Gate the auth bootstrap listener so it doesn't race ahead during the
-      // role/approval check — and again when signInDriver calls signOut on
-      // failure, which would otherwise fire onAuthStateChanged with null.
+      // Gate the auth bootstrap listener while this mutation resolves the
+      // Pakyaw account and application state after Firebase Auth succeeds.
       setSigningIn(true);
       const { uid } = await signInDriver(args.email, args.password);
-      const userDoc = await getUserDoc(uid);
-      return { uid, userDoc };
+      const resolution = await resolveAndStoreDriverSession(uid);
+      return { uid, resolution };
     },
-    onSuccess: ({ uid, userDoc }) => {
-      if (userDoc) queryClient.setQueryData(['profile', uid], userDoc);
-      setSession(uid, 'driver');
+    onSuccess: ({ uid, resolution }) => {
+      if (resolution.userDoc) queryClient.setQueryData(['profile', uid], resolution.userDoc);
     },
     onSettled: () => {
       setSigningIn(false);

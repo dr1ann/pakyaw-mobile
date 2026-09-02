@@ -9,14 +9,12 @@
  * The store is updated by the calling hooks after the callable succeeds.
  */
 
-import { httpsCallable } from 'firebase/functions';
-
 import {
   DriverAccountNotReadyError,
   translatePresenceWriteError,
 } from '@/features/driver-availability/errors';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { functions } from '@/services/firebase/firebase';
+import { functions, httpsCallable } from '@/services/firebase/firebase';
 
 /**
  * Requests that the backend set driver availability to 'online'.

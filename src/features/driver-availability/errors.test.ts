@@ -1,4 +1,4 @@
-import { FirebaseError } from 'firebase/app';
+import { FirebaseError } from '@/services/firebase/firebase';
 import { describe, expect, it } from 'vitest';
 
 import {

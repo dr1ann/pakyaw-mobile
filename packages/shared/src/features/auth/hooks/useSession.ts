@@ -15,8 +15,8 @@
  */
 
 import { useQueryClient } from '@tanstack/react-query';
-import { onAuthStateChanged } from 'firebase/auth';
 import { useEffect } from 'react';
+import { onAuthStateChanged } from '@/services/firebase/firebase';
 
 import { firebaseAuth, getUserDoc } from '@pakyaw/shared/features/auth/services/auth.service';
 import { logger } from '@pakyaw/shared/lib/logger';
@@ -28,7 +28,7 @@ export function useSessionBootstrap(): void {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user: any) => {
       // While a sign-in mutation is mid-flight (e.g. driver role/approval
       // check still running), skip this listener — the mutation drives session
       // state itself via setSession/clear. Otherwise we race the mutation and

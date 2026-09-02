@@ -1,3 +1,4 @@
+import type { OnboardingDocumentRequirement } from './catalog';
 import type { DocumentState, DriverApplication } from './types';
 
 /** Required document keys shared with the matching eligibility snapshot. */
@@ -21,6 +22,7 @@ export type SubmissionIssueCode =
   | 'plate_number_required'
   | 'unit_body_number_required'
   | 'vehicle_description_required'
+  | 'vehicle_type_required'
   | 'owner_operator_info_required'
   | 'driver_owner_flag_invalid'
   | 'orcr_number_required'
@@ -40,7 +42,13 @@ export type SubmissionIssueCode =
   | 'document_under_review'
   | 'document_rejected'
   | 'document_expired'
-  | 'document_invalid_state';
+  | 'document_invalid_state'
+  | 'document_identification_required'
+  | 'document_issuance_date_required'
+  | 'document_issuance_date_invalid'
+  | 'document_expiry_date_required'
+  | 'document_expiry_date_invalid'
+  | 'document_expiry_date_expired';
 
 export type SubmissionField =
   | 'status'
@@ -50,6 +58,7 @@ export type SubmissionField =
   | 'personalDetails.emergencyContact.name'
   | 'personalDetails.emergencyContact.mobile'
   | 'vehicle.plateNumber'
+  | 'vehicle.vehicleTypeId'
   | 'vehicle.unitBodyNumber'
   | 'vehicle.description'
   | 'vehicle.ownerOperatorInfo'
@@ -61,7 +70,8 @@ export type SubmissionField =
   | 'franchise.documentType'
   | 'franchise.documentNumber'
   | 'franchise.expiry'
-  | `documents.${RequiredDocumentType}`;
+  | `documents.${RequiredDocumentType}`
+  | `documents.${string}`;
 
 export type SubmissionIssue = {
   readonly field: SubmissionField;
@@ -169,6 +179,31 @@ function documentIssueCode(state: DocumentState | undefined): SubmissionIssueCod
   }
 }
 
+function addDocumentMetadataIssues(
+  issues: SubmissionIssue[],
+  documentType: string,
+  requirement: OnboardingDocumentRequirement,
+  application: DriverApplication,
+  state: DocumentState | undefined,
+  now: number,
+): void {
+  if (state !== 'uploaded' && state !== 'approved') return;
+  const metadata = application.documentMetadata?.[documentType] ?? {};
+  const field = `documents.${documentType}` as SubmissionField;
+  if (requirement.requiresIdentification && !hasText(metadata.identificationNumber)) {
+    issues.push({ field, code: 'document_identification_required' });
+  }
+  if (requirement.requiresIssuanceDate) {
+    if (!hasText(metadata.issuanceDate)) issues.push({ field, code: 'document_issuance_date_required' });
+    else if (parseDateOnly(metadata.issuanceDate) === null) issues.push({ field, code: 'document_issuance_date_invalid' });
+  }
+  if (requirement.requiresExpiryDate) {
+    if (!hasText(metadata.expiryDate)) issues.push({ field, code: 'document_expiry_date_required' });
+    else if (parseDateOnly(metadata.expiryDate) === null) issues.push({ field, code: 'document_expiry_date_invalid' });
+    else if (!isExpiryDateValid(metadata.expiryDate, now)) issues.push({ field, code: 'document_expiry_date_expired' });
+  }
+}
+
 function addRequiredTextIssue(
   issues: SubmissionIssue[],
   field: SubmissionField,
@@ -222,6 +257,7 @@ function addExpiryIssues(
 export function validateDriverApplication(
   application: DriverApplication,
   now: number,
+  requirements?: readonly OnboardingDocumentRequirement[],
 ): readonly SubmissionIssue[] {
   const issues: SubmissionIssue[] = [];
 
@@ -280,6 +316,14 @@ export function validateDriverApplication(
     'vehicle_description_required',
     application.vehicle.description,
   );
+  if (requirements !== undefined) {
+    addRequiredTextIssue(
+      issues,
+      'vehicle.vehicleTypeId',
+      'vehicle_type_required',
+      application.vehicle.vehicleTypeId,
+    );
+  }
   // The unified contract makes owner/operator information required regardless
   // of ownership. The flag states whether it names the driver or a third party.
   addRequiredTextIssue(
@@ -345,11 +389,16 @@ export function validateDriverApplication(
     'franchise_expiry_expired',
   );
 
-  for (const documentType of REQUIRED_DOCUMENT_TYPES) {
+  const requiredDocumentTypes = requirements === undefined
+    ? REQUIRED_DOCUMENT_TYPES
+    : requirements.filter((requirement) => requirement.requiredForApplication).map((requirement) => requirement.key);
+  for (const documentType of requiredDocumentTypes) {
     const code = documentIssueCode(application.documents[documentType]);
     if (code !== null) {
       issues.push({ field: `documents.${documentType}`, code });
     }
+    const requirement = requirements?.find((candidate) => candidate.key === documentType);
+    if (requirement) addDocumentMetadataIssues(issues, documentType, requirement, application, application.documents[documentType], now);
   }
 
   return issues;

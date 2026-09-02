@@ -1,17 +1,16 @@
-import { FirebaseError } from 'firebase/app';
 import {
+  auth,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
-import {
   doc,
+  firestore,
   getDoc,
   serverTimestamp,
   setDoc,
+  signInWithEmailAndPassword,
+  signOut,
   updateDoc,
-} from 'firebase/firestore';
-
+  FirebaseError,
+} from '@/services/firebase/firebase';
 import {
   AuthError,
   NetworkError,
@@ -20,7 +19,6 @@ import {
   ValidationError,
 } from '@pakyaw/shared/features/auth/errors';
 import type { UserDoc, UserDocInput, UserRole } from '@pakyaw/shared/features/auth/types';
-import { auth, firestore } from '@/services/firebase/firebase';
 
 // ---------------------------------------------------------------------------
 // Error translation
@@ -115,61 +113,13 @@ export async function signInDriver(
   email: string,
   password: string,
 ): Promise<{ uid: string; role: UserRole }> {
-  let uid: string;
   try {
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    uid = credential.user.uid;
+    // Firebase Auth establishes identity. The Driver app's session resolver
+    // separately loads users/{uid} and driverApplications/{uid} before any
+    // operational workspace is allowed to mount.
+    return { uid: credential.user.uid, role: 'driver' };
   } catch (err) {
-    throw translateFirebaseError(err);
-  }
-
-  try {
-    const [userSnap, driverSnap] = await Promise.all([
-      getDoc(doc(firestore, 'users', uid)),
-      getDoc(doc(firestore, 'drivers', uid)),
-    ]);
-
-    if (!userSnap.exists()) {
-      throw new NotFoundError(
-        'No account found for this email. Contact your fleet manager.',
-      );
-    }
-    const userData = userSnap.data() as UserDoc;
-    if (userData.role !== 'driver') {
-      throw new AuthError(
-        'This account is not registered as a driver. Use passenger sign-in.',
-      );
-    }
-
-    if (!driverSnap.exists()) {
-      throw new NotFoundError(
-        'Driver profile not found. Contact your fleet manager.',
-      );
-    }
-    const driverData = driverSnap.data() as { approved?: boolean; applicationStatus?: string };
-    const isApproved = driverData.approved === true || driverData.applicationStatus === 'approved';
-    if (!isApproved) {
-      throw new AuthError(
-        'Your driver account is pending approval. Please wait for confirmation.',
-      );
-    }
-
-    return { uid, role: 'driver' };
-  } catch (err) {
-    try {
-      await signOut(auth);
-    } catch {
-      // Ignore cleanup sign-out errors
-    }
-    if (
-      err instanceof AuthError ||
-      err instanceof NotFoundError ||
-      err instanceof NetworkError ||
-      err instanceof PermissionError ||
-      err instanceof ValidationError
-    ) {
-      throw err;
-    }
     throw translateFirebaseError(err);
   }
 }

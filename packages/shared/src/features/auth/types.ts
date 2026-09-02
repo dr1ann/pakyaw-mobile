@@ -1,4 +1,9 @@
-import type { Timestamp } from 'firebase/firestore';
+export type Timestamp = {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+  toDate?(): Date;
+  toMillis?(): number;
+};
 
 /**
  * User role — routes the app into (passenger) or (driver).

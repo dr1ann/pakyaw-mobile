@@ -45,7 +45,7 @@ export default function DriverAccountScreen() {
           <View style={styles.avatarSection}>
             <Avatar name={fullName} size="xl" tone="green" />
             <Text style={styles.fullName}>{fullName ?? '—'}</Text>
-            <StatusPill label="DRIVER" tone="success" />
+            <StatusPill label="Driver" tone="success" />
           </View>
 
           <Card padded={false} style={styles.card}>

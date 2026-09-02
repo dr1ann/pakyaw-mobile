@@ -7,20 +7,14 @@ const mocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('firebase/firestore', () => ({
+vi.mock('@/services/firebase/firebase', () => ({
+  firestore: {},
+  functions: {},
   collection: vi.fn((_firestore, name: string) => name),
   onSnapshot: mocks.onSnapshot,
   query: vi.fn((...constraints: unknown[]) => constraints),
   where: vi.fn((field: string, operator: string, value: unknown) => ({ field, operator, value })),
-}));
-
-vi.mock('firebase/functions', () => ({
   httpsCallable: mocks.httpsCallable,
-}));
-
-vi.mock('@/services/firebase/firebase', () => ({
-  firestore: {},
-  functions: {},
 }));
 
 vi.mock('@pakyaw/shared/lib/logger', () => ({

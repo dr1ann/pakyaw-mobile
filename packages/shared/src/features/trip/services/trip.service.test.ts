@@ -6,14 +6,15 @@ const mocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('firebase/firestore', () => ({
+vi.mock('@/services/firebase/firebase', () => ({
+  firestore: {},
+  functions: {},
   doc: vi.fn((...args: unknown[]) => args),
   onSnapshot: mocks.onSnapshot,
   serverTimestamp: vi.fn(),
   updateDoc: vi.fn(),
+  httpsCallable: mocks.callable,
 }));
-vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
-vi.mock('@/services/firebase/firebase', () => ({ firestore: {}, functions: {} }));
 
 import { CancelNotAllowedError, IllegalTransitionError } from '../errors';
 import { cancel, subscribe, transition } from './trip.service';
@@ -132,7 +133,7 @@ describe('Day 3 callable trip actions', () => {
     mocks.callable.mockReturnValue(invoke);
 
     await expect(transition('trip-1', 'driver-1', 'driver_arriving')).resolves.toBeUndefined();
-    expect(mocks.callable).toHaveBeenCalledWith({}, 'transitionTrip');
+    expect(mocks.callable).toHaveBeenCalledWith(expect.anything(), 'transitionTrip');
     expect(invoke).toHaveBeenCalledWith({
       tripId: 'trip-1',
       actorId: 'driver-1',
@@ -158,7 +159,7 @@ describe('Day 3 callable trip actions', () => {
     mocks.callable.mockReturnValue(invoke);
 
     await cancel('trip-1', 'driver-1', 'vehicle_issue');
-    expect(mocks.callable).toHaveBeenCalledWith({}, 'cancelTrip');
+    expect(mocks.callable).toHaveBeenCalledWith(expect.anything(), 'cancelTrip');
     expect(invoke).toHaveBeenCalledWith({
       tripId: 'trip-1',
       actorId: 'driver-1',
