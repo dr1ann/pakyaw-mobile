@@ -194,6 +194,28 @@ async function logStorageRuleDiagnostics(
   );
 }
 
+/**
+ * Normalizes a URI from expo-document-picker into a path suitable for
+ * React Native Firebase Storage `putFile`.
+ *
+ * - iOS `putFile` expects a raw filesystem path without the `file://` scheme.
+ * - Android `putFile` accepts both `file://` URIs and `content://` URIs.
+ * - `content://` URIs are passed through unchanged on Android.
+ */
+function normalizeFilePathForUpload(uri: string): string {
+  // On Android, content:// URIs are valid for putFile — pass through.
+  if (uri.startsWith('content://')) return uri;
+
+  // Strip `file://` prefix for iOS compatibility.
+  // putFile on Android also accepts raw paths, so this is safe cross-platform.
+  if (uri.startsWith('file://')) {
+    return uri.replace(/^file:\/\//, '');
+  }
+
+  // Already a raw path or unknown scheme — pass through.
+  return uri;
+}
+
 export async function uploadDriverDocument(
   uid: string,
   documentType: string,
@@ -231,6 +253,8 @@ export async function uploadDriverDocument(
     applicationStatus,
   };
 
+  const normalizedPath = normalizeFilePathForUpload(asset.uri);
+
   if (isDevelopmentBuild()) {
     const uriScheme = getUriScheme(asset.uri);
     console.log(
@@ -239,7 +263,17 @@ export async function uploadDriverDocument(
   }
 
   logUploadStage('starting storage upload');
-  const task = putFile(ref(storage, storagePath), asset.uri, { contentType });
+  let task: any;
+  try {
+    task = putFile(ref(storage, storagePath), normalizedPath, { contentType });
+  } catch (putFileError) {
+    logUploadFailure('storage upload', putFileError, diagnostic);
+    if (isDevelopmentBuild()) {
+      console.error('[Driver Document Upload] putFile call failed immediately:', putFileError);
+    }
+    throw new DriverDocumentUploadError('We couldn\u2019t start the upload. Choose the file again.');
+  }
+
   // React Native Firebase's StorageTask owns an internal promise in addition
   // to its state_changed callbacks. The callback below remains authoritative,
   // while this handler prevents the same native rejection from surfacing as an
@@ -247,6 +281,7 @@ export async function uploadDriverDocument(
   if (typeof task?.catch === 'function') {
     void task.catch(() => undefined);
   }
+
   try {
     await new Promise<void>((resolve, reject) => {
       task.on(
@@ -262,7 +297,10 @@ export async function uploadDriverDocument(
     });
   } catch (storageError) {
     logUploadFailure('storage upload', storageError, diagnostic);
-    throw new DriverDocumentUploadError('We couldn’t upload that file. Try again.');
+    if (isDevelopmentBuild()) {
+      console.error('[Driver Document Upload] storage state_changed error:', storageError);
+    }
+    throw new DriverDocumentUploadError('We couldn\u2019t upload that file. Check your connection and try again.');
   }
   logUploadStage('storage upload completed');
 
@@ -272,18 +310,27 @@ export async function uploadDriverDocument(
 
   logUploadStage('writing document metadata');
   try {
-    await setDoc(doc(firestore, 'drivers', uid, 'driverDocuments', documentType), {
-      requirementKey: documentType,
-      state: 'uploaded',
-      storagePath,
-      contentType,
-      sizeBytes: asset.size ?? null,
-      uploadedAt: serverTimestamp(),
-      ...normalizedMetadata,
-    });
+    await setDoc(
+      doc(firestore, 'drivers', uid, 'driverDocuments', documentType),
+      {
+        requirementKey: documentType,
+        state: 'uploaded',
+        storagePath,
+        contentType,
+        sizeBytes: asset.size ?? null,
+        uploadedAt: serverTimestamp(),
+        ...normalizedMetadata,
+      },
+      { merge: true },
+    );
   } catch (firestoreError) {
     logUploadFailure('document metadata write', firestoreError, diagnostic);
-    throw new DriverDocumentUploadError('We couldn’t upload that file. Try again.');
+    if (isDevelopmentBuild()) {
+      console.error('[Driver Document Upload] Firestore setDoc error:', firestoreError);
+    }
+    throw new DriverDocumentUploadError(
+      'The file was uploaded but we couldn\u2019t save the record. Try uploading again.',
+    );
   }
   logUploadStage('document metadata written');
 

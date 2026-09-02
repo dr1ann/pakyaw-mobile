@@ -109,10 +109,10 @@ describe('uploadDriverDocument', () => {
       'draft',
     );
 
-    // Verify putFile was called with file URI directly
+    // Verify putFile was called with normalized path (file:// stripped)
     expect(putFile).toHaveBeenCalledWith(
       expect.objectContaining({ fullPath: expect.stringMatching(/^driver-documents\/driver-uid-123\/drivers_license\//) }),
-      validImageAsset.uri,
+      '/data/user/0/com.example.pakyaw/cache/test-doc.jpg',
       { contentType: 'image/jpeg' },
     );
 
@@ -136,6 +136,7 @@ describe('uploadDriverDocument', () => {
         sizeBytes: 2048,
         identificationNumber: 'N01-12-345678',
       }),
+      { merge: true },
     );
 
     expect(logSpy).toHaveBeenCalledWith('[Driver Document Upload] starting storage upload');
@@ -292,7 +293,7 @@ describe('uploadDriverDocument', () => {
         undefined,
         'draft',
       ),
-    ).rejects.toThrow('We couldn’t upload that file. Try again.');
+    ).rejects.toThrow(/upload that file/);
 
     expect(setDoc).not.toHaveBeenCalled();
     expect(taskCatch).toHaveBeenCalledOnce();
@@ -334,7 +335,7 @@ describe('uploadDriverDocument', () => {
         undefined,
         'draft',
       ),
-    ).rejects.toThrow('We couldn’t upload that file. Try again.');
+    ).rejects.toThrow(/save the record/);
 
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Driver Document Upload] document metadata write failed:\ncode=permission-denied\nrequirementKey=orcr\ncontentType=image/jpeg\nsizeBytes=2048\napplicationStatus=draft'),
