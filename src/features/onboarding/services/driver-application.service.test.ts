@@ -16,9 +16,11 @@ vi.mock('@/services/firebase/firebase', () => ({
   doc: vi.fn((_db: unknown, ...parts: string[]) => parts.join('/')),
   getDoc: vi.fn(),
   onSnapshot: vi.fn(),
-  serverTimestamp: vi.fn(() => ({ _type: 'serverTimestamp' })),
+  serverTimestamp: vi.fn(() => ({ _methodName: 'serverTimestamp', _elements: undefined })),
   setDoc: vi.fn(),
   updateDoc: vi.fn(),
+  FieldValue: class MockFieldValue {},
+  Timestamp: class MockTimestamp {},
 }));
 
 import { getDoc, setDoc, updateDoc } from '@/services/firebase/firebase';
@@ -216,6 +218,11 @@ describe('driver application draft payload construction', () => {
     expect(() => assertNoUndefinedProperties({ a: 1, b: { c: undefined } })).toThrow(
       'Found undefined at b.c',
     );
+  });
+
+  it('safely ignores FieldValue sentinels with internal undefined elements', () => {
+    const sentinel = { _methodName: 'serverTimestamp', _elements: undefined };
+    expect(() => assertNoUndefinedProperties({ createdAt: sentinel, name: 'Juan' })).not.toThrow();
   });
 });
 

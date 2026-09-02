@@ -6,6 +6,8 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  FieldValue,
+  Timestamp,
   type DocumentData,
   type Unsubscribe,
 } from '@/services/firebase/firebase';
@@ -116,17 +118,38 @@ function asApplication(uid: string, data: DocumentData, uploadedDocuments: Reado
   };
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  if (value instanceof Date) return false;
+  if (typeof Timestamp !== 'undefined' && typeof Timestamp === 'function' && value instanceof Timestamp) return false;
+  if (typeof FieldValue !== 'undefined' && typeof FieldValue === 'function' && value instanceof FieldValue) return false;
+  if ('_methodName' in value || '_elements' in value || '_type' in value) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 export function assertNoUndefinedProperties(value: unknown, path = ''): void {
   if (value === undefined) {
     throw new Error(`Found undefined at ${path || 'root'}`);
   }
-  if (value && typeof value === 'object') {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const currentPath = path ? `${path}[${i}]` : `[${i}]`;
+      const prop = value[i];
+      if (prop === undefined) {
+        throw new Error(`Found undefined at ${currentPath}`);
+      }
+      if (isPlainObject(prop) || Array.isArray(prop)) {
+        assertNoUndefinedProperties(prop, currentPath);
+      }
+    }
+  } else if (isPlainObject(value)) {
     for (const [key, prop] of Object.entries(value)) {
       const currentPath = path ? `${path}.${key}` : key;
       if (prop === undefined) {
         throw new Error(`Found undefined at ${currentPath}`);
       }
-      if (prop && typeof prop === 'object' && !(prop instanceof Date)) {
+      if (isPlainObject(prop) || Array.isArray(prop)) {
         assertNoUndefinedProperties(prop, currentPath);
       }
     }
