@@ -89,7 +89,7 @@ function getDocumentMetadata(value: DocumentData): DriverDocumentMetadata {
   return metadata;
 }
 
-function asApplication(uid: string, data: DocumentData, uploadedDocuments: Readonly<Record<string, DocumentData>> = {}): DriverApplicationSnapshot {
+export function asApplication(uid: string, data: DocumentData, uploadedDocuments: Readonly<Record<string, DocumentData>> = {}): DriverApplicationSnapshot {
   const storedDocuments = data.documents as Record<string, unknown> | undefined;
   const documents = Object.fromEntries(Object.entries(storedDocuments ?? {}).map(([documentType, value]) => [
     documentType,

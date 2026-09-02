@@ -5,10 +5,13 @@ import {
   REQUIRED_DOCUMENT_TYPES,
   getSubmissionReadiness,
   requirementAppliesToVehicle,
+  type DocumentState,
   type DriverApplication,
+  type DriverDocumentMetadata,
 } from '@pakyaw/shared/onboarding';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import {
+  asApplication,
   ensureDriverApplicationDraft,
   saveDriverApplicationDraft,
   submitDriverApplication,
@@ -16,7 +19,14 @@ import {
   syncDriverDocuments,
 } from '@/features/onboarding/services/driver-application.service';
 import { getDriverOnboardingCatalog } from '@/features/onboarding/services/onboarding-catalog.service';
+import { doc, firestore, getDoc } from '@/services/firebase/firebase';
 import type { DriverApplicationForm, DriverApplicationSnapshot } from '@/features/onboarding/types';
+
+export type SubmitDriverApplicationOptions = {
+  readonly form?: DriverApplicationForm;
+  readonly documents?: Record<string, DocumentState>;
+  readonly documentMetadata?: Record<string, DriverDocumentMetadata>;
+};
 
 export function useDriverApplication() {
   const { uid } = useSession();
@@ -82,15 +92,77 @@ export function useDriverApplication() {
     },
   });
   const submitMutation = useMutation({
-    mutationFn: async () => {
-      if (!uid || !application) throw new Error('Save your application before submitting.');
+    mutationFn: async (options?: SubmitDriverApplicationOptions) => {
+      if (!uid) throw new Error('Sign in before completing an application.');
       if (!catalogQuery.data) throw new Error('The current onboarding catalog is unavailable. Try again.');
-      const requirements = catalogQuery.data.documentRequirements
-        .filter((requirement) => requirementAppliesToVehicle(requirement, application.vehicle.vehicleTypeId));
-      const readiness = getSubmissionReadiness(application as DriverApplication, Date.now(), requirements);
-      if (!readiness.ready) {
-        throw new Error('Complete the highlighted application fields and documents before submitting.');
+
+      // Fetch the latest Firestore application doc directly so validation never lags behind React state
+      const snap = await getDoc(doc(firestore, 'driverApplications', uid));
+      const rawData = snap.exists() ? snap.data() : null;
+      if (!rawData && !application) {
+        throw new Error('Save your application before submitting.');
       }
+
+      const baseApp = application ?? asApplication(uid, rawData ?? {});
+      const mergedForm = options?.form ?? baseApp;
+      const vehicleTypeId = mergedForm.vehicle.vehicleTypeId || baseApp.vehicle.vehicleTypeId;
+
+      const requirements = catalogQuery.data.documentRequirements
+        .filter((requirement) => requirementAppliesToVehicle(requirement, vehicleTypeId));
+
+      // Build effective documents & metadata combining snapshot, passed options, and Firestore records
+      const effectiveDocs: Record<string, DocumentState> = {
+        ...(baseApp.documents ?? {}),
+        ...(options?.documents ?? {}),
+      };
+      const effectiveMeta: Record<string, DriverDocumentMetadata> = {
+        ...(baseApp.documentMetadata ?? {}),
+        ...(options?.documentMetadata ?? {}),
+      };
+
+      await Promise.all(
+        requirements.map(async (req) => {
+          if (!effectiveDocs[req.key] || effectiveDocs[req.key] === 'missing') {
+            try {
+              const docSnap = await getDoc(doc(firestore, 'drivers', uid, 'driverDocuments', req.key));
+              if (docSnap.exists()) {
+                const d = docSnap.data();
+                if (d?.state) effectiveDocs[req.key] = d.state;
+                if (d) {
+                  effectiveMeta[req.key] = {
+                    ...effectiveMeta[req.key],
+                    identificationNumber: d.identificationNumber || effectiveMeta[req.key]?.identificationNumber,
+                    issuanceDate: d.issuanceDate || effectiveMeta[req.key]?.issuanceDate,
+                    expiryDate: d.expiryDate || effectiveMeta[req.key]?.expiryDate,
+                  };
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }),
+      );
+
+      const appToValidate: DriverApplication = {
+        ...baseApp,
+        ...mergedForm,
+        personalDetails: { ...baseApp.personalDetails, ...mergedForm.personalDetails },
+        vehicle: { ...baseApp.vehicle, ...mergedForm.vehicle },
+        license: { ...baseApp.license, ...mergedForm.license },
+        franchise: { ...baseApp.franchise, ...mergedForm.franchise },
+        documents: effectiveDocs,
+        documentMetadata: effectiveMeta,
+      };
+
+      const readiness = getSubmissionReadiness(appToValidate, Date.now(), requirements);
+      if (!readiness.ready) {
+        console.error('[Driver Application] Submission readiness issues:', readiness.issues);
+        const firstIssue = readiness.issues[0];
+        const detail = firstIssue ? ` (${firstIssue.field}: ${firstIssue.code})` : '';
+        throw new Error(`Complete the highlighted application fields and documents before submitting.${detail}`);
+      }
+
       await submitDriverApplication(uid);
     },
   });

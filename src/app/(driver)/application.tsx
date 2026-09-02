@@ -525,8 +525,12 @@ function DriverApplicationWizard({
       );
       await saveMutation.mutateAsync(adapted);
 
-      // 2. Submit
-      await submitMutation.mutateAsync();
+      // 2. Submit with adapted form, effective documents, and metadata
+      await submitMutation.mutateAsync({
+        form: adapted,
+        documents: effectiveDocuments,
+        documentMetadata: metadataState,
+      });
       setCorrectionMode(false);
     } catch (err: any) {
       console.error('[Driver Application] Submit failed:', err);

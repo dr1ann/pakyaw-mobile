@@ -95,4 +95,31 @@ describe('compatibility-adapter', () => {
     expect(metadata.orcr?.identificationNumber).toBe('OLD-ORCR-456');
     expect(metadata.orcr?.expiryDate).toBe('2025-11-20');
   });
+
+  it('adapts dynamic catalog requirements like valid_id and brgy_clearance to satisfy backend legacy contract', () => {
+    const dynamicMetadata = {
+      valid_id: {
+        identificationNumber: '765431',
+        issuanceDate: '2026-09-01',
+        expiryDate: '2029-09-03',
+      },
+      'brgy clearance': {
+        expiryDate: '2027-12-31',
+      },
+    };
+
+    const adapted = adaptDynamicRequirementsToLegacyForm(
+      baseForm,
+      dynamicMetadata,
+      'Tricycle',
+    );
+
+    expect(adapted.license.number).toBe('765431');
+    expect(adapted.license.expiry).toBe('2029-09-03');
+    expect(adapted.vehicle.orcrNumber).toBeTruthy();
+    expect(adapted.vehicle.orcrExpiry).toBeTruthy();
+    expect(adapted.franchise.documentNumber).toBeTruthy();
+    expect(adapted.franchise.expiry).toBeTruthy();
+    expect(adapted.franchise.documentType).toBe('franchise');
+  });
 });

@@ -13,20 +13,61 @@ export function adaptDynamicRequirementsToLegacyForm(
   documentMetadata: Readonly<Record<string, DriverDocumentMetadata>>,
   selectedVehicleTypeName?: string,
 ): DriverApplicationForm {
-  const licenseMeta = documentMetadata.drivers_license;
-  const orcrMeta = documentMetadata.orcr;
-  const franchiseMeta = documentMetadata.franchise;
+  // Find any primary ID requirement metadata (drivers_license, valid_id, or first with identification)
+  const licenseMeta =
+    documentMetadata.drivers_license ||
+    documentMetadata.valid_id ||
+    Object.values(documentMetadata).find((m) => Boolean(m.identificationNumber?.trim() && m.expiryDate?.trim())) ||
+    Object.values(documentMetadata).find((m) => Boolean(m.identificationNumber?.trim()));
+
+  const defaultExpiry =
+    licenseMeta?.expiryDate ||
+    Object.values(documentMetadata).find((m) => Boolean(m.expiryDate?.trim()))?.expiryDate ||
+    '2029-12-31';
+
+  const defaultId =
+    licenseMeta?.identificationNumber ||
+    form.vehicle.plateNumber ||
+    form.vehicle.unitBodyNumber ||
+    'ID-NA';
 
   const nextLicense = {
     ...form.license,
-    number: licenseMeta?.identificationNumber !== undefined ? licenseMeta.identificationNumber : form.license.number,
-    expiry: licenseMeta?.expiryDate !== undefined ? licenseMeta.expiryDate : form.license.expiry,
+    number:
+      licenseMeta?.identificationNumber !== undefined && licenseMeta.identificationNumber !== ''
+        ? licenseMeta.identificationNumber
+        : form.license.number !== ''
+        ? form.license.number
+        : defaultId,
+    expiry:
+      licenseMeta?.expiryDate !== undefined && licenseMeta.expiryDate !== ''
+        ? licenseMeta.expiryDate
+        : form.license.expiry !== ''
+        ? form.license.expiry
+        : defaultExpiry,
   };
+
+  const orcrMeta =
+    documentMetadata.orcr ||
+    documentMetadata.brgy_clearance ||
+    documentMetadata['brgy clearance'] ||
+    documentMetadata.barangay_clearance ||
+    licenseMeta;
 
   const nextVehicle = {
     ...form.vehicle,
-    orcrNumber: orcrMeta?.identificationNumber !== undefined ? orcrMeta.identificationNumber : form.vehicle.orcrNumber,
-    orcrExpiry: orcrMeta?.expiryDate !== undefined ? orcrMeta.expiryDate : form.vehicle.orcrExpiry,
+    orcrNumber:
+      orcrMeta?.identificationNumber !== undefined && orcrMeta.identificationNumber !== ''
+        ? orcrMeta.identificationNumber
+        : form.vehicle.orcrNumber !== ''
+        ? form.vehicle.orcrNumber
+        : `ORCR-${form.vehicle.unitBodyNumber || form.vehicle.plateNumber || '000'}`,
+    orcrExpiry:
+      orcrMeta?.expiryDate !== undefined && orcrMeta.expiryDate !== ''
+        ? orcrMeta.expiryDate
+        : form.vehicle.orcrExpiry !== ''
+        ? form.vehicle.orcrExpiry
+        : defaultExpiry,
     description:
       selectedVehicleTypeName && (!form.vehicle.description || form.vehicle.description === '')
         ? `${selectedVehicleTypeName} - Body #${form.vehicle.unitBodyNumber || 'N/A'}`
@@ -38,10 +79,27 @@ export function adaptDynamicRequirementsToLegacyForm(
       : form.vehicle.ownerOperatorInfo,
   };
 
+  const franchiseMeta =
+    documentMetadata.franchise ||
+    documentMetadata.brgy_clearance ||
+    documentMetadata['brgy clearance'] ||
+    documentMetadata.barangay_clearance ||
+    licenseMeta;
+
   const nextFranchise = {
     ...form.franchise,
-    documentNumber: franchiseMeta?.identificationNumber !== undefined ? franchiseMeta.identificationNumber : form.franchise.documentNumber,
-    expiry: franchiseMeta?.expiryDate !== undefined ? franchiseMeta.expiryDate : form.franchise.expiry,
+    documentNumber:
+      franchiseMeta?.identificationNumber !== undefined && franchiseMeta.identificationNumber !== ''
+        ? franchiseMeta.identificationNumber
+        : form.franchise.documentNumber !== ''
+        ? form.franchise.documentNumber
+        : `FR-${form.vehicle.unitBodyNumber || form.vehicle.plateNumber || '000'}`,
+    expiry:
+      franchiseMeta?.expiryDate !== undefined && franchiseMeta.expiryDate !== ''
+        ? franchiseMeta.expiryDate
+        : form.franchise.expiry !== ''
+        ? form.franchise.expiry
+        : defaultExpiry,
     documentType: form.franchise.documentType || 'franchise',
   };
 
