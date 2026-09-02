@@ -643,7 +643,7 @@ export default function RideScreen() {
           <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
             <HomeSheet
               onSearchPress={() => setSearchMode('destination')}
-              passengerName={profile?.firstName}
+              passengerName={profile?.name || "Passenger"}
             />
           </SafeAreaView>
         )

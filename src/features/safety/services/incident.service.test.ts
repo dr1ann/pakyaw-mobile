@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ callable: vi.fn(), httpsCallable: vi.fn() }));
 
-vi.mock('firebase/functions', () => ({ httpsCallable: mocks.httpsCallable }));
-vi.mock('@/services/firebase/firebase', () => ({ functions: {} }));
+vi.mock('@/services/firebase/firebase', () => ({
+  functions: {},
+  httpsCallable: mocks.httpsCallable,
+}));
 
 import { createTripIncident, getSafetyStatus } from './incident.service';
 

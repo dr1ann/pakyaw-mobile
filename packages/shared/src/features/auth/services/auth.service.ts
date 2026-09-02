@@ -1,16 +1,16 @@
-import { FirebaseError } from 'firebase/app';
 import {
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
-import {
   doc,
+  firestore,
   getDoc,
   serverTimestamp,
   setDoc,
+  signInWithEmailAndPassword,
+  signOut,
   updateDoc,
-} from 'firebase/firestore';
+  auth,
+  FirebaseError,
+} from '@/services/firebase/firebase';
 
 import {
   AuthError,
@@ -19,8 +19,7 @@ import {
   PermissionError,
   ValidationError,
 } from '@pakyaw/shared/features/auth/errors';
-import type { UserDoc, UserDocInput, UserRole } from '@pakyaw/shared/features/auth/types';
-import { auth, firestore } from '@/services/firebase/firebase';
+import type { LegacyUserDocInput, UserDoc, UserDocInput, UserRole } from '@pakyaw/shared/features/auth/types';
 
 // ---------------------------------------------------------------------------
 // Error translation
@@ -187,11 +186,14 @@ export async function signOutUser(): Promise<void> {
 
 export async function createUserDoc(
   uid: string,
-  data: Partial<UserDocInput>,
+  data: Partial<UserDocInput> & Partial<LegacyUserDocInput>,
 ): Promise<void> {
+  const name = data.name ?? `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim();
+  const mobile = data.mobile ?? data.phone ?? '';
+  if (mobile.length === 0) {
+    throw new ValidationError('Use the verified-phone registration flow to create a Passenger account.');
+  }
   try {
-    const name = data.name ?? `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim();
-    const mobile = data.mobile ?? data.phone ?? '';
     await setDoc(doc(firestore, 'users', uid), {
       uid,
       name: name.length >= 2 ? name : 'Passenger',
@@ -237,5 +239,3 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
 }
 
 export { auth as firebaseAuth };
-
-

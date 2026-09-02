@@ -73,7 +73,7 @@ export function FareQuoteBreakdown({
   if (!quote) return null;
 
   const { fare, billedSeats } = quote;
-  const baseFare = fare.perSeat?.baseFare ?? fare.baseFare ?? 10;
+  const baseFare = fare.perSeat?.baseFare ?? fare.baseFare;
   const succeedingKm = fare.perSeat?.succeedingKmCharge ?? fare.succeedingKmCharge ?? fare.distanceFare ?? 0;
   const perSeatRate = baseFare + succeedingKm;
 
@@ -86,7 +86,7 @@ export function FareQuoteBreakdown({
 
   // Format multiplier label in plain English
   const multiplierLabel = mode === 'private'
-    ? (riderCount <= 4 ? '4 riders minimum' : `${riderCount} riders`)
+    ? `${riderCount} riders · ${billedSeats} billed seats`
     : `${billedSeats} ${billedSeats === 1 ? 'rider' : 'riders'}`;
 
   return (
@@ -103,7 +103,7 @@ export function FareQuoteBreakdown({
         {/* Succeeding km fare if > 0 */}
         {succeedingKm > 0 && (
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Succeeding km fare</Text>
+            <Text style={styles.rowLabel}>Succeeding-km charge</Text>
             <Text style={styles.rowValue}>+{peso(succeedingKm)}</Text>
           </View>
         )}

@@ -16,15 +16,13 @@
  * No UI logic, no transitions, no side effects beyond updating store.
  */
 
-import { FirebaseError } from 'firebase/app';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, firestore, onSnapshot, FirebaseError } from '@/services/firebase/firebase';
 import { useEffect, useRef } from 'react';
 
 import { DRIVER_LOCATION_ACTIVE_STATUSES } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { firestore } from '@/services/firebase/firebase';
 
 export function useDriverLocation(): void {
   const trip = useActiveTripStore((s) => s.trip);

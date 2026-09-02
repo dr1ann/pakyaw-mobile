@@ -1,6 +1,4 @@
-import { httpsCallable } from 'firebase/functions';
-
-import { functions } from '@/services/firebase/firebase';
+import { functions, httpsCallable } from '@/services/firebase/firebase';
 
 export type IncidentLocation = { readonly latitude: number; readonly longitude: number };
 

@@ -5,41 +5,41 @@
  * Firebase SDK calls are mocked so no real network or Firebase app is needed.
  */
 
-import { FirebaseError } from 'firebase/app';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('firebase/auth', () => ({
-  createUserWithEmailAndPassword: vi.fn(),
-  signInWithEmailAndPassword: vi.fn(),
-  signOut: vi.fn(),
-  getAuth: vi.fn(),
-  initializeAuth: vi.fn(),
-  getReactNativePersistence: vi.fn(),
-}));
+const mockCreateUserWithEmailAndPassword = vi.fn();
+const mockSignInWithEmailAndPassword = vi.fn();
+const mockSignOut = vi.fn();
+const mockDoc = vi.fn();
+const mockGetDoc = vi.fn();
+const mockSetDoc = vi.fn();
+const mockUpdateDoc = vi.fn();
 
-vi.mock('firebase/firestore', () => ({
-  doc: vi.fn(),
-  getDoc: vi.fn(),
-  setDoc: vi.fn(),
-  serverTimestamp: vi.fn(() => ({ _type: 'serverTimestamp' })),
-  query: vi.fn(),
-  collection: vi.fn(),
-  where: vi.fn(),
-  getDocs: vi.fn(),
-  limit: vi.fn(),
-  getFirestore: vi.fn(),
-}));
+vi.mock('@/services/firebase/firebase', () => {
+  class MockFirebaseError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'FirebaseError';
+      this.code = code;
+    }
+  }
 
-vi.mock('@/services/firebase/firebase', () => ({
-  auth: {},
-  firestore: {},
-}));
+  return {
+    auth: {},
+    firestore: {},
+    createUserWithEmailAndPassword: (...args: any[]) => mockCreateUserWithEmailAndPassword(...args),
+    signInWithEmailAndPassword: (...args: any[]) => mockSignInWithEmailAndPassword(...args),
+    signOut: (...args: any[]) => mockSignOut(...args),
+    doc: (...args: any[]) => mockDoc(...args),
+    getDoc: (...args: any[]) => mockGetDoc(...args),
+    setDoc: (...args: any[]) => mockSetDoc(...args),
+    updateDoc: (...args: any[]) => mockUpdateDoc(...args),
+    serverTimestamp: vi.fn(() => ({ _type: 'serverTimestamp' })),
+    FirebaseError: MockFirebaseError,
+  };
+});
 
-// eslint-disable-next-line import/first
-import * as firebaseAuth from 'firebase/auth';
-// eslint-disable-next-line import/first
-import * as firebaseFirestore from 'firebase/firestore';
-// eslint-disable-next-line import/first
 import {
   AuthError,
   NetworkError,
@@ -47,12 +47,12 @@ import {
   PermissionError,
   ValidationError,
 } from '@pakyaw/shared/features/auth/errors';
-// eslint-disable-next-line import/first
 import {
   createPassenger,
   signInDriver,
   signInPassenger,
 } from '@pakyaw/shared/features/auth/services/auth.service';
+import { FirebaseError } from '@/services/firebase/firebase';
 
 function makeFirebaseError(code: string, message = 'Firebase error') {
   return new FirebaseError(code, message);
@@ -68,7 +68,7 @@ describe('auth.service — error translation', () => {
   // -------------------------------------------------------------------------
   describe('createPassenger', () => {
     it('throws AuthError when email already in use', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockRejectedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/email-already-in-use'),
       );
 
@@ -78,7 +78,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws AuthError message without Firebase code', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockRejectedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/email-already-in-use'),
       );
 
@@ -93,7 +93,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws NetworkError for auth/network-request-failed', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockRejectedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/network-request-failed'),
       );
 
@@ -103,7 +103,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws ValidationError for auth/weak-password', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockRejectedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/weak-password'),
       );
 
@@ -113,7 +113,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws ValidationError for auth/invalid-email', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockRejectedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/invalid-email'),
       );
 
@@ -123,7 +123,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('returns uid string on success', async () => {
-      vi.mocked(firebaseAuth.createUserWithEmailAndPassword).mockResolvedValueOnce(
+      mockCreateUserWithEmailAndPassword.mockResolvedValueOnce(
         { user: { uid: 'new-uid-123' } } as unknown as never,
       );
 
@@ -137,7 +137,7 @@ describe('auth.service — error translation', () => {
   // -------------------------------------------------------------------------
   describe('signInPassenger', () => {
     it('throws AuthError for wrong password', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockRejectedValueOnce(
+      mockSignInWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/wrong-password'),
       );
 
@@ -147,7 +147,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws AuthError for invalid credentials (new SDK code)', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockRejectedValueOnce(
+      mockSignInWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/invalid-credential'),
       );
 
@@ -157,7 +157,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws AuthError message does not expose Firebase code', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockRejectedValueOnce(
+      mockSignInWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/wrong-password'),
       );
 
@@ -172,7 +172,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('throws NetworkError for network failure', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockRejectedValueOnce(
+      mockSignInWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/network-request-failed'),
       );
 
@@ -182,7 +182,7 @@ describe('auth.service — error translation', () => {
     });
 
     it('returns uid on success', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockResolvedValueOnce(
+      mockSignInWithEmailAndPassword.mockResolvedValueOnce(
         { user: { uid: 'existing-uid' } } as unknown as never,
       );
 
@@ -196,7 +196,7 @@ describe('auth.service — error translation', () => {
   // -------------------------------------------------------------------------
   describe('signInDriver', () => {
     function mockSignIn(uid: string) {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockResolvedValueOnce(
+      mockSignInWithEmailAndPassword.mockResolvedValueOnce(
         { user: { uid } } as unknown as never,
       );
     }
@@ -205,8 +205,8 @@ describe('auth.service — error translation', () => {
       userDoc: object | null,
       driverDoc: object | null,
     ) {
-      vi.mocked(firebaseFirestore.doc).mockReturnValue({} as never);
-      vi.mocked(firebaseFirestore.getDoc)
+      mockDoc.mockReturnValue({} as never);
+      mockGetDoc
         .mockResolvedValueOnce({
           exists: () => userDoc !== null,
           data: () => userDoc,
@@ -218,7 +218,7 @@ describe('auth.service — error translation', () => {
     }
 
     it('throws AuthError for wrong password', async () => {
-      vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockRejectedValueOnce(
+      mockSignInWithEmailAndPassword.mockRejectedValueOnce(
         makeFirebaseError('auth/wrong-password'),
       );
 
@@ -230,7 +230,7 @@ describe('auth.service — error translation', () => {
     it('throws NotFoundError when users doc does not exist', async () => {
       mockSignIn('uid-1');
       mockDocs(null, null);
-      vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
         signInDriver('driver@test.com', 'pass'),
@@ -240,7 +240,7 @@ describe('auth.service — error translation', () => {
     it('throws AuthError when role is not driver', async () => {
       mockSignIn('uid-2');
       mockDocs({ role: 'passenger' }, null);
-      vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
         signInDriver('driver@test.com', 'pass'),
@@ -250,7 +250,7 @@ describe('auth.service — error translation', () => {
     it('throws NotFoundError when drivers doc does not exist', async () => {
       mockSignIn('uid-3');
       mockDocs({ role: 'driver' }, null);
-      vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
         signInDriver('driver@test.com', 'pass'),
@@ -260,7 +260,7 @@ describe('auth.service — error translation', () => {
     it('throws AuthError when driver is not approved', async () => {
       mockSignIn('uid-4');
       mockDocs({ role: 'driver' }, { approved: false });
-      vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
         signInDriver('driver@test.com', 'pass'),
@@ -278,13 +278,13 @@ describe('auth.service — error translation', () => {
     it('calls signOut after any post-auth Firestore failure', async () => {
       mockSignIn('uid-7');
       mockDocs(null, null);
-      vi.mocked(firebaseAuth.signOut).mockResolvedValueOnce(undefined);
+      mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
         signInDriver('driver@test.com', 'pass'),
       ).rejects.toBeInstanceOf(NotFoundError);
 
-      expect(firebaseAuth.signOut).toHaveBeenCalledTimes(1);
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
     });
   });
 

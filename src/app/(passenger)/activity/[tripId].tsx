@@ -1,6 +1,6 @@
+
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Timestamp } from 'firebase/firestore';
 
 import { Card } from '@pakyaw/shared/components/ui/Card';
 import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
@@ -12,7 +12,6 @@ import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTri
 export default function TripDetailScreen() {
   const router = useRouter();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
-
   const { data: trip, isLoading, error } = useTripDetail(tripId);
 
   if (isLoading) {
@@ -145,7 +144,7 @@ export default function TripDetailScreen() {
   );
 }
 
-function formatDate(timestamp: Timestamp | string | number | Date | null | undefined): string {
+function formatDate(timestamp: any): string {
   if (!timestamp) return '—';
   let date: Date;
   if (timestamp instanceof Date) {

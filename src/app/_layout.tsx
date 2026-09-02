@@ -5,10 +5,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useSession, useSessionBootstrap } from '@pakyaw/shared/features/auth/hooks/useSession';
 import { persistOptions, queryClient } from '@/services/query/queryClient';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { usePassengerSessionStore } from '@/features/auth/stores/passenger-session.store';
+import { usePassengerSessionBootstrap } from '@/features/auth/hooks/usePassengerSessionBootstrap';
 import { signOutUser } from '@pakyaw/shared/features/auth/services/auth.service';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -19,40 +20,55 @@ export const unstable_settings = {
 };
 
 function AppNavigator() {
-  useSessionBootstrap();
+  usePassengerSessionBootstrap();
 
-  const { status, role } = useSession();
-  const authed = status === 'authenticated';
+  const sessionStatus = usePassengerSessionStore((s) => s.status);
+  const baseStatus = useSessionStore((s) => s.status);
+  const baseRole = useSessionStore((s) => s.role);
+
+  const isActivePassenger = sessionStatus === 'active' && baseRole === 'passenger';
+  const isNeedsRecovery = sessionStatus === 'needs_recovery';
+  const isAccountState = sessionStatus === 'suspended' || sessionStatus === 'blocked';
+  const isAuthStack = sessionStatus === 'unauthenticated' || sessionStatus === 'idle' || baseStatus === 'unauthenticated';
 
   useEffect(() => {
-    if (status === 'authenticated' && role !== 'passenger') {
+    if (baseStatus === 'authenticated' && baseRole !== 'passenger') {
       console.log('[DEBUG] Non-passenger user authenticated on passenger app. Signing out...');
       signOutUser().catch((err) => console.error('Auto-signout failed:', err));
       useSessionStore.getState().clear();
+      usePassengerSessionStore.getState().clear();
     }
-  }, [status, role]);
+  }, [baseStatus, baseRole]);
 
   const onLayoutRootView = useCallback(async () => {
-    if (status !== 'loading') {
+    if (sessionStatus !== 'resolving') {
       try {
         await SplashScreen.hideAsync();
       } catch {
         // ignore
       }
     }
-  }, [status]);
+  }, [sessionStatus]);
 
-  if (status === 'loading') return null;
+  if (sessionStatus === 'resolving') return null;
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!authed}>
+        <Stack.Protected guard={isAuthStack}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
 
-        <Stack.Protected guard={authed && role === 'passenger'}>
+        <Stack.Protected guard={isActivePassenger}>
           <Stack.Screen name="(passenger)" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={isNeedsRecovery}>
+          <Stack.Screen name="account-setup-recovery" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={isAccountState}>
+          <Stack.Screen name="passenger-account-state" />
         </Stack.Protected>
       </Stack>
     </View>
@@ -106,4 +122,3 @@ export default function RootLayout() {
     </PersistQueryClientProvider>
   );
 }
-

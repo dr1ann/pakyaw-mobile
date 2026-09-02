@@ -1,4 +1,9 @@
-import type { Timestamp } from 'firebase/firestore';
+export type Timestamp = {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+  toDate?: () => Date;
+  toMillis?: () => number;
+};
 
 /**
  * User role — routes the app into (passenger) or (driver).
@@ -43,19 +48,6 @@ export interface UserDoc {
   /** Server timestamp when the user profile was last modified */
   updatedAt: Timestamp;
 
-  /**
-   * Optional / Legacy Compatibility Fields
-   * Preserved for backward compatibility with existing tests and UI screens.
-   */
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  phoneVerified?: boolean;
-  email?: string | null;
-  riderType?: RiderType;
-  birthday?: string;
-  gender?: string;
-  address?: string;
 }
 
 /**
@@ -66,4 +58,21 @@ export type UserDocInput = Omit<UserDoc, 'createdAt' | 'updatedAt' | 'termsAccep
   privacyAcceptedAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+};
+
+/**
+ * Input-only compatibility shape for the retired email/multi-step flow. It
+ * must never be persisted as fields on users/{uid}; new registration uses the
+ * verified-phone service exclusively.
+ */
+export type LegacyUserDocInput = {
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly phone?: string;
+  readonly phoneVerified?: boolean;
+  readonly email?: string | null;
+  readonly riderType?: RiderType;
+  readonly birthday?: string;
+  readonly gender?: string;
+  readonly address?: string;
 };

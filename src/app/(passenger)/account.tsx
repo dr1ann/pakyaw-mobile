@@ -32,8 +32,8 @@ export default function PassengerAccountScreen() {
     staleTime: 5 * 60_000,
   });
 
-  const canonicalProfile = profile as (UserDoc & { readonly name?: string; readonly mobile?: string }) | null;
-  const fullName = canonicalProfile?.name ?? (profile ? `${profile.firstName} ${profile.lastName}` : undefined);
+  const canonicalProfile = profile;
+  const fullName = canonicalProfile?.name;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -50,17 +50,8 @@ export default function PassengerAccountScreen() {
           </View>
 
           <Card padded={false} style={styles.card}>
-            <InfoRow label="Phone" value={canonicalProfile?.mobile ?? profile?.phone ?? '—'} />
-            <InfoRow label="Email" value={profile?.email ?? '—'} />
-            <InfoRow
-              label="Rider type"
-              value={
-                profile?.riderType
-                  ? profile.riderType.charAt(0).toUpperCase() +
-                    profile.riderType.slice(1)
-                  : '—'
-              }
-            />
+            <InfoRow label="Mobile" value={canonicalProfile?.mobile ?? '—'} />
+            <InfoRow label="Account status" value={canonicalProfile?.accountStatus ?? '—'} />
           </Card>
         </>
       )}

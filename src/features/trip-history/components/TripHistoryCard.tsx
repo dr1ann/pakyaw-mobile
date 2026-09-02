@@ -5,7 +5,6 @@ import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
-import type { Timestamp } from 'firebase/firestore';
 
 export type TripHistoryCardProps = {
   readonly trip: TripHistoryItem;
@@ -67,7 +66,7 @@ export function TripHistoryCard({ trip, onPress }: TripHistoryCardProps) {
   );
 }
 
-function formatDate(timestamp: Timestamp | string | number | Date | null | undefined): string {
+function formatDate(timestamp: any): string {
   if (!timestamp) return '—';
   let date: Date;
   if (timestamp instanceof Date) {

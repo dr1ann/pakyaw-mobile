@@ -5,8 +5,10 @@ const mocks = vi.hoisted(() => ({
   httpsCallable: vi.fn(),
 }));
 
-vi.mock('firebase/functions', () => ({ httpsCallable: mocks.httpsCallable }));
-vi.mock('@/services/firebase/firebase', () => ({ functions: {} }));
+vi.mock('@/services/firebase/firebase', () => ({
+  functions: {},
+  httpsCallable: mocks.httpsCallable,
+}));
 vi.mock('@pakyaw/shared/lib/logger', () => ({ logger: { error: vi.fn() } }));
 
 import { quoteTrip } from './quote.service';

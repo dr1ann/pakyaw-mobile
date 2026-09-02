@@ -1,8 +1,8 @@
-import { FirebaseError } from 'firebase/app';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PermissionError, NotFoundError, NetworkError } from '../errors';
 import { listForPassenger, getTrip } from './history.service';
+import { FirebaseError } from '@/services/firebase/firebase';
 
 // Mock firestore operations
 const mockGetDocs = vi.fn();
@@ -13,7 +13,16 @@ const mockOrderBy = vi.fn();
 const mockLimit = vi.fn();
 const mockStartAfter = vi.fn();
 
-vi.mock('firebase/firestore', () => {
+vi.mock('@/services/firebase/firebase', () => {
+  class MockFirebaseError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'FirebaseError';
+      this.code = code;
+    }
+  }
+
   class MockTimestamp {
     seconds: number;
     nanoseconds: number;
@@ -24,6 +33,7 @@ vi.mock('firebase/firestore', () => {
   }
 
   return {
+    firestore: {},
     collection: vi.fn(() => 'trips-col'),
     doc: vi.fn((_fs, coll, id) => ({ collection: coll, id })),
     getDocs: () => mockGetDocs(),
@@ -49,12 +59,9 @@ vi.mock('firebase/firestore', () => {
       return { type: 'startAfter', value: val };
     }),
     Timestamp: MockTimestamp,
+    FirebaseError: MockFirebaseError,
   };
 });
-
-vi.mock('@/services/firebase/firebase', () => ({
-  firestore: {},
-}));
 
 vi.mock('@/lib/logger', () => ({
   logger: {

@@ -6,14 +6,27 @@ const mocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }));
 
-vi.mock('firebase/firestore', () => ({
-  doc: vi.fn((...args: unknown[]) => args),
-  onSnapshot: mocks.onSnapshot,
-  serverTimestamp: vi.fn(),
-  updateDoc: vi.fn(),
-}));
-vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
-vi.mock('@/services/firebase/firebase', () => ({ firestore: {}, functions: {} }));
+vi.mock('@/services/firebase/firebase', () => {
+  class MockFirebaseError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'FirebaseError';
+      this.code = code;
+    }
+  }
+
+  return {
+    firestore: {},
+    functions: {},
+    doc: vi.fn((...args: unknown[]) => args),
+    onSnapshot: mocks.onSnapshot,
+    serverTimestamp: vi.fn(),
+    updateDoc: vi.fn(),
+    httpsCallable: mocks.callable,
+    FirebaseError: MockFirebaseError,
+  };
+});
 
 import { CancelNotAllowedError, IllegalTransitionError } from '../errors';
 import { cancel, subscribe, transition } from './trip.service';

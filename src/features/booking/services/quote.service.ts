@@ -1,9 +1,6 @@
-import { FirebaseError } from 'firebase/app';
-import { httpsCallable } from 'firebase/functions';
-
+import { functions, httpsCallable, FirebaseError } from '@/services/firebase/firebase';
 import { isRideMode, type FareBreakdown, type QuoteTripInput, type QuoteTripResult, type RideMode } from '@pakyaw/shared/transport/contract';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { functions } from '@/services/firebase/firebase';
 import type { CreateBookingInput } from '@/features/booking/types';
 import { createTripSchema } from '@/features/booking/validation/bookingSchema';
 

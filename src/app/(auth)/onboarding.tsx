@@ -1,57 +1,47 @@
 /**
- * onboarding.tsx
+ * (auth)/onboarding.tsx
  *
- * Onboarding carousel — shown once on first launch.
- * On completion sets onboardingSeen = true and navigates to /welcome.
+ * Passenger Onboarding Intro — Maximum 3 concise, mobile-first intro screens.
  */
 
 import { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
   Dimensions,
   FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const COLORS = {
-  ink900: '#0E1726',
-  ink500: '#6B7689',
-  ink400: '#9AA4B2',
-  bluePrimary: '#2F80ED',
-  blueTint: '#E8F1FE',
-  surfaceMuted: '#F4F7FB',
-  bgPassenger: '#EAF1FB',
-};
-
-const SLIDES = [
+const INTRO_SLIDES = [
   {
     id: '1',
     emoji: '🛺',
-    title: 'Ride instantly,\naround your city',
-    body: 'Book a Pakyaw — the whole vehicle is yours, just for you.',
+    title: 'Ride around Ormoc',
+    body: 'Find a Pakyaw ride when you need one.',
   },
   {
     id: '2',
-    emoji: '📍',
-    title: 'Go where you\nneed to go',
-    body: 'Pick your destination and a driver will be on their way.',
+    emoji: '🧭',
+    title: 'Choose how you ride',
+    body: 'Book Pakyaw, Shared, or Hop when available.',
   },
   {
     id: '3',
-    emoji: '✅',
-    title: 'Safe, simple,\naffordable',
-    body: 'Pre-verified drivers. Transparent pricing. No surprises.',
+    emoji: '✨',
+    title: 'Ready when you are',
+    body: 'Set up your account and start booking.',
   },
 ];
 
-export default function OnboardingScreen() {
+export default function PassengerOnboardingScreen() {
   const router = useRouter();
   const setOnboardingSeen = useSessionStore((s) => s.setOnboardingSeen);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -59,11 +49,11 @@ export default function OnboardingScreen() {
 
   function finish() {
     setOnboardingSeen(true);
-    router.replace('/');
+    router.replace('/(auth)/sign-up');
   }
 
   function next() {
-    if (activeIndex < SLIDES.length - 1) {
+    if (activeIndex < INTRO_SLIDES.length - 1) {
       const nextIndex = activeIndex + 1;
       listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
       setActiveIndex(nextIndex);
@@ -72,22 +62,24 @@ export default function OnboardingScreen() {
     }
   }
 
-  const isLast = activeIndex === SLIDES.length - 1;
+  const isLast = activeIndex === INTRO_SLIDES.length - 1;
 
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={finish}
-        style={styles.skipBtn}
-        accessibilityRole="button"
-        accessibilityLabel="Skip onboarding"
-      >
-        <Text style={styles.skipText}>Skip</Text>
-      </Pressable>
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={finish}
+          style={styles.skipBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Skip intro"
+        >
+          <Text style={styles.skipText}>Skip</Text>
+        </Pressable>
+      </View>
 
       <FlatList
         ref={listRef}
-        data={SLIDES}
+        data={INTRO_SLIDES}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -98,8 +90,8 @@ export default function OnboardingScreen() {
         }}
         renderItem={({ item }) => (
           <View style={styles.slide}>
-            <View style={styles.illustrationWrap}>
-              <Text style={styles.emoji}>{item.emoji}</Text>
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconEmoji}>{item.emoji}</Text>
             </View>
             <Text style={styles.slideTitle}>{item.title}</Text>
             <Text style={styles.slideBody}>{item.body}</Text>
@@ -107,9 +99,9 @@ export default function OnboardingScreen() {
         )}
       />
 
-      {/* Pagination dots */}
-      <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
+      {/* Pagination indicators */}
+      <View style={styles.dotsRow}>
+        {INTRO_SLIDES.map((_, i) => (
           <View
             key={i}
             style={[styles.dot, i === activeIndex ? styles.dotActive : null]}
@@ -117,15 +109,15 @@ export default function OnboardingScreen() {
         ))}
       </View>
 
-      {/* CTA */}
+      {/* CTA Footer */}
       <View style={styles.footer}>
         <Pressable
           onPress={next}
-          style={styles.btn}
+          style={styles.btnPrimary}
           accessibilityRole="button"
           testID="onboarding-continue"
         >
-          <Text style={styles.btnLabel}>{isLast ? 'Get started' : 'Continue'}</Text>
+          <Text style={styles.btnPrimaryText}>{isLast ? 'Get started' : 'Continue'}</Text>
         </Pressable>
       </View>
     </View>
@@ -133,57 +125,90 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgPassenger },
-  skipBtn: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    zIndex: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  container: {
+    flex: 1,
+    backgroundColor: colors.surface.bgPassenger,
   },
-  skipText: { fontSize: 15, color: COLORS.ink500, fontWeight: '600' },
+  topBar: {
+    paddingTop: 56,
+    paddingHorizontal: spacing[6],
+    alignItems: 'flex-end',
+  },
+  skipBtn: {
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
+  },
+  skipText: {
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[500],
+  },
   slide: {
     width: SCREEN_WIDTH,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 80,
-    gap: 20,
+    paddingHorizontal: spacing[8],
+    paddingBottom: spacing[10],
   },
-  illustrationWrap: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: COLORS.blueTint,
+  iconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.blue.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: spacing[6],
   },
-  emoji: { fontSize: 64 },
+  iconEmoji: {
+    fontSize: 54,
+  },
   slideTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: COLORS.ink900,
+    fontSize: typography.size.h1,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
     textAlign: 'center',
-    lineHeight: 38,
+    marginBottom: spacing[3],
+    lineHeight: typography.lineHeight.h1,
   },
   slideBody: {
-    fontSize: 16,
-    color: COLORS.ink500,
+    fontSize: typography.size.bodyMd,
+    color: colors.ink[500],
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: typography.lineHeight.body,
+    maxWidth: 280,
   },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 20 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.ink400 },
-  dotActive: { width: 24, backgroundColor: COLORS.bluePrimary },
-  footer: { paddingHorizontal: 24, paddingBottom: 48 },
-  btn: {
-    backgroundColor: COLORS.bluePrimary,
-    borderRadius: 999,
-    paddingVertical: 16,
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing[2],
+    paddingBottom: spacing[5],
   },
-  btnLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.ink[400],
+  },
+  dotActive: {
+    width: 24,
+    backgroundColor: colors.blue.primary,
+  },
+  footer: {
+    paddingHorizontal: spacing[6],
+    paddingBottom: spacing[10],
+  },
+  btnPrimary: {
+    backgroundColor: colors.blue.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing[4],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimaryText: {
+    fontSize: typography.size.bodyMd,
+    fontWeight: typography.weight.bold,
+    color: colors.white,
+  },
 });

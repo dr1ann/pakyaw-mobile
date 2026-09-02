@@ -11,10 +11,7 @@
  *   BookingWriteError before being re-thrown.
  */
 
-import { FirebaseError } from 'firebase/app';
-import {
-  httpsCallable,
-} from 'firebase/functions';
+import { functions, httpsCallable, FirebaseError } from '@/services/firebase/firebase';
 
 import { BookingOfflineError, BookingWriteError } from '@/features/booking/errors';
 import type { CreateBookingInput } from '@/features/booking/types';
@@ -22,7 +19,6 @@ import { createTripSchema } from '@/features/booking/validation/bookingSchema';
 import { logger } from '@pakyaw/shared/lib/logger';
 import type { RequestTripInput } from '@pakyaw/shared/transport/contract';
 import { assertInServiceArea, TripDistanceTooShortError } from '@/lib/serviceArea';
-import { functions } from '@/services/firebase/firebase';
 
 type RequestTripResult = {
   readonly tripId: string;

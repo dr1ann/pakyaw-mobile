@@ -8,7 +8,12 @@
  * and the TripDoc shape read from Firestore snapshots.
  */
 
-import type { Timestamp } from 'firebase/firestore';
+export type Timestamp = {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+  toDate?: () => Date;
+  toMillis?: () => number;
+};
 
 import type { Place } from '@pakyaw/shared/types/place';
 import type {

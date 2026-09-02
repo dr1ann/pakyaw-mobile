@@ -8,11 +8,22 @@ const mocks = vi.hoisted(() => ({
   httpsCallable: vi.fn(),
 }));
 
-vi.mock('firebase/functions', () => ({
-  httpsCallable: mocks.httpsCallable,
-}));
+vi.mock('@/services/firebase/firebase', () => {
+  class MockFirebaseError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = 'FirebaseError';
+      this.code = code;
+    }
+  }
 
-vi.mock('@/services/firebase/firebase', () => ({ functions: {} }));
+  return {
+    functions: {},
+    httpsCallable: mocks.httpsCallable,
+    FirebaseError: MockFirebaseError,
+  };
+});
 
 vi.mock('@pakyaw/shared/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn() },
