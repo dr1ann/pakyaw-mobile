@@ -443,7 +443,10 @@ function DriverApplicationWizard({
         setSaveStatus('saved');
 
         if (result.status === 'approved') {
-          router.replace('./');
+          if (uid) {
+            await resolveAndStoreDriverSession(uid);
+          }
+          router.replace('/(driver)');
           return;
         }
         if (result.status === 'rejected') {
@@ -558,7 +561,12 @@ function DriverApplicationWizard({
   if (status === 'approved') {
     return (
       <ApprovedStatusScreen
-        onAction={() => router.replace('./')}
+        onAction={async () => {
+          if (uid) {
+            await resolveAndStoreDriverSession(uid);
+          }
+          router.replace('/(driver)');
+        }}
       />
     );
   }

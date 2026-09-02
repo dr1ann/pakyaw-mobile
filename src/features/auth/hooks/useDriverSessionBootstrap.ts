@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { auth, onAuthStateChanged } from '@/services/firebase/firebase';
+import { auth, doc, firestore, onAuthStateChanged, onSnapshot } from '@/services/firebase/firebase';
 import { useDriverSessionStore } from '@/features/auth/stores/driver-session.store';
 import {
   driverSessionStatusForAuthUser,
@@ -14,9 +14,13 @@ export function useDriverSessionBootstrap(): void {
   useEffect(() => {
     let mounted = true;
     let resolutionGeneration = 0;
+    let unsubApplication: (() => void) | null = null;
 
     const unsubscribe = onAuthStateChanged(auth, (user: any) => {
       const generation = ++resolutionGeneration;
+      unsubApplication?.();
+      unsubApplication = null;
+
       // The registration and email sign-in flows resolve their session after
       // their own Firestore work. This prevents the auth event from routing
       // ahead of that work while keeping Firebase Auth persistence enabled.
@@ -41,10 +45,26 @@ export function useDriverSessionBootstrap(): void {
           useSessionStore.getState().clear();
           useDriverSessionStore.getState().setResolutionError(user.uid);
         });
+
+      // Live subscription: auto-update session store whenever application status changes (e.g. approved)
+      try {
+        unsubApplication = onSnapshot(doc(firestore, 'driverApplications', user.uid), () => {
+          if (!mounted) return;
+          void resolveDriverSession(user.uid)
+            .then((resolution) => {
+              if (!mounted) return;
+              storeDriverSessionResolution(resolution);
+            })
+            .catch(() => undefined);
+        });
+      } catch {
+        // ignore
+      }
     });
 
     return () => {
       mounted = false;
+      unsubApplication?.();
       unsubscribe();
     };
   }, []);
