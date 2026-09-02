@@ -125,16 +125,18 @@ function parseEligibilityReason(message: string): DriverEligibilityBlockedReason
 
 /** Maps infrastructure errors to product-safe availability errors. */
 export function translatePresenceWriteError(cause: unknown): DriverAvailabilityError {
-  const firebaseCode = cause instanceof FirebaseError ? cause.code : null;
-  const firebaseMessage = cause instanceof FirebaseError ? cause.message : '';
-  const eligibilityReason = parseEligibilityReason(firebaseMessage);
-  if (cause instanceof FirebaseError && (
+  const err = cause as any;
+  const firebaseCode = typeof err?.code === 'string' ? err.code : null;
+  const firebaseMessage = typeof err?.message === 'string' ? err.message : '';
+  const firebaseDetails = typeof err?.details === 'string' ? err.details : '';
+  const eligibilityReason = parseEligibilityReason(firebaseMessage) || parseEligibilityReason(firebaseDetails);
+  if (
     firebaseCode === 'permission-denied'
     || firebaseCode === 'functions/permission-denied'
     || eligibilityReason !== null
     || ((firebaseCode === 'failed-precondition' || firebaseCode === 'functions/failed-precondition')
       && firebaseMessage.toLowerCase().includes('account is not ready'))
-  )) {
+  ) {
     const reason = eligibilityReason ?? 'verification_required';
     return new DriverAccountNotReadyError(reason);
   }
