@@ -77,8 +77,9 @@ export function useDriverLocation(): void {
       },
       (err) => {
         if (cancelledRef.current) return;
-        if (err instanceof FirebaseError && err.code === 'permission-denied') {
-          logger.info('[trip] driver location subscription ended (permission revoked)', {
+        const code = (err as any)?.code || (err as any)?.name;
+        if (code === 'permission-denied' || code === 'firestore/permission-denied' || (err instanceof FirebaseError && err.code === 'permission-denied')) {
+          logger.info('[trip] driver location subscription ended (permission revoked or unavailable)', {
             driverId,
           });
           useActiveTripStore.getState().clearDriverLocation();
