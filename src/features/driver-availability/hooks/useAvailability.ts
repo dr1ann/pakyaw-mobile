@@ -13,11 +13,16 @@
  */
 
 import { useMutation } from '@tanstack/react-query';
+import * as Location from 'expo-location';
 
 import {
   goOffline as serviceGoOffline,
   goOnline as serviceGoOnline,
 } from '@/features/driver-availability/services/presence.service';
+import {
+  ensureForegroundPermission,
+  publishDriverLocation,
+} from '@/features/driver-availability/services/location.service';
 import {
   DriverAccountNotReadyError,
   PreflightNotPassedError,
@@ -35,6 +40,7 @@ import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 export function useGoOnlineMutation() {
   const uid = useSessionStore((s) => s.uid);
   const setAvailability = useAvailabilityStore((s) => s.setAvailability);
+  const setLastLocation = useAvailabilityStore((s) => s.setLastLocation);
 
   return useMutation({
     mutationFn: async (preflightPassed: boolean) => {
@@ -44,6 +50,21 @@ export function useGoOnlineMutation() {
       });
       if (!uid) throw new Error('No authenticated uid');
       if (!preflightPassed) throw new PreflightNotPassedError();
+
+      // Acquire and publish fresh GPS location before requesting online transition
+      await ensureForegroundPermission();
+      let position = await Location.getLastKnownPositionAsync();
+      const isFresh = position && (Date.now() - position.timestamp < 30_000);
+      if (!isFresh) {
+        position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      }
+      if (position) {
+        setLastLocation(position.coords.latitude, position.coords.longitude);
+        await publishDriverLocation(uid, position);
+      }
+
       await serviceGoOnline(uid);
       logger.info('[useAvailability] serviceGoOnline resolved');
     },
