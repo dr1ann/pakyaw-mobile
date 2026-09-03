@@ -28,6 +28,7 @@ import type { IncomingRequest } from '@/features/matching/types';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
 
 type IncomingRequestCardProps = {
   request: IncomingRequest;
@@ -65,12 +66,22 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const isShared = request.mode === 'shared';
   const isHop = request.mode === 'hop';
 
-  const tripDistanceKm = request.route
+  const fallbackDistanceMeters = (request.pickup?.coords && request.destination?.coords)
+    ? haversineMeters(
+        { lat: request.pickup.coords.lat, lng: request.pickup.coords.lng },
+        { lat: request.destination.coords.lat, lng: request.destination.coords.lng },
+      )
+    : null;
+  const tripDistanceKm = request.route?.distanceMeters != null
     ? (request.route.distanceMeters / 1000).toFixed(1)
-    : null;
-  const tripDurationMin = request.route
+    : fallbackDistanceMeters != null
+      ? (fallbackDistanceMeters / 1000).toFixed(1)
+      : null;
+  const tripDurationMin = request.route?.durationSeconds != null
     ? Math.round(request.route.durationSeconds / 60)
-    : null;
+    : fallbackDistanceMeters != null
+      ? Math.max(1, Math.round((fallbackDistanceMeters / 1000) / 20 * 60))
+      : null;
   const distanceText = tripDistanceKm !== null ? `${tripDistanceKm} km trip` : '—';
   const durationText = tripDurationMin !== null ? `~${tripDurationMin} min trip` : '—';
 

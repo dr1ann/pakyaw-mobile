@@ -78,15 +78,24 @@ export function PersistentDriverTripDashboard({
   useEffect(() => {
     if (!trip?.passengerId) return;
     const ref = doc(firestore, 'users', trip.passengerId);
-    const unsub = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        const u = snap.data();
-        const name = formatName(u);
-        setPassengerDoc({
-          name: name || 'Passenger',
-        });
-      }
-    });
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (snap && typeof snap.exists === 'function' && snap.exists()) {
+          const u = snap.data();
+          const name = formatName(u);
+          setPassengerDoc({
+            name: name || 'Passenger',
+          });
+        } else {
+          setPassengerDoc({ name: 'Passenger' });
+        }
+      },
+      () => {
+        // Fallback gracefully if permissions or network prevent reading user profile
+        setPassengerDoc({ name: 'Passenger' });
+      },
+    );
     return () => unsub();
   }, [trip?.passengerId]);
 
