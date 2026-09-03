@@ -207,9 +207,9 @@ export async function startPublishing(
       accuracy: accuracy,
       // OS-level hints to reduce callback frequency. Our own shouldEmit gate
       // is the authoritative throttle on top of these.
-      // Use 1s interval for BestForNavigation (active trip) for smoother
-      // position tracking, 2s for Balanced (idle) to save battery.
-      distanceInterval: 10, // metres
+      // Set distanceInterval to 0 so stationary drivers waiting for rides
+      // continue emitting periodic updates and do not go stale.
+      distanceInterval: 0,
       timeInterval: accuracy === Location.Accuracy.BestForNavigation ? 1_000 : 2_000, // ms
     },
     async (locationObject) => {
