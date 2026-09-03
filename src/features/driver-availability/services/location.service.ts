@@ -148,12 +148,12 @@ export function getLocationPublishPayload(
     || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
     throw new Error('Cannot publish an invalid Driver location.');
   }
-  if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1_000) {
-    throw new Error('Cannot publish Driver location without valid GPS accuracy.');
-  }
+  const safeAccuracy = typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0
+    ? Math.min(accuracy, 25)
+    : 25;
 
   return {
-    location: { latitude, longitude, accuracyMeters: accuracy },
+    location: { latitude, longitude, accuracyMeters: safeAccuracy },
     geohash: geohashOf({ lat: latitude, lng: longitude }, 7),
     heading: heading ?? null,
     locationUpdatedAt: serverTimestamp(),
