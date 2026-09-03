@@ -105,9 +105,12 @@ function isCanonicalRoute(value: unknown): value is CanonicalTripData['route'] {
 function isCanonicalFareBreakdown(value: unknown): value is FareBreakdown {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const fare = value as Record<string, unknown>;
-  return ['baseFare', 'distanceFare', 'surcharges', 'techFee', 'total'].every((field) => (
+  const hasValidSurcharges =
+    (typeof fare.surcharges === 'number' && Number.isFinite(fare.surcharges) && fare.surcharges >= 0) ||
+    (fare.surcharges !== null && typeof fare.surcharges === 'object' && typeof (fare.surcharges as any).total === 'number');
+  return ['baseFare', 'distanceFare', 'techFee', 'total'].every((field) => (
     typeof fare[field] === 'number' && Number.isFinite(fare[field]) && (fare[field] as number) >= 0
-  )) && (fare.driverEarnings === undefined
+  )) && hasValidSurcharges && (fare.driverEarnings === undefined
     || (typeof fare.driverEarnings === 'number' && Number.isFinite(fare.driverEarnings) && fare.driverEarnings >= 0));
 }
 
@@ -173,8 +176,28 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
         radiusKm: typeof data.matching.radiusKm === 'number' ? data.matching.radiusKm : undefined,
       }
       : null,
-    fare: typeof data.fare === 'number' && Number.isFinite(data.fare) ? data.fare : undefined,
-    fareBreakdown: isCanonicalFareBreakdown(data.fareBreakdown) ? data.fareBreakdown : undefined,
+    fare: typeof data.fare === 'number' && Number.isFinite(data.fare)
+      ? data.fare
+      : typeof (data.fare as any)?.total === 'number' && Number.isFinite((data.fare as any).total)
+        ? (data.fare as any).total
+        : typeof (data.fareBreakdown as any)?.total === 'number' && Number.isFinite((data.fareBreakdown as any).total)
+          ? (data.fareBreakdown as any).total
+          : undefined,
+    fareBreakdown: isCanonicalFareBreakdown(data.fare)
+      ? {
+          ...data.fare,
+          surcharges: typeof data.fare.surcharges === 'number'
+            ? data.fare.surcharges
+            : (data.fare.surcharges?.total ?? 0),
+        }
+      : isCanonicalFareBreakdown(data.fareBreakdown)
+        ? {
+            ...data.fareBreakdown,
+            surcharges: typeof data.fareBreakdown.surcharges === 'number'
+              ? data.fareBreakdown.surcharges
+              : (data.fareBreakdown.surcharges?.total ?? 0),
+          }
+        : undefined,
     route: data.route
       ? {
         distanceMeters: data.route.distanceMeters as number,
@@ -230,8 +253,17 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
         radiusKm: typeof data.matching.radiusKm === 'number' ? data.matching.radiusKm : undefined,
       }
       : null,
-    fare: data.fare.total,
-    fareBreakdown: data.fare,
+    fare: typeof data.fare?.total === 'number' && Number.isFinite(data.fare.total)
+      ? data.fare.total
+      : typeof data.fare === 'number' && Number.isFinite(data.fare)
+        ? data.fare
+        : 0,
+    fareBreakdown: {
+      ...data.fare,
+      surcharges: typeof data.fare.surcharges === 'number'
+        ? data.fare.surcharges
+        : (data.fare.surcharges?.total ?? 0),
+    },
     route: {
       distanceMeters: data.route.distanceMeters,
       durationSeconds: data.route.durationSeconds,
