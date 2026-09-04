@@ -387,13 +387,20 @@ export async function publishTripProgress(
     readonly etaSeconds: number;
   },
 ): Promise<void> {
+  const remainingMeters = Math.max(0, Math.round(progress.remainingMeters));
+  const etaSeconds = Math.max(0, Math.round(progress.etaSeconds));
+
+  if (!Number.isFinite(remainingMeters) || !Number.isFinite(etaSeconds)) {
+    return;
+  }
+
   const tripRef = doc(firestore, 'trips', tripId);
 
   try {
     await updateDoc(tripRef, {
       tripProgress: {
-        remainingMeters: progress.remainingMeters,
-        etaSeconds: progress.etaSeconds,
+        remainingMeters,
+        etaSeconds,
         updatedAt: serverTimestamp(),
       },
     });
