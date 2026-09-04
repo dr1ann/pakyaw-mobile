@@ -70,7 +70,7 @@ export function FareQuoteBreakdown({
     );
   }
 
-  if (!quote) return null;
+  if (!quote || !quote.fare) return null;
 
   const { fare, billedSeats } = quote;
   const baseFare = fare.perSeat?.baseFare ?? fare.baseFare;

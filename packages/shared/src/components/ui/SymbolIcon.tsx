@@ -60,6 +60,28 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   safari: { ios: 'safari', android: 'explore', web: 'explore' },
 };
 
+class SymbolErrorBoundary extends React.Component<
+  { readonly fallback?: React.ReactNode; readonly children: React.ReactNode; readonly size?: number },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    // Suppress uncaught icon crashes from crashing the whole view tree
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? null;
+    }
+    return this.props.children;
+  }
+}
+
 export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProps) {
   const fallbackAndroid = name.replace(/\./g, '_').replace(/_fill$/, '');
   const platformName = SYMBOL_MAP[name] || {
@@ -69,11 +91,15 @@ export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProp
   };
 
   return (
-    <SymbolView
-      name={platformName as ComponentProps<typeof SymbolView>['name']}
-      size={size}
-      tintColor={tintColor}
-      style={style}
-    />
+    <SymbolErrorBoundary size={size}>
+      <SymbolView
+        name={platformName as ComponentProps<typeof SymbolView>['name']}
+        size={size}
+        tintColor={tintColor}
+        style={style}
+        fallback={null}
+      />
+    </SymbolErrorBoundary>
   );
 }
+

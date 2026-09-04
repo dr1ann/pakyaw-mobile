@@ -182,7 +182,7 @@ export function BookingSheet({
     : 0;
 
   const hasValidRoute = !!currentRoute && !isRouteTooShort;
-  const currentModeInfo = MODE_SUMMARY[draft.rideMode];
+  const currentModeInfo = (draft.rideMode && MODE_SUMMARY[draft.rideMode]) || MODE_SUMMARY.private;
 
   return (
     <View style={styles.container} testID="booking-sheet">

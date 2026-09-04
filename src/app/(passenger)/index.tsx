@@ -24,7 +24,7 @@ import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useR
 import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -353,12 +353,6 @@ export default function RideScreen() {
       return;
     }
 
-    if (!(await isRoadAccessibleCoordinate(coords.latitude, coords.longitude))) {
-      Alert.alert('Road-accessible location required', 'Move the pickup pin onto a mapped road or accessible land location.');
-      setPickupDragKey((k) => k + 1);
-      return;
-    }
-
     logger.info('[RideScreen] Pickup pin drag ended inside Ormoc, updating store immediately', coords);
     setPickup({
       coords: { lat: coords.latitude, lng: coords.longitude },
@@ -388,12 +382,6 @@ export default function RideScreen() {
         'Service Area',
         'Pakyaw currently serves locations within Ormoc City.'
       );
-      setDestinationDragKey((k) => k + 1);
-      return;
-    }
-
-    if (!(await isRoadAccessibleCoordinate(coords.latitude, coords.longitude))) {
-      Alert.alert('Road-accessible location required', 'Move the destination pin onto a mapped road or accessible land location.');
       setDestinationDragKey((k) => k + 1);
       return;
     }
@@ -477,11 +465,6 @@ export default function RideScreen() {
 
     if (!placeToSave || !placeToSave.coords) {
       Alert.alert('Invalid Location', 'Please select a valid point on the map.');
-      return;
-    }
-
-    if (pinAccessibility !== 'accessible') {
-      Alert.alert('Road-accessible location required', 'Move the pin onto a mapped road or accessible land location.');
       return;
     }
 
@@ -765,11 +748,7 @@ export default function RideScreen() {
                   label="Confirm"
                   onPress={handleConfirmPinning}
                   loading={isGeocoding}
-                  disabled={
-                    !activePinPlace?.coords ||
-                    isPinOutsideServiceArea ||
-                    pinAccessibility !== 'accessible'
-                  }
+                  disabled={!activePinPlace?.coords || isPinOutsideServiceArea}
                   style={styles.confirmPinButton}
                 />
               </View>
@@ -783,13 +762,21 @@ export default function RideScreen() {
               isMinimized && styles.bookingSheetCardMinimized,
               shadow.float
             ]}>
-              <BookingSheet
-                onSearchPickup={() => setSearchMode('pickup')}
-                onSearchDestination={() => setSearchMode('destination')}
-                isMinimized={isMinimized}
-                onToggleMinimize={handleToggleMinimize}
-                isLoadingRoute={isLoading || isFetching}
-              />
+              <BookingSheetErrorBoundary
+                onReset={() => {
+                  setDestination(null);
+                  setRoute(null);
+                }}
+                destinationLabel={draft.destination?.label}
+              >
+                <BookingSheet
+                  onSearchPickup={() => setSearchMode('pickup')}
+                  onSearchDestination={() => setSearchMode('destination')}
+                  isMinimized={isMinimized}
+                  onToggleMinimize={handleToggleMinimize}
+                  isLoadingRoute={isLoading || isFetching}
+                />
+              </BookingSheetErrorBoundary>
             </View>
           </SafeAreaView>
         ) : (
@@ -831,6 +818,60 @@ export default function RideScreen() {
       {isLocationLoading && <LocationLoader theme="passenger" />}
     </View>
   );
+}
+
+class BookingSheetErrorBoundary extends Component<
+  {
+    readonly children: React.ReactNode;
+    readonly onReset: () => void;
+    readonly destinationLabel?: string | null;
+  },
+  { hasError: boolean; error: Error | null }
+> {
+  state: { hasError: boolean; error: Error | null } = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    logger.error('[BookingSheetErrorBoundary] Caught render error in BookingSheet', { error, info });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorFallbackContainer}>
+          <View style={styles.errorFallbackHeader}>
+            <SymbolIcon name="exclamationmark.triangle.fill" size={28} tintColor={colors.danger} />
+            <Text style={styles.errorFallbackTitle}>Unable to load booking</Text>
+            <Text style={styles.errorFallbackSubtitle}>
+              {this.state.error?.message || 'A layout error occurred while opening the booking sheet.'}
+            </Text>
+          </View>
+          <View style={styles.errorFallbackRouteBox}>
+            <Text style={styles.errorFallbackRouteLabel} numberOfLines={1}>
+              To: {this.props.destinationLabel || 'Selected Destination'}
+            </Text>
+          </View>
+          <View style={styles.errorFallbackActions}>
+            <Button
+              label="Retry"
+              onPress={() => this.setState({ hasError: false, error: null })}
+              style={styles.errorFallbackButton}
+            />
+            <Button
+              label="Choose Another Destination"
+              variant="outline"
+              onPress={this.props.onReset}
+              style={styles.errorFallbackButton}
+            />
+          </View>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 type TripSheetProps = {
@@ -1008,5 +1049,48 @@ const styles = StyleSheet.create({
   confirmPinButton: {
     flex: 2,
     minHeight: 48,
+  },
+  errorFallbackContainer: {
+    flex: 1,
+    padding: spacing[5],
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface.card,
+  },
+  errorFallbackHeader: {
+    alignItems: 'center',
+    marginBottom: spacing[4],
+  },
+  errorFallbackTitle: {
+    fontSize: typography.size.h3,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    marginTop: spacing[2],
+    textAlign: 'center',
+  },
+  errorFallbackSubtitle: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    textAlign: 'center',
+    marginTop: spacing[1],
+  },
+  errorFallbackRouteBox: {
+    backgroundColor: colors.surface.muted,
+    padding: spacing[3],
+    borderRadius: radius.md,
+    width: '100%',
+    marginBottom: spacing[4],
+  },
+  errorFallbackRouteLabel: {
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.medium,
+    color: colors.ink[700],
+  },
+  errorFallbackActions: {
+    width: '100%',
+    gap: spacing[2],
+  },
+  errorFallbackButton: {
+    width: '100%',
   },
 });
