@@ -37,7 +37,7 @@ export function OfflineSheet({
             <View style={[styles.dot, styles.dotOffline]} />
             <Text style={styles.statusLabel}>OFFLINE</Text>
           </View>
-          <Text style={styles.title}>You&apos;re off the road</Text>
+          <Text style={styles.title}>You&apos;re offline</Text>
           <Text style={styles.subtitle}>
             Tap Go Online to start accepting rides.
           </Text>
@@ -79,8 +79,7 @@ function LocationPermissionError() {
       </Text>
       <Text style={styles.permissionTitle}>Location Access Required</Text>
       <Text style={styles.permissionBody}>
-        Pakyaw needs your location to connect you with nearby passengers. Please
-        enable location access in your device settings.
+        Location access is required while you’re online. Please enable location access in your device settings.
       </Text>
       <Button
         label="Open Settings"

@@ -66,9 +66,11 @@ export function PowerButton({
 const styles = StyleSheet.create({
   base: {
     borderRadius: radius.pill,
-    paddingVertical: spacing[4],
+    minHeight: 52,
+    paddingVertical: spacing[3],
     paddingHorizontal: spacing[6],
     alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   offline: {
     backgroundColor: colors.green.primary,

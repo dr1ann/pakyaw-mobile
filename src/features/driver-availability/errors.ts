@@ -1,5 +1,3 @@
-import { FirebaseError } from '@/services/firebase/firebase';
-
 /**
  * Domain errors for the driver-availability feature.
  *
@@ -15,7 +13,7 @@ import { FirebaseError } from '@/services/firebase/firebase';
 export class LocationPermissionError extends Error {
   readonly kind = 'LocationPermissionError' as const;
   constructor(
-    message = 'Location permission is required to go online. Please grant it in Settings.',
+    message = 'Location access is required while you’re online. Please grant it in Settings.',
   ) {
     super(message);
     this.name = 'LocationPermissionError';
@@ -36,7 +34,7 @@ export class PreflightNotPassedError extends Error {
 }
 
 /**
- * Thrown when a Firestore write to drivers/{uid} fails.
+ * Thrown when a Firestore write or callable to set driver availability fails.
  */
 export class PresenceWriteError extends Error {
   readonly kind = 'PresenceWriteError' as const;
@@ -51,8 +49,8 @@ export class PresenceWriteError extends Error {
 
 /**
  * The server permits a driver to become available only after the canonical
- * approval and required-document checks have passed. Do not expose a raw
- * Firestore permission error for this expected product state.
+ * approval, required-document, location, and trip checks have passed.
+ * Do not expose a raw Firestore/Functions error for expected product states.
  */
 export class DriverAccountNotReadyError extends Error {
   readonly kind = 'DriverAccountNotReadyError' as const;
@@ -65,6 +63,7 @@ export class DriverAccountNotReadyError extends Error {
 }
 
 export type DriverEligibilityBlockedReason =
+  | 'already_on_trip'
   | 'application_not_approved'
   | 'account_suspended'
   | 'account_blocked'
@@ -77,8 +76,10 @@ export type DriverEligibilityBlockedReason =
   | 'poor_gps_accuracy'
   | 'verification_required';
 
-function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): string {
+export function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): string {
   switch (reason) {
+    case 'already_on_trip':
+      return 'You still have an active trip. Finish the active trip before going online again.';
     case 'application_not_approved':
       return 'Your Driver application is still under review. You can go online after Operations approval.';
     case 'account_suspended':
@@ -94,21 +95,22 @@ function publicEligibilityMessage(reason: DriverEligibilityBlockedReason): strin
     case 'vehicle_identity_invalid':
       return 'Complete the vehicle identity details before going online.';
     case 'stale_location':
-      return 'Your location is stale. Turn on location and try again.';
+      return 'Your location is outdated. Refresh your location and try again.';
     case 'outside_service_area':
-      return 'You are outside the Pakyaw service area.';
+      return 'You’re outside Pakyaw’s current service area.';
     case 'poor_gps_accuracy':
-      return 'GPS accuracy is too low. Move to a clearer location and try again.';
+      return 'GPS signal is weak. Move to an open area and try again.';
     case 'verification_required':
       return 'Complete Driver verification before going online.';
   }
 }
 
-function parseEligibilityReason(message: string): DriverEligibilityBlockedReason | null {
+export function parseEligibilityReason(message: string): DriverEligibilityBlockedReason | null {
   const match = /cannot go online:\s*([a-z_]+)/i.exec(message);
   if (match === null) return null;
   const reason = match[1] as DriverEligibilityBlockedReason;
-  return reason === 'application_not_approved'
+  return reason === 'already_on_trip'
+    || reason === 'application_not_approved'
     || reason === 'account_suspended'
     || reason === 'account_blocked'
     || reason === 'documents_incomplete'

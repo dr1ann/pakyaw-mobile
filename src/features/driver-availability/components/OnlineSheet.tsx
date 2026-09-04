@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { PowerButton } from '@/features/driver-availability/components/PowerButton';
 import { reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
 import type { Availability } from '@pakyaw/shared/types/driver';
@@ -90,12 +90,12 @@ export function OnlineSheet({
       </View>
 
       <Text style={styles.title}>
-        {isOnTrip ? 'Trip in progress' : "You're on the road!"}
+        {isOnTrip ? 'Trip in progress' : "You're online"}
       </Text>
       <Text style={styles.subtitle}>
         {isOnTrip
           ? 'Complete your current trip to return to the online state.'
-          : 'Waiting for nearby ride requests…'}
+          : 'Waiting for ride requests'}
       </Text>
 
       {/* Last known location */}
@@ -108,7 +108,7 @@ export function OnlineSheet({
         </View>
       )}
 
-      {/* Go Offline button — hidden while on a trip (Phase 7 teardown handles it) */}
+      {/* Go Offline button — hidden while on a trip */}
       {!isOnTrip && (
         <PowerButton
           isOnline
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   },
   coordsCard: {
     backgroundColor: colors.surface.muted,
-    borderRadius: 10,
+    borderRadius: radius.md,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
   },

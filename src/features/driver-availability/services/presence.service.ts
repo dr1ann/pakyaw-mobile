@@ -35,7 +35,13 @@ export async function goOnline(uid: string): Promise<void> {
     // not an application crash. Keep the raw Firebase error out of the
     // driver-facing/error-level log while retaining a useful diagnostic.
     if (error instanceof DriverAccountNotReadyError) {
-      logger.warn('[presence] goOnline blocked by account verification', { uid });
+      logger.warn('[presence] goOnline blocked by eligibility check', {
+        uid,
+        reason: error.reason,
+        code: (cause as any)?.code,
+        message: (cause as any)?.message,
+        details: (cause as any)?.details,
+      });
     } else {
       logger.error('[presence] goOnline failed:', cause);
     }
@@ -58,7 +64,13 @@ export async function goOffline(uid: string): Promise<void> {
   } catch (cause) {
     const error = translatePresenceWriteError(cause);
     if (error instanceof DriverAccountNotReadyError) {
-      logger.warn('[presence] goOffline blocked by account verification', { uid });
+      logger.warn('[presence] goOffline blocked by eligibility check', {
+        uid,
+        reason: error.reason,
+        code: (cause as any)?.code,
+        message: (cause as any)?.message,
+        details: (cause as any)?.details,
+      });
     } else {
       logger.error('[presence] goOffline failed:', cause);
     }

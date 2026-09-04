@@ -1,27 +1,17 @@
 /**
  * Drive screen — (driver)/index.tsx
  *
- * Phase 5 implementation:
- * - Full-bleed placeholder map View (real Google Maps deferred — Phase 8).
- * - Status-driven bottom sheet (offline → online).
- * - PreflightChecklist modal sheet (opens before going online).
- * - useLocationPublisher manages the foreground watch subscription.
- * - Contracts are shaped so a Google Maps implementation can replace the
- *   placeholder View without changing any service or store contract.
- *
- * Phase 8E addition:
- * - When driver has an active trip (on_trip), the bottom sheet switches to
- *   trip lifecycle sheets driven by trip.status.
- *
- * Navigation pattern (navigation.md §5.2):
- *   availability 'offline'  → OfflineSheet (power button)
- *   power tapped            → PreflightChecklist (modal sheet over dimmed map)
- *   availability 'online'   → OnlineSheet (+ IncomingRequestCard in Phase 7)
- *   active trip (on_trip)   → Trip status sheets (Phase 8E)
+ * Phase 10: Driver Home & Availability
+ * - Full-bleed real map view centered on driver.
+ * - Server-authoritative status-driven bottom sheet (Offline → Online / On Trip).
+ * - PreflightChecklist modal sheet before going online.
+ * - Real-time drivers/{uid} listener to auto-restore active trips and server availability.
+ * - Recenter button accessible anytime driver pans away from their location.
+ * - Meaningful, actionable error presentation for blocked availability reasons.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,14 +28,6 @@ import {
 import { useLocationPublisher } from '@/features/driver-availability/hooks/useLocationPublisher';
 import { IncomingRequestCard } from '@/features/matching/components/IncomingRequestCard';
 import { useIncomingRequests } from '@/features/matching/hooks/useIncomingRequests';
-import {
-  DriverAcceptedSheet,
-  DriverArrivedSheet,
-  DriverCancelledSheet,
-  DriverCompletedSheet,
-  DriverEnRouteSheet,
-  DriverInTripSheet,
-} from '@/features/trip/components/DriverTripSheets';
 import { PersistentDriverTripDashboard } from '@/features/trip/components/PersistentDriverTripDashboard';
 import { BoardingConfirmationToast } from '@/features/trip/components/BoardingConfirmationToast';
 import { LiveMap, type MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
@@ -53,7 +35,6 @@ import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRide
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
 import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
-import type { TripStatus } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
@@ -74,7 +55,6 @@ import {
 } from '@pakyaw/shared/features/maps/navigation/navigationHelper';
 import { useNavigationLifecycle } from '@/features/maps/navigation/useNavigationLifecycle';
 import { usePictureInPicture } from '@/features/maps/navigation/usePictureInPicture';
-import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { getBearingAlongPolyline, snapPointToPolyline } from '@pakyaw/shared/lib/geoProjection';
 import { useUiStore } from '@/stores/uiStore';
 
@@ -89,7 +69,6 @@ export default function DriveScreen() {
   const tripId = useActiveTripStore((s) => s.tripId);
 
   const [showPreflight, setShowPreflight] = useState(false);
-  const [expandedTripStatus, setExpandedTripStatus] = useState<TripStatus | null>(null);
 
   // Sync active trip and availability directly from drivers/{uid} document
   useEffect(() => {
@@ -257,28 +236,17 @@ export default function DriveScreen() {
     goOfflineMutation.mutate();
   }
 
-  function handleToggleTripSheet() {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedTripStatus((expandedStatus: TripStatus | null) =>
-      expandedStatus === trip?.status ? null : (trip?.status ?? null)
-    );
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const isOffline = availability === 'offline';
   // Under the pessimistic model, the "on trip" UI state is driven by the
   // Firestore trip document (via tripId + useActiveTrip) rather than by a
   // client-predicted availability flag. This means the sheet only transitions
-  // to the trip lifecycle sheets once the authoritative trip snapshot lands —
-  // if the accept transaction succeeded but the snapshot is still in-flight,
-  // the Accept button stays in its loading state instead of showing an empty
-  // "on trip" sheet with no data (Grab / Uber parity).
+  // to the trip lifecycle sheets once the authoritative trip snapshot lands.
   const isOnTrip = trip != null || tripId != null;
   const isTripTerminal =
     trip?.status === 'completed' || trip?.status === 'cancelled';
   const isTripInProgress = trip?.status === 'in_progress';
-  const isTripSheetExpanded = expandedTripStatus === trip?.status;
   const ownLocation =
     lastLatitude !== null && lastLongitude !== null
       ? { latitude: lastLatitude, longitude: lastLongitude }
@@ -317,7 +285,7 @@ export default function DriveScreen() {
   // Route bearing at the driver's current position on the polyline. Used as
   // a stationary heading fallback so the arrow keeps pointing down the road
   // when GPS course is unavailable — matches Google Maps behavior when the
-  // vehicle idles at a light. See useDriverHeading's route-bearing branch.
+  // vehicle idles at a light.
   const routeBearing = useMemo(() => {
     if (!navigationTargetCoordinate || currentRoutePolyline.length < 2) return null;
     return getBearingAlongPolyline(
@@ -333,24 +301,16 @@ export default function DriveScreen() {
   // magnetometer only when the user has explicitly enabled Compass Mode.
   useDriverHeading(trip?.status ?? null, { routeBearing });
 
-  // Navigation Mode (tilted driving camera) starts automatically for active
-  // driving legs. Other trip phases stay in overview mode.
-  // Navigation Mode (tilted driving camera) engages for active driving legs.
-  // Derived directly from trip.status (Firestore source of truth) to avoid the
-  // one-render lag that occurred when comparing against a Zustand mirror.
+  // Navigation Mode (tilted driving camera) starts automatically for active driving legs.
   const isDriving = getAutomaticNavigationStatus(trip?.status) !== null;
 
-  // Once Firestore confirms a nav-active status, the optimistic camera flag
-  // has served its purpose — clear it so the authoritative isDriving drives
-  // everything going forward and the flag can't linger across trips.
+  // Once Firestore confirms a nav-active status, clear the optimistic flag.
   useEffect(() => {
     if (isDriving && useActiveTripStore.getState().optimisticNavEngaged) {
       useActiveTripStore.getState().setOptimisticNavEngaged(false);
     }
   }, [isDriving]);
 
-  // The leg the driver is currently working: head to pickup until they reach
-  // the passenger, then head to destination. Used to frame the overview camera.
   const headingToDestination =
     trip?.status === 'driver_arrived' || trip?.status === 'in_progress';
   const legTarget = headingToDestination ? destinationLocation : pickupLocation;
@@ -362,19 +322,7 @@ export default function DriveScreen() {
       ? [navigationCoordinate, legTarget]
       : null;
 
-  // Engagement-ready coordinate: whatever the freshest, non-null position is.
-  // Prefer the interpolated coord (smooth) but fall back to the raw one so the
-  // Navigation Mode camera can engage on the very first frame instead of
-  // waiting for the interpolator's first published sample.
   const navEngagementCoordinate = navigationCoordinate ?? rawNavigationCoordinate;
-
-  // The Navigation Mode camera engages the instant the driver presses Start
-  // Navigation (optimisticNavEngaged), without waiting for the Firestore
-  // transition round-trip to confirm trip.status. This matches the immediate
-  // response of the recenter/compass paths, which fire the camera off local
-  // GPS synchronously. `isDriving` (authoritative, Firestore-derived) is kept
-  // separate for everything that should wait for confirmation — sheets, voice,
-  // PiP — so only the camera is decoupled from the round-trip.
   const cameraNavEnabled = isDriving || optimisticNavEngaged;
 
   const cameraController = useRideCameraController(mapRef, {
@@ -387,15 +335,8 @@ export default function DriveScreen() {
     navigation: {
       enabled: cameraNavEnabled,
       coordinate: navEngagementCoordinate,
-      // Prefer the fused heading; fall back to the route bearing so the
-      // engagement sweep uses a real forward direction instead of 0° while
-      // the first GPS course sample arrives.
       heading: navHeading ?? routeBearing,
       speed: gpsSpeed,
-      // Non-zero duration for streaming follow updates so the camera transitions
-      // smoothly when the route polyline resolves and the heading/coordinate
-      // shift from raw-GPS (0°/un-snapped) to fused (route bearing/snapped).
-      // The engagement frame still overrides to NAV_CAMERA_ANIM_MS (600ms).
       animationDurationMs: 500,
     },
   });
@@ -483,7 +424,7 @@ export default function DriveScreen() {
         />
       )}
 
-      {/* Incoming request overlay (Phase 7) */}
+      {/* Incoming request overlay */}
       {!isInPip && topRequest != null ? (
         <SafeAreaView
           edges={['top']}
@@ -497,18 +438,12 @@ export default function DriveScreen() {
       {/* Bottom sheet area */}
       {!isInPip && (
       <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
-        {/* Compass Mode toggle — Google Maps parity. Visible whenever the
-            driving camera is engaged so it can be toggled mid-drive without
-            leaving the map. useDriverHeading subscribes/unsubscribes on the
-            same flag, so heading behavior switches immediately. */}
+        {/* Compass Mode toggle — visible when driving camera is engaged */}
         <CompassModeToggle visible={isDriving} />
 
-        {/* Recenter Camera Button */}
+        {/* Recenter Camera Button — visible whenever driver has panned away */}
         <RecenterButton
-          visible={
-            isDriving &&
-            cameraController.userPanned
-          }
+          visible={cameraController.userPanned}
           onPress={cameraController.recenter}
         />
 
@@ -565,51 +500,6 @@ export default function DriveScreen() {
   );
 }
 
-type DriverTripSheetProps = {
-  status: TripStatus | null;
-  onDismiss: () => void;
-  remainingDistanceMeters: number | null;
-  etaSeconds: number | null;
-  compact: boolean;
-};
-
-function DriverTripSheet({
-  status,
-  onDismiss,
-  remainingDistanceMeters,
-  etaSeconds,
-  compact,
-}: DriverTripSheetProps) {
-  switch (status) {
-    case 'accepted':
-      return <DriverAcceptedSheet compact={compact} />;
-    case 'driver_arriving':
-      return (
-        <DriverEnRouteSheet
-          remainingDistanceMeters={remainingDistanceMeters}
-          etaSeconds={etaSeconds}
-          compact={compact}
-        />
-      );
-    case 'driver_arrived':
-      return <DriverArrivedSheet compact={compact} />;
-    case 'in_progress':
-      return (
-        <DriverInTripSheet
-          remainingDistanceMeters={remainingDistanceMeters}
-          etaSeconds={etaSeconds}
-          compact={compact}
-        />
-      );
-    case 'completed':
-      return <DriverCompletedSheet onDismiss={onDismiss} />;
-    case 'cancelled':
-      return <DriverCancelledSheet onDismiss={onDismiss} />;
-    default:
-      return null;
-  }
-}
-
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -625,23 +515,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-  },
-  sheetToggle: {
-    alignItems: 'center',
-    paddingTop: spacing[2],
-  },
-  sheetGrabber: {
-    width: 42,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border.subtle,
-    marginBottom: spacing[1],
-  },
-  sheetToggleLabel: {
-    width: 48,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   incomingArea: {
     position: 'absolute',
