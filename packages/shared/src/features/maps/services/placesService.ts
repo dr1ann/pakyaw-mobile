@@ -166,18 +166,30 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
       return true;
     }) || cleanedResults[0];
     
-    // Attempt to extract a short name or use the first parts of the address
-    const addressComponents = (topResult.address_components || []) as readonly GoogleAddressComponent[];
-    let label = 'Dropped Pin';
-    
     // Find the most specific named feature or street number/name
+    const poiResult = cleanedResults.find((r) => {
+      const types = r.types || [];
+      return (
+        (types.includes('point_of_interest') ||
+          types.includes('establishment') ||
+          types.includes('premise')) &&
+        !types.includes('plus_code') &&
+        !!r.formatted_address
+      );
+    });
+
+    const targetResult = poiResult || topResult;
+    const addressComponents = (targetResult.address_components || []) as readonly GoogleAddressComponent[];
+    let label = 'Pinned location';
+
     const routeComponent = addressComponents.find((c) => c.types.includes('route'));
-    const sublocalityComponent = addressComponents.find((c) => 
-      c.types.includes('sublocality') || 
-      c.types.includes('neighborhood') || 
+    const sublocalityComponent = addressComponents.find((c) =>
+      c.types.includes('sublocality') ||
+      c.types.includes('sublocality_level_1') ||
+      c.types.includes('neighborhood') ||
       c.types.includes('administrative_area_level_5') // Usually Barangay in PH
     );
-    
+
     if (routeComponent && sublocalityComponent) {
       label = `${routeComponent.short_name}, ${sublocalityComponent.short_name}`;
     } else if (sublocalityComponent) {
@@ -185,28 +197,48 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     } else if (routeComponent) {
       label = routeComponent.long_name;
     } else {
-      const nonPlusCode = addressComponents.find(c => !c.types.includes('plus_code') && !c.long_name.includes('+'));
+      const nonPlusCode = addressComponents.find(
+        (c) =>
+          !c.types.includes('plus_code') &&
+          !c.long_name.includes('+') &&
+          c.long_name !== 'Ormoc City' &&
+          c.long_name !== 'Ormoc' &&
+          c.long_name !== 'Leyte' &&
+          c.long_name !== 'Philippines'
+      );
       if (nonPlusCode) {
         label = nonPlusCode.long_name;
-      } else if (topResult.formatted_address) {
-        label = topResult.formatted_address.split(',')[0];
+      } else if (targetResult.formatted_address) {
+        const firstSegment = targetResult.formatted_address.split(',')[0]?.trim();
+        if (
+          firstSegment &&
+          !firstSegment.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i) &&
+          firstSegment !== 'Ormoc City' &&
+          firstSegment !== 'Ormoc'
+        ) {
+          label = firstSegment;
+        } else {
+          label = 'Pinned location, Ormoc City';
+        }
+      } else {
+        label = 'Pinned location, Ormoc City';
       }
     }
 
     // Fallback if we accidentally grabbed a Plus Code
     if (label.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i)) {
-      const fallbackComponent = addressComponents.find((c) => 
+      const fallbackComponent = addressComponents.find((c) =>
         c.types.includes('administrative_area_level_5') ||
         c.types.includes('sublocality') ||
         c.types.includes('neighborhood') ||
         c.types.includes('locality')
       );
-      label = fallbackComponent ? fallbackComponent.long_name : 'Unnamed Road';
+      label = fallbackComponent ? fallbackComponent.long_name : 'Pinned location, Ormoc City';
     }
 
     return {
       label,
-      address: topResult.formatted_address || '',
+      address: targetResult.formatted_address || '',
       coords: { lat, lng },
     };
   } catch (err) {

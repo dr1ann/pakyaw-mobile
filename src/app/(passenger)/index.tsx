@@ -300,14 +300,20 @@ export default function RideScreen() {
     logger.info('[RideScreen] Pickup pin drag ended inside Ormoc, updating store immediately', coords);
     setPickup({
       coords: { lat: coords.latitude, lng: coords.longitude },
-      label: draft.pickup?.label || 'Pin Drop Location',
+      label: 'Pinned location',
     });
 
     void (async () => {
       try {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
         if (place) {
-          setPickup(place);
+          const currentPickup = useBookingDraftStore.getState().draft.pickup;
+          if (
+            currentPickup?.coords?.lat === coords.latitude &&
+            currentPickup?.coords?.lng === coords.longitude
+          ) {
+            setPickup(place);
+          }
         }
       } catch (err) {
         logger.error('[RideScreen] Failed to reverse-geocode dragged pickup coords', err);
@@ -330,14 +336,20 @@ export default function RideScreen() {
     logger.info('[RideScreen] Destination pin drag ended inside Ormoc, updating store immediately', coords);
     setDestination({
       coords: { lat: coords.latitude, lng: coords.longitude },
-      label: draft.destination?.label || 'Pin Drop Location',
+      label: 'Pinned location',
     });
 
     void (async () => {
       try {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
         if (place) {
-          setDestination(place);
+          const currentDest = useBookingDraftStore.getState().draft.destination;
+          if (
+            currentDest?.coords?.lat === coords.latitude &&
+            currentDest?.coords?.lng === coords.longitude
+          ) {
+            setDestination(place);
+          }
         }
       } catch (err) {
         logger.error('[RideScreen] Failed to reverse-geocode dragged destination coords', err);
@@ -355,13 +367,19 @@ export default function RideScreen() {
       setIsGeocoding(true);
       setPickup({
         coords: { lat: region.latitude, lng: region.longitude },
-        label: draft.pickup?.label || 'Pin Drop Location',
+        label: 'Pinned location',
       });
       void (async () => {
         try {
           const place = await reverseGeocode(region.latitude, region.longitude);
-          if (place && searchMode === 'pin_pickup') {
-            setPickup(place);
+          if (place) {
+            const currentPickup = useBookingDraftStore.getState().draft.pickup;
+            if (
+              currentPickup?.coords?.lat === region.latitude &&
+              currentPickup?.coords?.lng === region.longitude
+            ) {
+              setPickup(place);
+            }
           }
         } catch (err) {
           logger.error('[RideScreen] Failed to reverse-geocode map center pickup', err);
@@ -373,13 +391,19 @@ export default function RideScreen() {
       setIsGeocoding(true);
       setDestination({
         coords: { lat: region.latitude, lng: region.longitude },
-        label: draft.destination?.label || 'Pin Drop Location',
+        label: 'Pinned location',
       });
       void (async () => {
         try {
           const place = await reverseGeocode(region.latitude, region.longitude);
-          if (place && searchMode === 'pin_destination') {
-            setDestination(place);
+          if (place) {
+            const currentDest = useBookingDraftStore.getState().draft.destination;
+            if (
+              currentDest?.coords?.lat === region.latitude &&
+              currentDest?.coords?.lng === region.longitude
+            ) {
+              setDestination(place);
+            }
           }
         } catch (err) {
           logger.error('[RideScreen] Failed to reverse-geocode map center destination', err);

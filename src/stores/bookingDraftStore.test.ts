@@ -210,4 +210,68 @@ describe('routeMatchesInputs', () => {
 
     expect(routeMatchesInputs(useBookingDraftStore.getState().draft)).toBe(false);
   });
+
+  it('guarantees atomic pickup update: moving pin from A to B replaces coordinates and old label', () => {
+    // 1. Initial location A (e.g. Linao)
+    useBookingDraftStore.getState().setPickup({
+      label: 'Linao',
+      coords: { lat: 11.0345, lng: 124.6012 },
+      address: 'Linao, Ormoc City',
+    });
+
+    expect(useBookingDraftStore.getState().draft.pickup?.label).toBe('Linao');
+    expect(useBookingDraftStore.getState().draft.pickup?.coords).toEqual({ lat: 11.0345, lng: 124.6012 });
+
+    // 2. Move pin to location B (e.g. Camp Downes) - old label 'Linao' cannot remain
+    const locationB = {
+      label: 'Pinned location',
+      coords: { lat: 10.9959, lng: 124.6183 },
+      address: 'Camp Downes, Ormoc City',
+    };
+    useBookingDraftStore.getState().setPickup(locationB);
+
+    expect(useBookingDraftStore.getState().draft.pickup?.coords).toEqual({ lat: 10.9959, lng: 124.6183 });
+    expect(useBookingDraftStore.getState().draft.pickup?.label).toBe('Pinned location');
+    expect(useBookingDraftStore.getState().draft.pickup?.label).not.toBe('Linao');
+  });
+
+  it('preserves atomic place consistency when autocomplete place is overridden by manual pin', () => {
+    // 1. Autocomplete selection (Robinsons)
+    useBookingDraftStore.getState().setPickup({
+      label: 'Robinsons Place Ormoc',
+      coords: { lat: 11.0254, lng: 124.6050 },
+      address: 'Brgy. Cogon, Ormoc City',
+    });
+
+    expect(useBookingDraftStore.getState().draft.pickup?.label).toBe('Robinsons Place Ormoc');
+
+    // 2. Manual pin override
+    useBookingDraftStore.getState().setPickup({
+      label: 'Pinned location, Ormoc City',
+      coords: { lat: 11.0051, lng: 124.6076 },
+    });
+
+    expect(useBookingDraftStore.getState().draft.pickup?.coords).toEqual({ lat: 11.0051, lng: 124.6076 });
+    expect(useBookingDraftStore.getState().draft.pickup?.label).toBe('Pinned location, Ormoc City');
+    expect(useBookingDraftStore.getState().draft.pickup?.label).not.toBe('Robinsons Place Ormoc');
+  });
+
+  it('guarantees trip restoration restores pickup label and coordinates from same trip snapshot', () => {
+    const tripSnapshot = {
+      pickup: {
+        label: 'Camp Downes',
+        coords: { lat: 10.9959, lng: 124.6183 },
+      },
+      destination: {
+        label: 'SM Center Ormoc',
+        coords: { lat: 11.0108, lng: 124.6077 },
+      },
+    };
+
+    useBookingDraftStore.getState().setPickup(tripSnapshot.pickup);
+    useBookingDraftStore.getState().setDestination(tripSnapshot.destination);
+
+    expect(useBookingDraftStore.getState().draft.pickup?.label).toBe('Camp Downes');
+    expect(useBookingDraftStore.getState().draft.pickup?.coords).toEqual({ lat: 10.9959, lng: 124.6183 });
+  });
 });
