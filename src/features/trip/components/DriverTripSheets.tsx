@@ -20,11 +20,41 @@ function PassengerPickupPresenceCard({
   trip,
   formattedDistanceToPickup,
   hasLiveLocation,
+  isBookingForOther,
 }: {
   readonly trip: any;
   readonly formattedDistanceToPickup: string | null;
   readonly hasLiveLocation: boolean;
+  readonly isBookingForOther: boolean;
 }) {
+  // ── Third-party booking ─────────────────────────────────────────────────────
+  // When a Passenger books for someone else the booker's GPS is suppressed.
+  // Show the rider's first name and optional pickup note so the Driver knows
+  // who to look for and where.
+  if (isBookingForOther) {
+    const riderName = trip?.rider?.firstName ?? null;
+    const pickupNote = trip?.pickupNote ?? null;
+    return (
+      <View style={styles.presenceCardOther}>
+        <View style={styles.presenceHeader}>
+          <View style={styles.presenceDotOther} />
+          <Text style={styles.presenceTitleOther}>BOOKED FOR SOMEONE ELSE</Text>
+        </View>
+        <Text style={styles.presenceText}>
+          {riderName ? `Rider: ${riderName}` : 'Third-party booking'}
+        </Text>
+        {pickupNote ? (
+          <Text style={styles.presenceSubtext}>Note: {pickupNote}</Text>
+        ) : (
+          <Text style={styles.presenceSubtext}>
+            Proceed to requested pickup · no live GPS for this booking
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  // ── Self booking with live GPS ───────────────────────────────────────────────
   if (hasLiveLocation && formattedDistanceToPickup) {
     return (
       <View style={styles.presenceCard}>
@@ -40,6 +70,7 @@ function PassengerPickupPresenceCard({
     );
   }
 
+  // ── Self booking, GPS unavailable ────────────────────────────────────────────
   return (
     <View style={styles.presenceCardUnavailable}>
       <Text style={styles.presenceUnavailableText}>
@@ -59,11 +90,13 @@ type DriverSheetModeProps = {
 export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
-  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
-    trip?.id ?? null,
-    trip?.status ?? null,
-    trip?.pickup?.coords ?? null
-  );
+  const { passengerLocation, formattedDistanceToPickup, isBookingForOther } =
+    usePassengerLiveLocation(
+      trip?.id ?? null,
+      trip?.status ?? null,
+      trip?.pickup?.coords ?? null,
+      trip?.bookingFor ?? null
+    );
 
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(20));
@@ -149,6 +182,7 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
         trip={trip}
         formattedDistanceToPickup={formattedDistanceToPickup}
         hasLiveLocation={!!passengerLocation}
+        isBookingForOther={isBookingForOther}
       />
       <Button
         label="Start navigation"
@@ -172,11 +206,13 @@ export function DriverEnRouteSheet({
 }) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
-  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
-    trip?.id ?? null,
-    trip?.status ?? null,
-    trip?.pickup?.coords ?? null
-  );
+  const { passengerLocation, formattedDistanceToPickup, isBookingForOther } =
+    usePassengerLiveLocation(
+      trip?.id ?? null,
+      trip?.status ?? null,
+      trip?.pickup?.coords ?? null,
+      trip?.bookingFor ?? null
+    );
 
   function handleArrived() {
     if (trip) {
@@ -250,6 +286,7 @@ export function DriverEnRouteSheet({
         trip={trip}
         formattedDistanceToPickup={formattedDistanceToPickup}
         hasLiveLocation={!!passengerLocation}
+        isBookingForOther={isBookingForOther}
       />
 
       <Button
@@ -269,11 +306,13 @@ export function DriverEnRouteSheet({
 export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
-  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
-    trip?.id ?? null,
-    trip?.status ?? null,
-    trip?.pickup?.coords ?? null
-  );
+  const { passengerLocation, formattedDistanceToPickup, isBookingForOther } =
+    usePassengerLiveLocation(
+      trip?.id ?? null,
+      trip?.status ?? null,
+      trip?.pickup?.coords ?? null,
+      trip?.bookingFor ?? null
+    );
 
   function handleStartTrip() {
     if (trip) {
@@ -314,6 +353,7 @@ export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
         trip={trip}
         formattedDistanceToPickup={formattedDistanceToPickup}
         hasLiveLocation={!!passengerLocation}
+        isBookingForOther={isBookingForOther}
       />
       <Button
         label="Start trip"
@@ -575,6 +615,28 @@ const styles = StyleSheet.create({
     fontSize: typography.size.label,
     fontWeight: typography.weight.medium,
     color: colors.ink[500],
+  },
+  presenceCardOther: {
+    backgroundColor: '#FFF8EC',
+    borderRadius: 10,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    gap: spacing[1],
+    marginVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(234, 136, 6, 0.25)',
+  },
+  presenceDotOther: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EA8806',
+  },
+  presenceTitleOther: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
+    color: '#B96600',
+    letterSpacing: 0.6,
   },
   presenceCardUnavailable: {
     backgroundColor: colors.surface.muted,

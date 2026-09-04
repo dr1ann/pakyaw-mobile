@@ -4,12 +4,6 @@
  * - subscribe: real-time listener on a single trip document, mapped to TripDoc.
  * - transition: server-authoritative forward lifecycle callable.
  * - cancel: server-authoritative cancellation callable. A requested
-/**
- * trip.service — Phase 8A/8B trip lifecycle state machine.
- *
- * - subscribe: real-time listener on a single trip document, mapped to TripDoc.
- * - transition: server-authoritative forward lifecycle callable.
- * - cancel: server-authoritative cancellation callable. A requested
  *   cancellation is retained as `cancelled`, preserving audit/history data.
  *
  * The request → accepted transition belongs exclusively to Phase 7
@@ -144,6 +138,17 @@ function isCanonicalTripData(data: DocumentData): data is CanonicalTripData {
     && isCanonicalRoute(data.route);
 }
 
+function safeBookingFor(value: unknown): 'self' | 'other' | null {
+  return value === 'self' || value === 'other' ? value : null;
+}
+
+function safeRider(value: unknown): { firstName: string } | null {
+  if (value && typeof value === 'object' && typeof (value as any).firstName === 'string') {
+    return { firstName: (value as any).firstName };
+  }
+  return null;
+}
+
 function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
   return {
     id,
@@ -222,6 +227,9 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
       }
       : null,
     serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
+    bookingFor: safeBookingFor(data.bookingFor),
+    rider: safeRider(data.rider),
+    pickupNote: typeof data.pickupNote === 'string' ? data.pickupNote : null,
   };
 }
 
@@ -286,6 +294,9 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
       }
       : null,
     serviceAreaId: (data.serviceAreaId as 'ormoc') ?? null,
+    bookingFor: safeBookingFor(data.bookingFor),
+    rider: safeRider(data.rider),
+    pickupNote: typeof data.pickupNote === 'string' ? data.pickupNote : null,
   };
 }
 

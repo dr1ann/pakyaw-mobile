@@ -91,6 +91,11 @@ export type TripDoc = {
     readonly updatedAt: Timestamp | null;
   } | null;
   readonly serviceAreaId?: 'ormoc' | null;
+
+  // Third-party booking fields (Pickup Integrity phase)
+  readonly bookingFor?: 'self' | 'other' | null;
+  readonly rider?: { readonly firstName: string } | null;
+  readonly pickupNote?: string | null;
 };
 
 /** Read-only Driver presentation projection of canonical sharedRides data. */

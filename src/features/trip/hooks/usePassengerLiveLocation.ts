@@ -18,6 +18,7 @@ export type UsePassengerLiveLocationResult = {
   readonly isStale: boolean;
   readonly distanceToPickupMeters: number | null;
   readonly formattedDistanceToPickup: string | null;
+  readonly isBookingForOther: boolean;
 };
 
 export function formatPassengerToPickupDistance(distanceMeters: number | null): string | null {
@@ -36,12 +37,14 @@ export function formatPassengerToPickupDistance(distanceMeters: number | null): 
 export function usePassengerLiveLocation(
   tripId: string | null | undefined,
   status: string | null | undefined,
-  pickupCoords: { lat: number; lng: number } | null | undefined
+  pickupCoords: { lat: number; lng: number } | null | undefined,
+  bookingFor?: string | null
 ): UsePassengerLiveLocationResult {
   const [locationData, setLocationData] = useState<PassengerLiveLocationData | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
-  const isPrePickup = !!tripId && !!status && PRE_PICKUP_STATUSES.has(status);
+  const isBookingForOther = bookingFor === 'other';
+  const isPrePickup = !isBookingForOther && !!tripId && !!status && PRE_PICKUP_STATUSES.has(status);
 
   // Periodic clock update for staleness checking
   useEffect(() => {
@@ -130,5 +133,6 @@ export function usePassengerLiveLocation(
     isStale,
     distanceToPickupMeters,
     formattedDistanceToPickup,
+    isBookingForOther,
   };
 }
