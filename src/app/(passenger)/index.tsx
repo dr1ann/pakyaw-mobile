@@ -42,7 +42,11 @@ import { HomeSheet } from '@/features/booking/components/HomeSheet';
 import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
-import { reverseGeocode, reverseGeocodePin } from '@pakyaw/shared/features/maps/services/placesService';
+import {
+  isRoadAccessibleCoordinate,
+  reverseGeocode,
+  reverseGeocodePin,
+} from '@pakyaw/shared/features/maps/services/placesService';
 import { CancelledSheet } from '@pakyaw/shared/features/trip/components/CancelledSheet';
 import { CompletedSheet } from '@pakyaw/shared/features/trip/components/CompletedSheet';
 import { DriverMatchedSheet } from '@/features/trip/components/DriverMatchedSheet';
@@ -86,6 +90,7 @@ export default function RideScreen() {
   const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | null>(null);
   const [pinTarget, setPinTarget] = useState<'pickup' | 'destination' | null>(null);
   const [pinSelection, setPinSelection] = useState<Place | null>(null);
+  const [pinAccessibility, setPinAccessibility] = useState<'checking' | 'accessible' | 'inaccessible'>('checking');
   const [isMinimized, setIsMinimized] = useState(false);
   const [pickupDragKey, setPickupDragKey] = useState(0);
   const [destinationDragKey, setDestinationDragKey] = useState(0);
@@ -337,13 +342,19 @@ export default function RideScreen() {
   }, [deviceLocation, draft.pickup, setPickup]);
 
   // Draggable pickup pin callback with strict service-area validation
-  const handlePickupDragEnd = (coords: { latitude: number; longitude: number }) => {
+  const handlePickupDragEnd = async (coords: { latitude: number; longitude: number }) => {
     if (!isInServiceArea(coords)) {
       logger.warn('[RideScreen] Dragged pickup pin outside service area, blocking update', coords);
       Alert.alert(
         'Service Area',
         'Pakyaw currently serves locations within Ormoc City.'
       );
+      setPickupDragKey((k) => k + 1);
+      return;
+    }
+
+    if (!(await isRoadAccessibleCoordinate(coords.latitude, coords.longitude))) {
+      Alert.alert('Road-accessible location required', 'Move the pickup pin onto a mapped road or accessible land location.');
       setPickupDragKey((k) => k + 1);
       return;
     }
@@ -370,13 +381,19 @@ export default function RideScreen() {
   };
 
   // Draggable destination pin callback with strict service-area validation
-  const handleDestinationDragEnd = (coords: { latitude: number; longitude: number }) => {
+  const handleDestinationDragEnd = async (coords: { latitude: number; longitude: number }) => {
     if (!isInServiceArea(coords)) {
       logger.warn('[RideScreen] Dragged destination pin outside service area, blocking update', coords);
       Alert.alert(
         'Service Area',
         'Pakyaw currently serves locations within Ormoc City.'
       );
+      setDestinationDragKey((k) => k + 1);
+      return;
+    }
+
+    if (!(await isRoadAccessibleCoordinate(coords.latitude, coords.longitude))) {
+      Alert.alert('Road-accessible location required', 'Move the destination pin onto a mapped road or accessible land location.');
       setDestinationDragKey((k) => k + 1);
       return;
     }
@@ -416,6 +433,7 @@ export default function RideScreen() {
         label: 'Pinned location',
         address: 'Ormoc City, Leyte',
       });
+      setPinAccessibility('checking');
       setIsGeocoding(true);
 
       if (geocodeDebounceTimer.current) {
@@ -425,7 +443,10 @@ export default function RideScreen() {
       geocodeDebounceTimer.current = setTimeout(() => {
         void (async () => {
           try {
-            const place = await reverseGeocodePin(region.latitude, region.longitude);
+            const [place, isAccessible] = await Promise.all([
+              reverseGeocodePin(region.latitude, region.longitude),
+              isRoadAccessibleCoordinate(region.latitude, region.longitude),
+            ]);
             if (place) {
               setPinSelection((current: Place | null) => {
                 if (current && isSameCoordinate(current.coords, newCoords)) {
@@ -434,6 +455,12 @@ export default function RideScreen() {
                 return current;
               });
             }
+            setPinSelection((current: Place | null) => {
+              if (current && isSameCoordinate(current.coords, newCoords)) {
+                setPinAccessibility(isAccessible ? 'accessible' : 'inaccessible');
+              }
+              return current;
+            });
           } catch (err) {
             logger.error('[RideScreen] Failed to reverse-geocode map center coordinate', err);
           } finally {
@@ -453,6 +480,11 @@ export default function RideScreen() {
       return;
     }
 
+    if (pinAccessibility !== 'accessible') {
+      Alert.alert('Road-accessible location required', 'Move the pin onto a mapped road or accessible land location.');
+      return;
+    }
+
     if (!isInServiceArea(placeToSave.coords)) {
       Alert.alert(
         'Service Area',
@@ -469,6 +501,7 @@ export default function RideScreen() {
     }
     setPinSelection(null);
     setPinTarget(null);
+    setPinAccessibility('checking');
     setSearchMode(null);
   };
 
@@ -476,6 +509,7 @@ export default function RideScreen() {
     const target = pinTarget;
     setPinSelection(null);
     setPinTarget(null);
+    setPinAccessibility('checking');
     setSearchMode(target);
   }, [pinTarget]);
 
@@ -627,6 +661,7 @@ export default function RideScreen() {
                     address: 'Ormoc City, Leyte',
                     coords,
                   });
+                  setPinAccessibility('checking');
                   setPinTarget(isPickup ? 'pickup' : 'destination');
                   setSearchMode(null);
                   setIsMinimized(false);
@@ -634,7 +669,10 @@ export default function RideScreen() {
                   setIsGeocoding(true);
                   void (async () => {
                     try {
-                      const place = await reverseGeocodePin(coords.lat, coords.lng);
+                      const [place, isAccessible] = await Promise.all([
+                        reverseGeocodePin(coords.lat, coords.lng),
+                        isRoadAccessibleCoordinate(coords.lat, coords.lng),
+                      ]);
                       if (place) {
                         setPinSelection((current: Place | null) => {
                           if (current && isSameCoordinate(current.coords, coords)) {
@@ -643,6 +681,12 @@ export default function RideScreen() {
                           return current;
                         });
                       }
+                      setPinSelection((current: Place | null) => {
+                        if (current && isSameCoordinate(current.coords, coords)) {
+                          setPinAccessibility(isAccessible ? 'accessible' : 'inaccessible');
+                        }
+                        return current;
+                      });
                     } catch (err) {
                       logger.error('[RideScreen] Failed initial pin drop geocoding', err);
                     } finally {
@@ -701,6 +745,15 @@ export default function RideScreen() {
                 </View>
               )}
 
+              {!isPinOutsideServiceArea && pinAccessibility === 'inaccessible' && (
+                <View style={styles.serviceAreaWarning}>
+                  <SymbolIcon name="exclamationmark.triangle.fill" size={14} tintColor={colors.danger} />
+                  <Text style={styles.serviceAreaWarningText}>
+                    Move the pin onto a mapped road or accessible land location
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.pinActionsRow}>
                 <Button
                   label="Cancel"
@@ -712,7 +765,11 @@ export default function RideScreen() {
                   label="Confirm"
                   onPress={handleConfirmPinning}
                   loading={isGeocoding}
-                  disabled={!activePinPlace?.coords || isPinOutsideServiceArea}
+                  disabled={
+                    !activePinPlace?.coords ||
+                    isPinOutsideServiceArea ||
+                    pinAccessibility !== 'accessible'
+                  }
                   style={styles.confirmPinButton}
                 />
               </View>

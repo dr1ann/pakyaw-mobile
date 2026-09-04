@@ -137,6 +137,7 @@ interface Coordinate {
 
 const NEARBY_LANDMARK_RADIUS_METERS = 150;
 const POLITICAL_RESULT_MAX_DISTANCE_METERS = 1_000;
+const MAX_PIN_TO_ROAD_DISTANCE_METERS = 50;
 
 function distanceMeters(a: Coordinate, b: Coordinate): number {
   const earthRadiusMeters = 6_371_000;
@@ -149,6 +150,33 @@ function distanceMeters(a: Coordinate, b: Coordinate): number {
     Math.sin(latitudeDelta / 2) ** 2 +
     Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) ** 2;
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+/**
+ * A Passenger pickup/destination must be close enough to a mapped road for a
+ * tricycle to reach it. This rejects offshore pins even when a shore-side POI
+ * happens to be within the nearby-landmark radius.
+ */
+export async function isRoadAccessibleCoordinate(lat: number, lng: number): Promise<boolean> {
+  const url = `https://roads.googleapis.com/v1/nearestRoads?points=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return false;
+    const data = await response.json();
+    const snappedPoints = (data.snappedPoints || []) as readonly {
+      readonly location?: { readonly latitude?: number; readonly longitude?: number };
+    }[];
+    const pin = { lat, lng };
+    return snappedPoints.some((point) => {
+      const road = point.location;
+      if (road?.latitude === undefined || road.longitude === undefined) return false;
+      return distanceMeters(pin, { lat: road.latitude, lng: road.longitude }) <= MAX_PIN_TO_ROAD_DISTANCE_METERS;
+    });
+  } catch (err) {
+    logger.warn('[placesService] nearest-road validation failed', { err });
+    return false;
+  }
 }
 
 const FORBIDDEN_PRIMARY_EXACT = new Set([

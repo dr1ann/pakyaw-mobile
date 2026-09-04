@@ -16,6 +16,7 @@ import {
   resolvePickupDisplayLabel,
   isValidPrimaryPickupLabel,
   getNearbyLandmark,
+  isRoadAccessibleCoordinate,
   type GoogleGeocodingResult,
 } from './placesService';
 
@@ -202,6 +203,26 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
 
       const landmark = await getNearbyLandmark(10.9959, 124.6183);
       expect(landmark?.name).toBe('Camp Downes Elementary School');
+    });
+  });
+
+  describe('isRoadAccessibleCoordinate()', () => {
+    it('accepts a coordinate that snaps within 50 meters of a mapped road', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          snappedPoints: [{ location: { latitude: 11.002493, longitude: 124.613578 } }],
+        }),
+      } as unknown as Response);
+      await expect(isRoadAccessibleCoordinate(11.002489, 124.613571)).resolves.toBe(true);
+    });
+
+    it('rejects an offshore coordinate with no road within 50 meters', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ snappedPoints: [] }),
+      } as unknown as Response);
+      await expect(isRoadAccessibleCoordinate(11.002, 124.600)).resolves.toBe(false);
     });
   });
 
