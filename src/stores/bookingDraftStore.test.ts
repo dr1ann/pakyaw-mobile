@@ -79,6 +79,32 @@ describe('bookingDraftStore', () => {
     expect(useBookingDraftStore.getState().draft.passengerCount).toBe(1); // Clamped min
   });
 
+  it('handles setRideMode transitions and passengerCount invariants', () => {
+    const store = useBookingDraftStore.getState();
+
+    // Start in private with 5 passengers
+    store.setPassengerCount(5);
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(5);
+
+    // Switch to shared -> count resets to 1 because 5 > 3
+    store.setRideMode('shared');
+    expect(useBookingDraftStore.getState().draft.rideMode).toBe('shared');
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(1);
+
+    // Increase to 2 in shared
+    store.setPassengerCount(2);
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(2);
+
+    // Switch to hopon -> count resets to 1 (Hop invariant)
+    store.setRideMode('hopon');
+    expect(useBookingDraftStore.getState().draft.rideMode).toBe('hopon');
+    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(1);
+
+    // Switch back to private
+    store.setRideMode('private');
+    expect(useBookingDraftStore.getState().draft.rideMode).toBe('private');
+  });
+
   it('allows setting route', () => {
     const store = useBookingDraftStore.getState();
     const route = {

@@ -11,7 +11,7 @@ import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
 import { FareQuoteBreakdown } from './FareQuoteBreakdown';
 import { useQuote } from '@/features/booking/hooks/useQuote';
-import { toRideMode, type CreateBookingInput } from '../types';
+import { toRideMode, type CreateBookingInput, type BookingRideSelection } from '../types';
 
 type BookingSheetProps = {
   readonly onSearchPickup?: () => void;
@@ -19,6 +19,31 @@ type BookingSheetProps = {
   readonly isMinimized?: boolean;
   readonly onToggleMinimize?: () => void;
   readonly isLoadingRoute?: boolean;
+};
+
+const MODE_SUMMARY: Record<
+  BookingRideSelection,
+  {
+    badge: string;
+    title: string;
+    description: string;
+  }
+> = {
+  private: {
+    badge: 'Pakyaw',
+    title: 'Private Ride',
+    description: 'Private ride for you and your group. Direct to your destination.',
+  },
+  shared: {
+    badge: 'Shared',
+    title: 'Pay Per Seat',
+    description: 'Pay per seat. Other passengers along your route may share the ride.',
+  },
+  hopon: {
+    badge: 'Hop',
+    title: 'Along Route',
+    description: 'Join an eligible Shared ride already heading along your route.',
+  },
 };
 
 export function BookingSheet({
@@ -34,7 +59,7 @@ export function BookingSheet({
   const setRoute = useBookingDraftStore((s) => s.setRoute);
   const setRideMode = useBookingDraftStore((s) => s.setRideMode);
 
-  const [dismissedOnboardingMode, setDismissedOnboardingMode] = useState<typeof draft.rideMode | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   const { mutate, isPending } = useCreateBooking();
   const {
@@ -50,7 +75,6 @@ export function BookingSheet({
 
   function handleBack() {
     logger.info('[BookingSheet] Back button tapped, clearing destination');
-    // Clear destination to return to search / home state
     setDestination(null);
     setRoute(null);
   }
@@ -100,13 +124,14 @@ export function BookingSheet({
     : 0;
 
   const hasValidRoute = !!currentRoute && !isRouteTooShort;
+  const currentModeInfo = MODE_SUMMARY[draft.rideMode];
 
   return (
     <View style={styles.container} testID="booking-sheet">
       <OnboardingModal
         mode={draft.rideMode}
-        isVisible={dismissedOnboardingMode !== draft.rideMode}
-        onClose={() => setDismissedOnboardingMode(draft.rideMode)}
+        isVisible={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
       />
 
       {/* Route Header Card */}
@@ -219,50 +244,49 @@ export function BookingSheet({
       >
         <RideModeSelector selectedMode={draft.rideMode} onSelectMode={setRideMode} />
 
-        {/* Mode Label */}
-        {draft.rideMode === 'private' && (
-          <View style={styles.modeContainer}>
+        {/* Selected Mode Context & Summary Card */}
+        <View style={styles.modeSummaryCard}>
+          <View style={styles.modeSummaryHeader}>
             <View style={styles.modeBadge}>
-              <Text style={styles.modeText}>Pakyaw (Private)</Text>
+              <Text style={styles.modeBadgeText}>{currentModeInfo.badge}</Text>
             </View>
-            <Text style={styles.modeSubText}>
-              Capacity buyout · min 4 seats. Driver gets the full base rate.
-            </Text>
+            <Pressable
+              onPress={() => setShowInfoModal(true)}
+              style={({ pressed }) => [styles.infoButton, pressed && styles.buttonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`Learn more about ${currentModeInfo.badge} mode`}
+            >
+              <SymbolIcon name="info.circle" size={16} tintColor={colors.blue.primary} />
+              <Text style={styles.infoButtonText}>Learn more</Text>
+            </Pressable>
           </View>
-        )}
-        
-        {draft.rideMode === 'shared' && (
-          <View style={styles.modeContainer}>
-            <View style={styles.modeBadge}>
-              <Text style={styles.modeText}>Shared Ride</Text>
-            </View>
-            <Text style={styles.modeSubText}>
-              Cover 1-3 seats. Pay per seat + pickup fee. Remaining seats stay open for others along your route.
-            </Text>
-          </View>
-        )}
+          <Text style={styles.modeDescription}>{currentModeInfo.description}</Text>
+        </View>
 
-        {draft.rideMode === 'hopon' && (
-          <View style={styles.modeContainer}>
-            <View style={styles.modeBadge}>
-              <Text style={styles.modeText}>Hop On</Text>
+        {/* Rider / Seat Count Section */}
+        {draft.rideMode === 'hopon' ? (
+          <View style={styles.hopCapacityCard}>
+            <View style={styles.hopCapacityLeft}>
+              <SymbolIcon name="person.fill" size={16} tintColor={colors.blue.primary} />
+              <View>
+                <Text style={styles.rowTitle}>1 Rider</Text>
+                <Text style={styles.rowSubtitle}>
+                  Hop bookings are for single riders joining an active route corridor.
+                </Text>
+              </View>
             </View>
-            <Text style={styles.modeSubText}>
-              Request a Hop seat along this route. Joins an eligible ongoing Shared ride.
-            </Text>
           </View>
-        )}
-
-        {draft.rideMode !== 'hopon' && (
+        ) : (
           <View style={styles.formGroup}>
-            {/* Passenger Stepper */}
             <View style={styles.formRow}>
               <View style={styles.labelContainer}>
-                <Text style={styles.rowTitle}>How many riders?</Text>
+                <Text style={styles.rowTitle}>
+                  {draft.rideMode === 'private' ? 'How many riders?' : 'How many seats?'}
+                </Text>
                 <Text style={styles.rowSubtitle}>
                   {draft.rideMode === 'private'
-                    ? 'Solo includes up to 4 riders. Extra riders are charged per seat.'
-                    : 'Cover 1–3 seats.'}
+                    ? 'Standard fare covers up to 4 riders. Up to 6 supported.'
+                    : 'Cover 1 to 3 seats on this route.'}
                 </Text>
               </View>
               <View style={styles.stepperContainer}>
@@ -274,7 +298,8 @@ export function BookingSheet({
                     draft.passengerCount <= 1 && styles.stepperDisabled,
                     pressed && styles.stepperPressed,
                   ]}
-                  accessibilityLabel="Decrease rider count"
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease count"
                 >
                   <Text style={styles.stepperButtonText}>−</Text>
                 </Pressable>
@@ -287,7 +312,8 @@ export function BookingSheet({
                     (draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6) && styles.stepperDisabled,
                     pressed && styles.stepperPressed,
                   ]}
-                  accessibilityLabel="Increase rider count"
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase count"
                 >
                   <Text style={styles.stepperButtonText}>+</Text>
                 </Pressable>
@@ -458,7 +484,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginHorizontal: spacing[5],
-    marginBottom: spacing[4],
+    marginBottom: spacing[3],
     gap: spacing[2],
   },
   pill: {
@@ -487,33 +513,68 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[5],
     paddingBottom: spacing[4],
   },
-  modeContainer: {
-    marginBottom: spacing[4],
+  modeSummaryCard: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  modeSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[1],
   },
   modeBadge: {
-    alignSelf: 'flex-start',
     backgroundColor: colors.blue.tint,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
     borderRadius: radius.pill,
-    marginBottom: spacing[2],
   },
-  modeText: {
-    fontSize: typography.size.bodySmall,
+  modeBadgeText: {
+    fontSize: 11,
     fontWeight: typography.weight.bold,
     color: colors.blue.primary,
   },
-  modeSubText: {
-    fontSize: typography.size.bodySmall - 1,
-    color: colors.ink[500],
-    lineHeight: 16,
+  infoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  infoButtonText: {
+    fontSize: 11,
+    fontWeight: typography.weight.semibold,
+    color: colors.blue.primary,
+  },
+  modeDescription: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[700],
+    lineHeight: 18,
+  },
+  hopCapacityCard: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  hopCapacityLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[2],
   },
   formGroup: {
     backgroundColor: colors.surface.muted,
-    borderRadius: radius.lg,
-    padding: spacing[4],
-    gap: spacing[4],
-    marginBottom: spacing[5],
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
   },
   formRow: {
     flexDirection: 'row',
@@ -525,21 +586,22 @@ const styles = StyleSheet.create({
     marginRight: spacing[3],
   },
   rowTitle: {
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.semibold,
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
     color: colors.ink[900],
   },
   rowSubtitle: {
-    fontSize: typography.size.bodySmall - 1,
+    fontSize: 11,
     color: colors.ink[500],
     marginTop: 2,
+    lineHeight: 14,
   },
   stepperContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface.card,
     borderRadius: radius.md,
-    padding: 4,
+    padding: 2,
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
@@ -552,104 +614,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepperDisabled: {
-    opacity: 0.4,
+    opacity: 0.35,
   },
   stepperPressed: {
     opacity: 0.7,
   },
   stepperButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.ink[700],
   },
   stepperValue: {
-    width: 36,
+    width: 32,
     textAlign: 'center',
-    fontSize: typography.size.body,
+    fontSize: typography.size.bodySmall,
     fontWeight: typography.weight.bold,
     color: colors.ink[900],
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border.subtle,
   },
   detailsContainer: {
     gap: spacing[2],
     marginBottom: spacing[4],
   },
-  detailsHeader: {
-    fontSize: 10,
-    fontWeight: typography.weight.bold,
-    color: colors.ink[500],
-    letterSpacing: 0.8,
-  },
-  placeholderCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface.muted,
-    borderRadius: radius.md,
-    padding: spacing[3],
-    gap: spacing[2],
-  },
-  infoIcon: {
-    marginTop: 2,
-  },
-  placeholderText: {
-    flex: 1,
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-    lineHeight: 16,
-  },
   skeletonContainer: {
     gap: spacing[3],
-    paddingHorizontal: spacing[2],
+    paddingHorizontal: spacing[5],
     paddingTop: spacing[2],
+    marginBottom: spacing[3],
   },
   skeletonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-  },
-  skeletonPill: {
-    height: 12,
-    backgroundColor: colors.border.subtle,
-    borderRadius: radius.sm,
-    opacity: 0.5,
-  },
-  fareCard: {
-    backgroundColor: colors.surface.muted,
-    borderRadius: radius.md,
-    padding: spacing[4],
-    gap: spacing[2],
-    marginVertical: spacing[2],
-  },
-  fareRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  fareLabel: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[700],
-  },
-  fareValue: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[900],
-  },
-  fareValueLarge: {
-    fontSize: typography.size.h3,
-    fontWeight: typography.weight.bold,
-    color: colors.blue.primary,
   },
   changeTextSmall: {
     fontSize: 10,
     fontWeight: typography.weight.bold,
     color: colors.blue.primary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.subtle,
-    marginVertical: spacing[2],
   },
   pickupBar: {
     flexDirection: 'row',
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing[5],
-    paddingVertical: spacing[4],
+    paddingVertical: spacing[3],
     backgroundColor: colors.surface.card,
     borderTopWidth: 1,
     borderTopColor: colors.border.subtle,
@@ -709,10 +709,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[4],
-    height: 52,
+    height: 48,
   },
   cashText: {
-    fontSize: typography.size.body,
+    fontSize: typography.size.bodySmall,
     fontWeight: typography.weight.semibold,
     color: colors.ink[700],
   },
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   confirmButton: {
-    height: 52,
+    height: 48,
     borderRadius: radius.md,
   },
 });

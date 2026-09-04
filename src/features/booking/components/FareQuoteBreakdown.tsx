@@ -150,7 +150,7 @@ export function FareQuoteBreakdown({
         <View style={styles.hopNotice}>
           <SymbolIcon name="info.circle" size={14} tintColor={colors.blue.primary} />
           <Text style={styles.hopNoticeText}>
-            Hop availability depends on an active driver on your route corridor.
+            Hop availability depends on an eligible Shared ride along your route corridor.
           </Text>
         </View>
       )}

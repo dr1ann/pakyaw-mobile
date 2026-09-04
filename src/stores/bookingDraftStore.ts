@@ -54,9 +54,21 @@ const emptyDraft: BookingDraft = {
 export const useBookingDraftStore = create<BookingDraftState>((set) => ({
   draft: emptyDraft,
   setRideMode: (rideMode) =>
-    set((state) => ({
-      draft: { ...state.draft, rideMode, passengerCount: rideMode === 'shared' ? 1 : state.draft.passengerCount },
-    })),
+    set((state) => {
+      let nextPassengerCount = state.draft.passengerCount;
+      if (rideMode === 'hopon') {
+        nextPassengerCount = 1;
+      } else if (rideMode === 'shared' && nextPassengerCount > 3) {
+        nextPassengerCount = 1;
+      }
+      return {
+        draft: {
+          ...state.draft,
+          rideMode,
+          passengerCount: nextPassengerCount,
+        },
+      };
+    }),
   setPickup: (pickup) =>
     set((state) => ({
       draft: { ...state.draft, pickup },
