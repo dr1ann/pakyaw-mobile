@@ -279,16 +279,16 @@ const styles = StyleSheet.create({
     color: colors.amber.deep,
   },
   status_danger: {
-    backgroundColor: '#FEE4E2',
+    backgroundColor: colors.dangerSubtle,
   },
   statusText_danger: {
-    color: '#B42318',
+    color: colors.danger,
   },
   description: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
-    lineHeight: 20,
+    lineHeight: typography.lineHeight.bodySmall,
     marginTop: -4,
   },
   correctionBox: {
@@ -300,15 +300,15 @@ const styles = StyleSheet.create({
     borderColor: '#F8D29D',
   },
   correctionTitle: {
-    fontSize: 13,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.bold,
     color: colors.amber.deep,
   },
   correctionMessage: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.regular,
     color: colors.ink[900],
-    lineHeight: 18,
+    lineHeight: typography.lineHeight.bodySmall,
   },
   fieldsContainer: {
     gap: spacing[3],
@@ -332,12 +332,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   uploadSuccessBadge: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.green.primary,
   },
   uploadPendingBadge: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
   },
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     borderColor: colors.blue.primary,
     backgroundColor: colors.blue.tint,
     borderRadius: radius.sm,
-    minHeight: 46,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   uploadButtonText: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.blue.primary,
   },
@@ -370,18 +370,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    minHeight: 46,
+    minHeight: 48,
     backgroundColor: colors.surface.muted,
     borderRadius: radius.sm,
   },
   uploadingText: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.semibold,
     color: colors.ink[700],
   },
   errorText: {
-    color: '#B42318',
-    fontSize: 12,
+    color: colors.danger,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.medium,
   },
 });

@@ -1,10 +1,16 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
+export type PendingOnlineRequirement = {
+  readonly key: string;
+  readonly label: string;
+};
+
 type StatusScreenProps = {
   readonly onAction?: () => void;
   readonly reason?: string;
   readonly onContactSupport?: () => void;
+  readonly pendingOnlineRequirements?: readonly PendingOnlineRequirement[];
 };
 
 export function SubmittedStatusScreen({
@@ -12,7 +18,7 @@ export function SubmittedStatusScreen({
   onContactSupport,
 }: StatusScreenProps) {
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         <View style={styles.iconCircle}>
           <Text style={styles.iconText}>⏳</Text>
@@ -54,8 +60,8 @@ export function SubmittedStatusScreen({
               <Text style={styles.nodeIconText}>○</Text>
             </View>
             <View style={styles.timelineContent}>
-              <Text style={styles.timelineLabelPending}>Final approval</Text>
-              <Text style={styles.timelineSubPending}>Account clearance</Text>
+              <Text style={styles.timelineLabelPending}>Verification & approval</Text>
+              <Text style={styles.timelineSubPending}>Account clearance by operations</Text>
             </View>
           </View>
 
@@ -92,7 +98,7 @@ export function NeedsCorrectionStatusScreen({
   onAction,
 }: StatusScreenProps) {
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         <View style={[styles.iconCircle, { backgroundColor: colors.amber.tint }]}>
           <Text style={styles.iconText}>⚠️</Text>
@@ -124,37 +130,67 @@ export function NeedsCorrectionStatusScreen({
 
 export function ApprovedStatusScreen({
   onAction,
+  pendingOnlineRequirements = [],
 }: StatusScreenProps) {
+  const hasPendingOnline = pendingOnlineRequirements.length > 0;
+
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
-        <View style={[styles.iconCircle, { backgroundColor: colors.green.tint }]}>
-          <Text style={styles.iconText}>🎉</Text>
+        <View
+          style={[
+            styles.iconCircle,
+            { backgroundColor: hasPendingOnline ? colors.blue.tint : colors.green.tint },
+          ]}
+        >
+          <Text style={styles.iconText}>{hasPendingOnline ? '📋' : '🎉'}</Text>
         </View>
 
-        <Text style={styles.title}>You’re approved!</Text>
-        <Text style={styles.subtitle}>
-          Welcome to Pakyaw. Your Driver account is fully verified and ready.
+        <Text style={styles.title}>
+          {hasPendingOnline ? 'Application approved' : "You're ready to drive"}
         </Text>
 
-        <View style={styles.successCheckRow}>
-          <View style={styles.greenCheckBadge}>
-            <Text style={styles.greenCheckText}>✓</Text>
+        <Text style={styles.subtitle}>
+          {hasPendingOnline
+            ? `${pendingOnlineRequirements.length} requirement${pendingOnlineRequirements.length > 1 ? 's' : ''} still need attention before you can go online.`
+            : 'Welcome to Pakyaw. Your Driver account is fully verified and ready.'}
+        </Text>
+
+        {hasPendingOnline ? (
+          <View style={styles.pendingOnlineCard}>
+            <Text style={styles.pendingOnlineHeader}>Required before going online:</Text>
+            {pendingOnlineRequirements.map((req) => (
+              <View key={req.key} style={styles.pendingOnlineRow}>
+                <Text style={styles.pendingOnlineDot}>•</Text>
+                <Text style={styles.pendingOnlineLabel}>{req.label}</Text>
+              </View>
+            ))}
           </View>
-          <Text style={styles.successCheckLabel}>Account active and ready to go online</Text>
-        </View>
+        ) : (
+          <View style={styles.successCheckRow}>
+            <View style={styles.greenCheckBadge}>
+              <Text style={styles.greenCheckText}>✓</Text>
+            </View>
+            <Text style={styles.successCheckLabel}>Account active and ready to go online</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.footer}>
         <Pressable
-          style={[styles.primaryButton, { backgroundColor: colors.green.primary }]}
+          style={[
+            styles.primaryButton,
+            { backgroundColor: hasPendingOnline ? colors.blue.primary : colors.green.primary },
+          ]}
           onPress={onAction}
           accessibilityRole="button"
         >
-          <Text style={styles.primaryButtonText}>Start driving</Text>
+          <Text style={styles.primaryButtonText}>
+            {hasPendingOnline ? 'Complete online requirements' : 'Start driving'}
+          </Text>
         </Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -163,9 +199,9 @@ export function RejectedStatusScreen({
   onContactSupport,
 }: StatusScreenProps) {
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
-        <View style={[styles.iconCircle, { backgroundColor: '#FEE4E2' }]}>
+        <View style={[styles.iconCircle, { backgroundColor: colors.dangerSubtle }]}>
           <Text style={styles.iconText}>❌</Text>
         </View>
 
@@ -203,7 +239,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface.card,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border.subtle,
     padding: spacing[6],
     alignItems: 'center',
@@ -223,17 +259,17 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   title: {
-    fontSize: 24,
+    fontSize: typography.size.h2,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: typography.lineHeight.bodySmall,
     maxWidth: 300,
   },
   timeline: {
@@ -269,32 +305,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   timelineLabelDone: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
   },
   timelineSubDone: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
   },
   timelineLabelActive: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.blue.primary,
   },
   timelineSubActive: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.medium,
     color: colors.blue.primary,
   },
   timelineLabelPending: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.medium,
     color: colors.ink[400],
   },
   timelineSubPending: {
-    fontSize: 12,
+    fontSize: typography.size.caption,
     fontFamily: typography.family.regular,
     color: colors.ink[400],
   },
@@ -316,22 +352,52 @@ const styles = StyleSheet.create({
     marginTop: spacing[2],
   },
   reasonHeader: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.amber.deep,
   },
   reasonBody: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.medium,
     color: colors.ink[900],
-    lineHeight: 20,
+    lineHeight: typography.lineHeight.bodySmall,
+  },
+  pendingOnlineCard: {
+    width: '100%',
+    backgroundColor: colors.blue.tint,
+    borderWidth: 1,
+    borderColor: '#C2DCFE',
+    borderRadius: radius.md,
+    padding: spacing[4],
+    gap: 6,
+    marginTop: spacing[2],
+  },
+  pendingOnlineHeader: {
+    fontSize: typography.size.bodySmall,
+    fontFamily: typography.family.bold,
+    color: colors.blue.deep,
+  },
+  pendingOnlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pendingOnlineDot: {
+    fontSize: 14,
+    color: colors.blue.primary,
+    fontFamily: typography.family.bold,
+  },
+  pendingOnlineLabel: {
+    fontSize: typography.size.bodySmall,
+    fontFamily: typography.family.medium,
+    color: colors.ink[900],
   },
   hintText: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: typography.lineHeight.bodySmall,
   },
   successCheckRow: {
     flexDirection: 'row',
@@ -357,13 +423,14 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.bold,
   },
   successCheckLabel: {
-    fontSize: 13,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.bold,
     color: colors.green.primary,
   },
   footer: {
     gap: spacing[2],
     paddingBottom: spacing[4],
+    marginTop: spacing[4],
   },
   primaryButton: {
     backgroundColor: colors.blue.primary,
@@ -373,7 +440,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: {
-    fontSize: 16,
+    fontSize: typography.size.button,
     fontFamily: typography.family.bold,
     color: '#FFFFFF',
   },
@@ -387,7 +454,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    fontSize: 15,
+    fontSize: typography.size.button,
     fontFamily: typography.family.bold,
     color: colors.ink[700],
   },
@@ -396,7 +463,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   textButtonLabel: {
-    fontSize: 14,
+    fontSize: typography.size.bodySmall,
     fontFamily: typography.family.semibold,
     color: colors.blue.primary,
   },

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
 
 import { FieldHelpDialog } from '@/features/onboarding/components/field-help-dialog';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 
 type FormFieldProps = {
   readonly label: string;
@@ -16,11 +17,19 @@ export function FormField({ label, required = false, optional = false, help, err
   return (
     <View style={styles.field}>
       <View style={styles.labelRow}>
-      <Text style={styles.label}>{label}{required ? <Text style={styles.required}> *</Text> : null}{optional ? <Text style={styles.optional}> (Optional)</Text> : null}</Text>
+        <Text style={styles.label}>
+          {label}
+          {required ? <Text style={styles.required}> *</Text> : null}
+          {optional ? <Text style={styles.optional}> (Optional)</Text> : null}
+        </Text>
         {help ? <FieldHelpButton title={label} message={help} /> : null}
       </View>
       {children}
-      {errors.map((error) => <Text key={error} style={styles.error}>{error}</Text>)}
+      {errors.map((error) => (
+        <Text key={error} style={styles.error}>
+          {error}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -33,7 +42,16 @@ type OnboardingTextFieldProps = TextInputProps & {
   readonly errors?: readonly string[];
 };
 
-export function OnboardingTextField({ label, required, optional, help, errors, style, placeholderTextColor = '#6B7689', ...inputProps }: OnboardingTextFieldProps) {
+export function OnboardingTextField({
+  label,
+  required,
+  optional,
+  help,
+  errors,
+  style,
+  placeholderTextColor = colors.ink[400],
+  ...inputProps
+}: OnboardingTextFieldProps) {
   return (
     <FormField label={label} required={required} optional={optional} help={help} errors={errors}>
       <TextInput
@@ -56,7 +74,7 @@ export function FieldHelpButton({ title, message }: { readonly title: string; re
         accessibilityRole="button"
         accessibilityLabel={`Help for ${title}`}
         accessibilityHint="Opens guidance for this field"
-        hitSlop={4}
+        hitSlop={8}
       >
         <Text style={styles.helpMark}>?</Text>
       </Pressable>
@@ -66,13 +84,63 @@ export function FieldHelpButton({ title, message }: { readonly title: string; re
 }
 
 const styles = StyleSheet.create({
-  field: { gap: 6 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  label: { color: '#364152', fontWeight: '700', flexShrink: 1 },
-  required: { color: '#B42318' },
-  optional: { color: '#6B7689', fontWeight: '500' },
-  input: { backgroundColor: '#F4F7FB', borderWidth: 1, borderColor: '#E6EBF2', borderRadius: 9, minHeight: 46, paddingHorizontal: 12, color: '#0E1726', fontSize: 16 },
-  helpButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  helpMark: { width: 22, height: 22, borderRadius: 11, overflow: 'hidden', textAlign: 'center', lineHeight: 22, color: '#0B2E6B', backgroundColor: '#E8F1FE', fontWeight: '800' },
-  error: { color: '#B42318', fontSize: 12, lineHeight: 17 },
+  field: {
+    gap: spacing[1],
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+  },
+  label: {
+    color: colors.ink[700],
+    fontSize: typography.size.bodySmall,
+    fontFamily: typography.family.semibold,
+    flexShrink: 1,
+  },
+  required: {
+    color: colors.danger,
+    fontFamily: typography.family.bold,
+  },
+  optional: {
+    color: colors.ink[400],
+    fontFamily: typography.family.regular,
+    fontSize: typography.size.caption,
+  },
+  input: {
+    backgroundColor: colors.surface.muted,
+    borderWidth: 1.5,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing[3],
+    color: colors.ink[900],
+    fontSize: typography.size.body,
+    fontFamily: typography.family.medium,
+  },
+  helpButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpMark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    overflow: 'hidden',
+    textAlign: 'center',
+    lineHeight: 20,
+    color: colors.blue.primary,
+    backgroundColor: colors.blue.tint,
+    fontFamily: typography.family.bold,
+    fontSize: 12,
+  },
+  error: {
+    color: colors.danger,
+    fontSize: typography.size.caption,
+    fontFamily: typography.family.medium,
+    lineHeight: typography.lineHeight.caption,
+  },
 });

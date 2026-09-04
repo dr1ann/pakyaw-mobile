@@ -555,13 +555,34 @@ function DriverApplicationWizard({
   }
 
   // Lifecycle States
-  const status = application?.status;
+  // Compute requirements required for online that remain incomplete
+  const pendingOnlineRequirements = useMemo(() => {
+    if (!catalog?.documentRequirements) return [];
+    return catalog.documentRequirements
+      .filter((req) => req.active && req.requiredForOnline && requirementAppliesToVehicle(req, form.vehicle.vehicleTypeId))
+      .filter((req) => {
+        const state = effectiveDocuments[req.key];
+        const isDocUploaded = state === 'uploaded' || state === 'approved';
+        const meta = metadataState[req.key] || {};
+        const hasId = !req.requiresIdentification || Boolean(meta.identificationNumber?.trim());
+        const hasIssuance = !req.requiresIssuanceDate || Boolean(meta.issuanceDate?.trim());
+        const hasExpiry = !req.requiresExpiryDate || Boolean(meta.expiryDate?.trim());
+        return !isDocUploaded || !hasId || !hasIssuance || !hasExpiry;
+      })
+      .map((req) => ({ key: req.key, label: req.label }));
+  }, [catalog, form.vehicle.vehicleTypeId, effectiveDocuments, metadataState]);
 
   // 1. Approved
   if (status === 'approved') {
     return (
       <ApprovedStatusScreen
+        pendingOnlineRequirements={pendingOnlineRequirements}
         onAction={async () => {
+          if (pendingOnlineRequirements.length > 0) {
+            setCorrectionMode(true);
+            setCurrentStep(4);
+            return;
+          }
           if (uid) {
             await resolveAndStoreDriverSession(uid);
           }

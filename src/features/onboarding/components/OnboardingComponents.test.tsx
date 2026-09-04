@@ -236,10 +236,29 @@ describe('Driver Onboarding UI Components — Phase 9 Polish', () => {
       expect(element).toBeDefined();
     });
 
-    it('renders ApprovedStatusScreen with Start Driving action', () => {
+    it('renders ApprovedStatusScreen with Start Driving action when no online requirements remain', () => {
       const onAction = vi.fn();
-      const element = <ApprovedStatusScreen onAction={onAction} />;
-      expect(element).toBeDefined();
+      const tree = ApprovedStatusScreen({ onAction, pendingOnlineRequirements: [] });
+      expect(tree).toBeDefined();
+      const json = JSON.stringify(tree);
+      expect(json).toContain("You're ready to drive");
+      expect(json).toContain('Start driving');
+    });
+
+    it('renders ApprovedStatusScreen with pending online requirements when requiredForOnline docs remain', () => {
+      const onAction = vi.fn();
+      const pendingOnline = [
+        { key: 'daily_inspection', label: 'Daily Vehicle Inspection' },
+        { key: 'health_card', label: 'City Health Certificate' },
+      ];
+      const tree = ApprovedStatusScreen({ onAction, pendingOnlineRequirements: pendingOnline });
+      expect(tree).toBeDefined();
+      const json = JSON.stringify(tree);
+      expect(json).toContain('Application approved');
+      expect(json).toContain('2 requirements still need attention before you can go online');
+      expect(json).toContain('Daily Vehicle Inspection');
+      expect(json).toContain('City Health Certificate');
+      expect(json).toContain('Complete online requirements');
     });
 
     it('renders RejectedStatusScreen with decline reason and support action', () => {
