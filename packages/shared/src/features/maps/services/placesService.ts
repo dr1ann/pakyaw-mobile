@@ -1,6 +1,5 @@
 import Constants from 'expo-constants';
 import { env } from '@/services/env';
-import { lookupOrmocBarangay } from '@pakyaw/shared/constants/ormocBarangays';
 import { ORMOC_SERVICE_AREA } from '@pakyaw/shared/constants/serviceArea';
 import { logger } from '@pakyaw/shared/lib/logger';
 import type { Place } from '@pakyaw/shared/types/place';
@@ -120,6 +119,11 @@ export interface ResolvedPickupDisplayLabel {
   readonly fullAddress: string;
 }
 
+export interface NearbyLandmarkResult {
+  readonly name: string;
+  readonly vicinity?: string;
+}
+
 const FORBIDDEN_PRIMARY_EXACT = new Set([
   'eastern visayas',
   'region viii',
@@ -151,16 +155,70 @@ export function isValidPrimaryPickupLabel(text: string | undefined | null): bool
 }
 
 /**
+ * Supplementary Nearby Places lookup to find recognizable landmarks within ~60m of the selected coordinate.
+ * Note: Supplementary only. This must NEVER move or overwrite the authoritative pickup coordinates.
+ */
+export async function getNearbyLandmark(lat: number, lng: number): Promise<NearbyLandmarkResult | null> {
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=60&key=${GOOGLE_MAPS_API_KEY}`;
+
+  try {
+    logger.info('[placesService] Fetching nearby landmarks', { lat, lng });
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      logger.warn('[placesService] Nearby Places API error', { status: data.status });
+      return null;
+    }
+
+    const results = (data.results || []) as readonly {
+      readonly name?: string;
+      readonly vicinity?: string;
+      readonly types?: readonly string[];
+    }[];
+
+    const validLandmark = results.find((r) => {
+      if (!r.name || !isValidPrimaryPickupLabel(r.name)) return false;
+      const types = r.types || [];
+      // Avoid broad political / locality entities returned in nearby search
+      if (
+        types.includes('locality') ||
+        types.includes('administrative_area_level_1') ||
+        types.includes('administrative_area_level_2') ||
+        types.includes('country') ||
+        types.includes('political')
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (validLandmark?.name) {
+      return {
+        name: validLandmark.name,
+        vicinity: validLandmark.vicinity,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    logger.warn('[placesService] getNearbyLandmark request failed', { err });
+    return null;
+  }
+}
+
+/**
  * Centralized resolver for reverse-geocoding results into a clean primary and secondary pickup label.
  * Preferred specificity:
- * 1. establishment / point_of_interest
- * 2. premise
+ * 1. establishment / point_of_interest / premise
+ * 2. route + sublocality / barangay
  * 3. street_address
- * 4. street_number + route
- * 5. route + sublocality / barangay
- * 6. neighborhood / sublocality / barangay
- * 7. route
- * 8. Safe fallback ("Pinned location")
+ * 4. sublocality / barangay (explicitly returned by Google)
+ * 5. route
+ * 6. Safe fallback ("Pinned location")
  */
 export function resolvePickupDisplayLabel(
   results: readonly GoogleGeocodingResult[]
@@ -314,7 +372,7 @@ export function resolvePickupDisplayLabel(
     }
   }
 
-  // 4. Sublocality / Barangay only (e.g. "Camp Downes")
+  // 4. Sublocality / Barangay only (e.g. "Camp Downes") - must be explicitly returned by Google
   if (!primary) {
     let foundSublocality: GoogleAddressComponent | undefined;
     for (const r of cleanedResults) {
@@ -374,34 +432,40 @@ export function resolvePickupDisplayLabel(
 
 /**
  * Reverse geocode a latitude/longitude pair into a Place description (Phase 12).
+ * Strictly retains the exact { lat, lng } as authoritative coordinates.
+ * Supplementary Nearby Places enrichment is used only for recognizable landmark labeling.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<Place | null> {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
+  const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
 
   try {
     logger.info('[placesService] Reverse geocoding', { lat, lng });
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
+
+    // Concurrently fetch geocoding and supplementary nearby landmarks
+    const [geocodeRes, nearbyLandmark] = await Promise.all([
+      fetch(geocodeUrl),
+      getNearbyLandmark(lat, lng).catch(() => null),
+    ]);
+
+    if (!geocodeRes.ok) {
+      throw new Error(`HTTP error: ${geocodeRes.status}`);
     }
 
-    const data = await response.json();
+    const data = await geocodeRes.json();
     if (data.status && data.status !== 'OK') {
       logger.error('[placesService] Geocoding API error', { status: data.status });
-      const localBarangay = lookupOrmocBarangay(lat, lng);
       return {
-        label: localBarangay || 'Pinned location',
-        address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+        label: nearbyLandmark?.name || 'Pinned location',
+        address: nearbyLandmark?.vicinity || 'Ormoc City, Leyte',
         coords: { lat, lng },
       };
     }
 
     const results = (data.results || []) as readonly GoogleGeocodingResult[];
     if (results.length === 0) {
-      const localBarangay = lookupOrmocBarangay(lat, lng);
       return {
-        label: localBarangay || 'Pinned location',
-        address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+        label: nearbyLandmark?.name || 'Pinned location',
+        address: nearbyLandmark?.vicinity || 'Ormoc City, Leyte',
         coords: { lat, lng },
       };
     }
@@ -410,12 +474,20 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     let finalLabel = resolved.primary;
     let finalAddress = resolved.secondary || resolved.fullAddress;
 
-    // If primary is generic "Pinned location", enrich with local Ormoc barangay lookup if available
-    if (finalLabel === 'Pinned location') {
-      const localBarangay = lookupOrmocBarangay(lat, lng);
-      if (localBarangay) {
-        finalLabel = localBarangay;
-        finalAddress = 'Ormoc City, Leyte';
+    // If reverse-geocoding did not resolve a specific POI, but nearby landmark is found within 60m:
+    // Promote nearby landmark to primary label while keeping exact pin coordinates
+    if (
+      nearbyLandmark?.name &&
+      (finalLabel === 'Pinned location' ||
+        !results.some((r) =>
+          (r.types || []).some((t) => ['point_of_interest', 'establishment', 'premise'].includes(t))
+        ))
+    ) {
+      finalLabel = nearbyLandmark.name;
+      if (resolved.primary !== 'Pinned location') {
+        finalAddress = `${resolved.primary}, Ormoc City`;
+      } else if (nearbyLandmark.vicinity) {
+        finalAddress = nearbyLandmark.vicinity;
       }
     }
 
@@ -426,10 +498,9 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     };
   } catch (err) {
     logger.error('[placesService] reverseGeocode failed', { err });
-    const localBarangay = lookupOrmocBarangay(lat, lng);
     return {
-      label: localBarangay || 'Pinned location',
-      address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+      label: 'Pinned location',
+      address: 'Ormoc City, Leyte',
       coords: { lat, lng },
     };
   }
