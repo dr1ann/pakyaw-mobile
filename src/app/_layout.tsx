@@ -12,6 +12,15 @@ import { usePassengerSessionStore } from '@/features/auth/stores/passenger-sessi
 import { usePassengerSessionBootstrap } from '@/features/auth/hooks/usePassengerSessionBootstrap';
 import { signOutUser } from '@pakyaw/shared/features/auth/services/auth.service';
 
+import {
+  useFonts,
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  Montserrat_600SemiBold,
+  Montserrat_700Bold,
+  Montserrat_800ExtraBold,
+} from '@expo-google-fonts/montserrat';
+
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export const unstable_settings = {
@@ -78,6 +87,13 @@ function AppNavigator() {
 export default function RootLayout() {
   const [storesHydrated, setStoresHydrated] = useState(false);
   const [queryRestored, setQueryRestored] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+    Montserrat_800ExtraBold,
+  });
 
   useEffect(() => {
     // Monitor Zustand hydration
@@ -106,7 +122,7 @@ export default function RootLayout() {
     };
   }, []);
 
-  const isReady = storesHydrated && queryRestored;
+  const isReady = storesHydrated && queryRestored && (fontsLoaded || fontError !== null);
 
   return (
     <PersistQueryClientProvider

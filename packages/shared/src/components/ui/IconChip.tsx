@@ -20,7 +20,7 @@ const TONES: Record<IconChipTone, string> = {
   amber: colors.amber.tint,
   violet: colors.violet.tint,
   neutral: colors.surface.muted,
-  danger: '#FDECEC',
+  danger: colors.dangerSubtle,
 };
 
 const SIZES: Record<IconChipSize, number> = {

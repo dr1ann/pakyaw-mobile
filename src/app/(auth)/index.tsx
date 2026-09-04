@@ -3,26 +3,13 @@
  *
  * Welcome screen — account type choice.
  * Passengers → sign-up or sign-in.
- * Drivers → driver-sign-in.
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link, Redirect } from 'expo-router';
 
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-
-const COLORS = {
-  ink900: '#0E1726',
-  ink500: '#6B7689',
-  ink400: '#9AA4B2',
-  bluePrimary: '#2F80ED',
-  blueTint: '#E8F1FE',
-  greenPrimary: '#27AE60',
-  greenTint: '#E3F6EC',
-  surfaceCard: '#FFFFFF',
-  borderSubtle: '#E6EBF2',
-  bgPassenger: '#EAF1FB',
-};
+import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function WelcomeScreen() {
   const onboardingSeen = useSessionStore((s) => s.onboardingSeen);
@@ -38,7 +25,7 @@ export default function WelcomeScreen() {
         </View>
         <Text style={styles.appName}>
           Welcome to{' '}
-          <Text style={{ color: COLORS.bluePrimary }}>Pakyaw</Text>
+          <Text style={{ color: colors.blue.primary }}>Pakyaw</Text>
         </Text>
         <Text style={styles.tagline}>
           Your reliable ride, on demand — around Ormoc City.
@@ -74,68 +61,67 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgPassenger,
-    paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 48,
+    backgroundColor: colors.surface.bgPassenger,
+    paddingHorizontal: spacing[6],
+    paddingTop: spacing[20],
+    paddingBottom: spacing[12],
     justifyContent: 'space-between',
   },
-  hero: { alignItems: 'center', gap: 16 },
+  hero: {
+    alignItems: 'center',
+    gap: spacing[4],
+  },
   logoCircle: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.blueTint,
+    borderRadius: radius.pill,
+    backgroundColor: colors.blue.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: spacing[2],
   },
-  logoEmoji: { fontSize: 48 },
+  logoEmoji: {
+    fontSize: 48,
+  },
   appName: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: COLORS.ink900,
+    fontSize: typography.size.h1,
+    fontFamily: typography.family.extraBold,
+    color: colors.ink[900],
     textAlign: 'center',
   },
   tagline: {
-    fontSize: 15,
-    color: COLORS.ink500,
+    fontSize: typography.size.body,
+    fontFamily: typography.family.regular,
+    color: colors.ink[500],
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: typography.lineHeight.body,
     maxWidth: 280,
   },
-  actions: { gap: 12 },
+  actions: {
+    gap: spacing[3],
+  },
   btnPrimary: {
-    backgroundColor: COLORS.bluePrimary,
-    borderRadius: 999,
-    paddingVertical: 16,
+    backgroundColor: colors.blue.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing[4],
     alignItems: 'center',
   },
-  btnPrimaryLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  btnPrimaryLabel: {
+    fontSize: typography.size.bodyMd,
+    fontFamily: typography.family.bold,
+    color: colors.white,
+  },
   btnSecondary: {
-    backgroundColor: COLORS.surfaceCard,
-    borderRadius: 999,
-    paddingVertical: 16,
+    backgroundColor: colors.surface.card,
+    borderRadius: radius.pill,
+    paddingVertical: spacing[4],
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: COLORS.bluePrimary,
+    borderColor: colors.blue.primary,
   },
-  btnSecondaryLabel: { fontSize: 16, fontWeight: '600', color: COLORS.bluePrimary },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 4,
+  btnSecondaryLabel: {
+    fontSize: typography.size.bodyMd,
+    fontFamily: typography.family.semibold,
+    color: colors.blue.primary,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.borderSubtle },
-  dividerText: { fontSize: 13, color: COLORS.ink400 },
-  btnDriver: {
-    backgroundColor: COLORS.greenTint,
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.greenPrimary,
-  },
-  btnDriverLabel: { fontSize: 16, fontWeight: '600', color: COLORS.greenPrimary },
 });

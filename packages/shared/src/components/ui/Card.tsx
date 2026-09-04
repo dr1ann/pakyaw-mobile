@@ -8,12 +8,14 @@ import {
 
 import { colors, radius, shadow, spacing } from '@/constants/theme';
 
-type CardElevation = 'none' | 'card' | 'float';
-type CardRadius = 'md' | 'lg';
+export type CardElevation = 'none' | 'card' | 'float';
+export type CardRadius = 'sm' | 'md' | 'lg';
+export type CardVariant = 'default' | 'muted' | 'outlined';
 
 export type CardProps = ViewProps & {
   elevation?: CardElevation;
   rounded?: CardRadius;
+  variant?: CardVariant;
   padded?: boolean;
   style?: StyleProp<ViewStyle>;
 };
@@ -21,6 +23,7 @@ export type CardProps = ViewProps & {
 export function Card({
   elevation = 'card',
   rounded = 'md',
+  variant = 'default',
   padded = true,
   style,
   children,
@@ -30,7 +33,11 @@ export function Card({
     <View
       style={[
         styles.base,
-        rounded === 'lg' ? styles.roundedLg : styles.roundedMd,
+        variant === 'muted' && styles.variantMuted,
+        variant === 'outlined' && styles.variantOutlined,
+        rounded === 'sm' && styles.roundedSm,
+        rounded === 'md' && styles.roundedMd,
+        rounded === 'lg' && styles.roundedLg,
         padded && styles.padded,
         elevation === 'card' && shadow.card,
         elevation === 'float' && shadow.float,
@@ -46,6 +53,17 @@ export function Card({
 const styles = StyleSheet.create({
   base: {
     backgroundColor: colors.surface.card,
+  },
+  variantMuted: {
+    backgroundColor: colors.surface.muted,
+  },
+  variantOutlined: {
+    backgroundColor: colors.surface.card,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  roundedSm: {
+    borderRadius: radius.sm,
   },
   roundedMd: {
     borderRadius: radius.md,

@@ -175,9 +175,9 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
         : 0,
     fareBreakdown: {
       ...data.fare,
-      surcharges: typeof data.fare.surcharges === 'number'
-        ? data.fare.surcharges
-        : (data.fare.surcharges?.total ?? 0),
+      surcharges: typeof (data.fare as any).surcharges === 'number'
+        ? (data.fare as any).surcharges
+        : ((data.fare as any).surcharges?.total ?? 0),
     },
     route: {
       distanceMeters: data.route.distanceMeters,
@@ -248,16 +248,16 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
     fareBreakdown: isCanonicalFareBreakdown(data.fare)
       ? {
           ...data.fare,
-          surcharges: typeof data.fare.surcharges === 'number'
-            ? data.fare.surcharges
-            : (data.fare.surcharges?.total ?? 0),
+          surcharges: typeof (data.fare as any).surcharges === 'number'
+            ? (data.fare as any).surcharges
+            : ((data.fare as any).surcharges?.total ?? 0),
         }
       : isCanonicalFareBreakdown(data.fareBreakdown)
         ? {
             ...data.fareBreakdown,
-            surcharges: typeof data.fareBreakdown.surcharges === 'number'
-              ? data.fareBreakdown.surcharges
-              : (data.fareBreakdown.surcharges?.total ?? 0),
+            surcharges: typeof (data.fareBreakdown as any).surcharges === 'number'
+              ? (data.fareBreakdown as any).surcharges
+              : ((data.fareBreakdown as any).surcharges?.total ?? 0),
           }
         : undefined,
     route: data.route

@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(14, 23, 38, 0.5)',
+    backgroundColor: colors.overlay,
   },
   sheet: {
     backgroundColor: colors.surface.card,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 4,
-    borderRadius: radius.pill,
+    borderRadius: radius.xs,
     backgroundColor: colors.border.subtle,
   },
 });
