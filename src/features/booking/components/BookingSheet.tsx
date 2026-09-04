@@ -271,7 +271,7 @@ export function BookingSheet({
               <View>
                 <Text style={styles.rowTitle}>1 Rider</Text>
                 <Text style={styles.rowSubtitle}>
-                  Hop bookings are for single riders joining an active route corridor.
+                  Hop bookings are for single riders joining an eligible Shared ride along the route.
                 </Text>
               </View>
             </View>
