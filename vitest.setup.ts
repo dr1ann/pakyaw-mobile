@@ -167,3 +167,13 @@ vi.mock('@react-native-firebase/functions', () => {
     getFunctions: vi.fn(() => functionsInstance),
   };
 });
+
+vi.mock('expo-constants', () => ({
+  default: {
+    expoConfig: {
+      extra: {
+        googleMapsApiKey: 'AIzaSy_test_key',
+      },
+    },
+  },
+}));

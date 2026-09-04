@@ -6,13 +6,20 @@
  * The screen manages the passenger booking flow and active trip states.
  * Under Phase 12, the passenger booking flow is fully map-driven:
  *   - No active trip:
+/**
+ * Passenger ride screen — (passenger)/index.tsx
+ *
+ * Phase 12D: Map-Driven Booking & Figma Alignment.
+ *
+ * The screen manages the passenger booking flow and active trip states.
+ * Under Phase 12, the passenger booking flow is fully map-driven:
+ *   - No active trip:
  *     - Default: HomeSheet ("Where to, James?", nearby stats)
  *     - Search: SetDestinationSheet (Autocomplete for pickup or destination)
  *     - Destination set: BookingSheet (Pakyaw Solo options, placeholder details)
  *   - Active trip:
  *     - Status-driven active sheets (Searching, Matched, En Route, Arrived, etc.)
  */
-
 import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useRideCameraController';
 import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
@@ -20,12 +27,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, LayoutAnimation, Modal, StyleSheet, Text, View } from 'react-native';
 import MapView from 'react-native-maps';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationLoader } from '@pakyaw/shared/components/ui/LocationLoader';
 import { Button } from '@pakyaw/shared/components/ui/Button';
+import { MapActionButton } from '@pakyaw/shared/components/ui/MapActionButton';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, shadow } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 import { getUserDoc } from '@pakyaw/shared/features/auth/services/auth.service';
 import type { UserDoc } from '@pakyaw/shared/features/auth/types';
@@ -35,12 +43,9 @@ import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
 import { reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
-import { ArrivedSheet } from '@/features/trip/components/ArrivedSheet';
 import { CancelledSheet } from '@pakyaw/shared/features/trip/components/CancelledSheet';
 import { CompletedSheet } from '@pakyaw/shared/features/trip/components/CompletedSheet';
 import { DriverMatchedSheet } from '@/features/trip/components/DriverMatchedSheet';
-import { EnRouteSheet } from '@/features/trip/components/EnRouteSheet';
-import { InTripSheet } from '@/features/trip/components/InTripSheet';
 import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
@@ -54,6 +59,7 @@ import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
 export default function RideScreen() {
+  const insets = useSafeAreaInsets();
   const trip = useActiveTripStore((s) => s.trip);
   const tripId = useActiveTripStore((s) => s.tripId);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
@@ -94,12 +100,10 @@ export default function RideScreen() {
   useActiveTrip();
   useDriverLocation();
 
-  // Smooth the passenger-facing driver marker between GPS updates so it does
-  // not teleport across the map as new Firestore snapshots arrive.
+  // Smooth the passenger-facing driver marker between GPS updates
   const interpolatedDriverLocation = useInterpolatedCoordinate(driverLocation);
 
-  // Distance from the driver's current position to the trip pickup — used by
-  // the in-trip pickup marker fade-out (Grab / Uber parity).
+  // Distance from driver to trip pickup
   const driverDistanceFromPickup = useMemo(() => {
     if (!driverLocation || !trip?.pickup?.coords) return null;
     return haversineMeters(
@@ -111,9 +115,6 @@ export default function RideScreen() {
   // Render Selector: resolves which facts feed the map based on the phase
   const mapData = useMemo(() => {
     if (phase === 'booking' || phase === 'connecting') {
-      // §13.2: only render the accepted route when it was computed for the
-      // current pickup/destination. A retained route from a previous origin is
-      // stale and must not be drawn as if current (no straight-line either).
       const routeIsCurrent = routeMatchesInputs({
         pickup: draft.pickup,
         destination: draft.destination,
@@ -148,11 +149,8 @@ export default function RideScreen() {
       };
     }
 
-    // Active phase — visualization is driven entirely by trip.status and the
-    // live driver location so restoration reconstructs the exact same picture.
     const tripStatus = trip?.status;
-    const isPrePickup =
-      tripStatus === 'accepted' || tripStatus === 'driver_arriving';
+    const isPrePickup = tripStatus === 'accepted' || tripStatus === 'driver_arriving';
     const isArrived = tripStatus === 'driver_arrived';
     const isInTrip = tripStatus === 'in_progress';
 
@@ -169,12 +167,6 @@ export default function RideScreen() {
         }
       : null;
 
-    // Pickup marker visibility:
-    //   - Pre-pickup & arrived: always visible.
-    //   - In-trip: keep visible briefly after start, then remove once the
-    //     driver has clearly departed the pickup (Grab / Uber behavior). Using
-    //     driver-position (not a wall-clock timer) means restoration lands on
-    //     the right state without persisting extra local state.
     const PICKUP_FADE_DISTANCE_M = 150;
     const shouldShowPickup =
       isPrePickup ||
@@ -183,12 +175,6 @@ export default function RideScreen() {
         (driverDistanceFromPickup == null ||
           driverDistanceFromPickup < PICKUP_FADE_DISTANCE_M));
 
-    // Route polyline selection:
-    //   - Pre-pickup: driver → pickup (live navigation route from driver).
-    //   - Arrived: no polyline — driver is at pickup.
-    //   - In-trip: driver → destination (live navigation route). Falls back
-    //     to the static booking route (trip.route.polyline) only until the
-    //     first live update arrives, so the passenger always sees a route.
     const liveDriverRoute = trip?.driverRoute?.polyline ?? null;
     let showDriverRoute = false;
     let driverRoutePolyline: string | null = null;
@@ -199,11 +185,8 @@ export default function RideScreen() {
       showDriverRoute = liveDriverRoute != null;
       driverRoutePolyline = liveDriverRoute;
       driverRouteVariant = 'pickup';
-      // Do not draw the static pickup→destination booking route yet — the
-      // driver-facing pre-pickup leg is what the passenger cares about.
       routePolyline = null;
     } else if (isArrived) {
-      // Driver has reached pickup — no polyline is drawn.
       showDriverRoute = false;
       driverRoutePolyline = null;
       routePolyline = null;
@@ -214,10 +197,6 @@ export default function RideScreen() {
         driverRoutePolyline = liveDriverRoute;
         routePolyline = null;
       } else {
-        // Live driver-navigation route hasn't landed yet after the transition
-        // to in_progress. Show the static booking route briefly so the map
-        // isn't blank; the trimming logic below still shrinks it toward the
-        // destination as the driver moves.
         showDriverRoute = false;
         driverRoutePolyline = null;
         routePolyline = trip?.route?.polyline ?? null;
@@ -259,9 +238,7 @@ export default function RideScreen() {
     destination: draft.destination,
   });
 
-  // Sync query route data to bookingDraftStore (only when it resolves).
-  // Tag the accepted route with the pickup/destination it was computed for so
-  // the render selector can detect a stale (wrong-origin) route (§13.2).
+  // Sync query route data to bookingDraftStore
   useEffect(() => {
     if (routeData && draft.pickup?.coords && draft.destination?.coords) {
       setRoute({
@@ -308,28 +285,24 @@ export default function RideScreen() {
     };
   }, [deviceLocation, draft.pickup, setPickup]);
 
-  // Draggable pickup pin callback with strict service-area validation and immediate route recalculation
+  // Draggable pickup pin callback with strict service-area validation
   const handlePickupDragEnd = (coords: { latitude: number; longitude: number }) => {
     if (!isInServiceArea(coords)) {
       logger.warn('[RideScreen] Dragged pickup pin outside service area, blocking update', coords);
       Alert.alert(
         'Service Area',
-        'Service is currently available only within Ormoc City.'
+        'Pakyaw currently serves locations within Ormoc City.'
       );
-      // Revert marker to last valid position by changing key
       setPickupDragKey((k) => k + 1);
       return;
     }
 
     logger.info('[RideScreen] Pickup pin drag ended inside Ormoc, updating store immediately', coords);
-
-    // Invalidate route and update coordinates immediately
     setPickup({
       coords: { lat: coords.latitude, lng: coords.longitude },
       label: draft.pickup?.label || 'Pin Drop Location',
     });
 
-    // Run geocoder in parallel to resolve actual name
     void (async () => {
       try {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
@@ -342,28 +315,24 @@ export default function RideScreen() {
     })();
   };
 
-  // Draggable destination pin callback with strict service-area validation and immediate route recalculation
+  // Draggable destination pin callback with strict service-area validation
   const handleDestinationDragEnd = (coords: { latitude: number; longitude: number }) => {
     if (!isInServiceArea(coords)) {
       logger.warn('[RideScreen] Dragged destination pin outside service area, blocking update', coords);
       Alert.alert(
         'Service Area',
-        'Service is currently available only within Ormoc City.'
+        'Pakyaw currently serves locations within Ormoc City.'
       );
-      // Revert marker to last valid position by changing key
       setDestinationDragKey((k) => k + 1);
       return;
     }
 
     logger.info('[RideScreen] Destination pin drag ended inside Ormoc, updating store immediately', coords);
-
-    // Invalidate route and update coordinates immediately
     setDestination({
       coords: { lat: coords.latitude, lng: coords.longitude },
       label: draft.destination?.label || 'Pin Drop Location',
     });
 
-    // Run geocoder in parallel to resolve actual name
     void (async () => {
       try {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
@@ -382,11 +351,11 @@ export default function RideScreen() {
   };
 
   const handleMapRegionChangeComplete = (region: { latitude: number; longitude: number }) => {
-    setIsGeocoding(true);
     if (searchMode === 'pin_pickup') {
+      setIsGeocoding(true);
       setPickup({
         coords: { lat: region.latitude, lng: region.longitude },
-        label: 'Pin Drop Location',
+        label: draft.pickup?.label || 'Pin Drop Location',
       });
       void (async () => {
         try {
@@ -401,9 +370,10 @@ export default function RideScreen() {
         }
       })();
     } else if (searchMode === 'pin_destination') {
+      setIsGeocoding(true);
       setDestination({
         coords: { lat: region.latitude, lng: region.longitude },
-        label: 'Pin Drop Location',
+        label: draft.destination?.label || 'Pin Drop Location',
       });
       void (async () => {
         try {
@@ -417,35 +387,38 @@ export default function RideScreen() {
           setIsGeocoding(false);
         }
       })();
-    } else {
-      setIsGeocoding(false);
     }
   };
 
   const handleConfirmPinning = () => {
     if (isGeocoding) return;
-    
-    const currentPlace = searchMode === 'pin_pickup' ? draft.pickup : draft.destination;
-    
+
+    const isPickup = searchMode === 'pin_pickup';
+    const currentPlace = isPickup ? draft.pickup : draft.destination;
+
     if (!currentPlace || !currentPlace.coords) {
-      Alert.alert('Error', 'Please select a valid location.');
+      Alert.alert('Invalid Location', 'Please select a valid point on the map.');
       return;
     }
-    
-    const isWater = 
-      currentPlace.label === 'Pin Drop Location' ||
-      /bay|sea|ocean|river|lake|canal|strait|gulf|creek|swamp/i.test(currentPlace.label) ||
-      /bay|sea|ocean|river|lake|canal|strait|gulf|creek|swamp/i.test(currentPlace.address || '');
 
-    if (isWater) {
+    if (!isInServiceArea(currentPlace.coords)) {
       Alert.alert(
-        'Invalid Location',
-        'You cannot pin a location in the water (ocean, river, or bay). Please drag the pin to a land road.'
+        'Service Area',
+        'Pakyaw currently serves locations within Ormoc City. Please move the pin within Ormoc.'
       );
       return;
     }
-    
+
     setSearchMode(null);
+  };
+
+  const handleCancelPinning = () => {
+    const isPickup = searchMode === 'pin_pickup';
+    if (isPickup) {
+      setSearchMode('pickup');
+    } else {
+      setSearchMode('destination');
+    }
   };
 
   function handleDismissTerminal() {
@@ -501,6 +474,10 @@ export default function RideScreen() {
     };
   }, [status, driverLocation, decodedRouteCoords, activeRoute, activeTripProgress]);
 
+  const isPinMode = searchMode === 'pin_pickup' || searchMode === 'pin_destination';
+  const activePinPlace = searchMode === 'pin_pickup' ? draft.pickup : draft.destination;
+  const isPinOutsideServiceArea = Boolean(activePinPlace?.coords && !isInServiceArea(activePinPlace.coords));
+
   return (
     <View style={styles.root}>
       {/* Interactive Map Background */}
@@ -511,8 +488,8 @@ export default function RideScreen() {
         pickupLocation={searchMode === 'pin_pickup' ? null : mapData.pickupLocation}
         destinationLocation={searchMode === 'pin_destination' ? null : mapData.destinationLocation}
         showDestination={true}
-        onPickupDragEnd={undefined}
-        onDestinationDragEnd={undefined}
+        onPickupDragEnd={phase === 'booking' ? handlePickupDragEnd : undefined}
+        onDestinationDragEnd={phase === 'booking' ? handleDestinationDragEnd : undefined}
         onRegionChangeComplete={handleMapRegionChangeComplete}
         pickupKey={pickupDragKey}
         destinationKey={destinationDragKey}
@@ -526,18 +503,32 @@ export default function RideScreen() {
         onUserPan={cameraController.onUserPan}
       />
 
+      {/* Floating Map Controls */}
+      {!isPinMode && (
+        <View style={[styles.floatingControls, { top: insets.top + 16 }]} pointerEvents="box-none">
+          <MapActionButton
+            icon={<SymbolIcon name="location.fill" size={18} tintColor={colors.blue.primary} />}
+            onPress={() => cameraController.recenter()}
+            accessibilityLabel="Recenter map to my location"
+            testID="map-recenter-button"
+          />
+        </View>
+      )}
+
       {/* Center Pin Overlay for Map Pinning */}
-      {(searchMode === 'pin_pickup' || searchMode === 'pin_destination') && (
+      {isPinMode && (
         <View style={styles.centerPinContainer} pointerEvents="none">
           <View style={styles.centerPinBubble}>
             <Text style={styles.centerPinBubbleText} numberOfLines={1}>
-              {searchMode === 'pin_pickup' ? draft.pickup?.label || 'Pin Pickup Here' : draft.destination?.label || 'Pin Destination Here'}
+              {searchMode === 'pin_pickup'
+                ? draft.pickup?.label || 'Set Pickup'
+                : draft.destination?.label || 'Set Destination'}
             </Text>
           </View>
-          <SymbolIcon 
-            name="mappin" 
-            size={36} 
-            tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary} 
+          <SymbolIcon
+            name="mappin"
+            size={40}
+            tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary}
           />
         </View>
       )}
@@ -545,8 +536,8 @@ export default function RideScreen() {
       {/* Bottom Sheet Overlays */}
       {status === null ? (
         // Booking Flow sheets
-        (searchMode === 'pickup' || searchMode === 'destination') ? (
-          // Full-screen search overlay.
+        searchMode === 'pickup' || searchMode === 'destination' ? (
+          // Full-screen search overlay
           <Modal
             visible
             animationType="slide"
@@ -559,39 +550,39 @@ export default function RideScreen() {
                   mode={searchMode === 'pickup' ? 'pickup' : 'destination'}
                   onClose={() => setSearchMode(null)}
                   onChooseOnMap={(coords) => {
-                     const isPickup = searchMode === 'pickup';
-                     const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
-                     
-                     if (isPickup) {
-                       setPickup({
-                         label: 'Pin Drop Location',
-                         address: 'Drag pin to exact location',
-                         coords,
-                       });
-                     } else {
-                       setDestination({
-                         label: 'Pin Drop Location',
-                         address: 'Drag pin to exact location',
-                         coords,
-                       });
-                     }
-                     setSearchMode(targetMode);
-                     setIsMinimized(false);
-                     
-                     setIsGeocoding(true);
-                     void (async () => {
-                       try {
-                         const place = await reverseGeocode(coords.lat, coords.lng);
-                         if (place) {
-                           if (isPickup) setPickup(place);
-                           else setDestination(place);
-                         }
-                       } catch (err) {
-                         logger.error('[RideScreen] Failed initial pin drop geocoding', err);
-                       } finally {
-                         setIsGeocoding(false);
-                       }
-                     })();
+                    const isPickup = searchMode === 'pickup';
+                    const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
+
+                    if (isPickup) {
+                      setPickup({
+                        label: 'Pin Drop Location',
+                        address: 'Drag pin to exact location',
+                        coords,
+                      });
+                    } else {
+                      setDestination({
+                        label: 'Pin Drop Location',
+                        address: 'Drag pin to exact location',
+                        coords,
+                      });
+                    }
+                    setSearchMode(targetMode);
+                    setIsMinimized(false);
+
+                    setIsGeocoding(true);
+                    void (async () => {
+                      try {
+                        const place = await reverseGeocode(coords.lat, coords.lng);
+                        if (place) {
+                          if (isPickup) setPickup(place);
+                          else setDestination(place);
+                        }
+                      } catch (err) {
+                        logger.error('[RideScreen] Failed initial pin drop geocoding', err);
+                      } finally {
+                        setIsGeocoding(false);
+                      }
+                    })();
                   }}
                   onSelect={(place) => {
                     if (searchMode === 'pickup') {
@@ -606,23 +597,60 @@ export default function RideScreen() {
               </SafeAreaView>
             </SafeAreaProvider>
           </Modal>
-        ) : searchMode === 'pin_pickup' || searchMode === 'pin_destination' ? (
-          // Map Pinning UI
+        ) : isPinMode ? (
+          // Map Pinning Confirmation Card
           <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
-            <View style={[styles.bookingSheetCard, shadow.float, { height: 'auto', alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 }]}>
-               <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 16, color: colors.ink[900] }}>
-                 Drag the map or pin to set {searchMode === 'pin_pickup' ? 'pickup' : 'destination'}
-               </Text>
-               <Button
-                 label="Confirm Location"
-                 onPress={handleConfirmPinning}
-                 loading={isGeocoding}
-                 style={{ width: '100%' }}
-               />
+            <View style={[styles.pinConfirmCard, shadow.float]}>
+              <View style={styles.pinHeaderRow}>
+                <SymbolIcon
+                  name={searchMode === 'pin_pickup' ? 'mappin.circle.fill' : 'flag.fill'}
+                  size={20}
+                  tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary}
+                />
+                <Text style={styles.pinTitle}>
+                  {searchMode === 'pin_pickup' ? 'Set Pickup Location' : 'Set Destination Location'}
+                </Text>
+              </View>
+
+              <View style={styles.pinAddressBox}>
+                <Text style={styles.pinAddressLabel} numberOfLines={1}>
+                  {activePinPlace?.label || 'Pin Drop Location'}
+                </Text>
+                {activePinPlace?.address ? (
+                  <Text style={styles.pinAddressSub} numberOfLines={2}>
+                    {activePinPlace.address}
+                  </Text>
+                ) : null}
+              </View>
+
+              {isPinOutsideServiceArea && (
+                <View style={styles.serviceAreaWarning}>
+                  <SymbolIcon name="exclamationmark.triangle.fill" size={14} tintColor={colors.danger} />
+                  <Text style={styles.serviceAreaWarningText}>
+                    Outside Ormoc City service area
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.pinActionsRow}>
+                <Button
+                  label="Cancel"
+                  variant="outline"
+                  onPress={handleCancelPinning}
+                  style={styles.cancelPinButton}
+                />
+                <Button
+                  label="Confirm"
+                  onPress={handleConfirmPinning}
+                  loading={isGeocoding}
+                  disabled={isGeocoding || isPinOutsideServiceArea}
+                  style={styles.confirmPinButton}
+                />
+              </View>
             </View>
           </SafeAreaView>
         ) : draft.destination ? (
-          // Figma-aligned Booking options sheet
+          // Booking options sheet
           <SafeAreaView edges={['bottom']} style={styles.bookingSheetArea} pointerEvents="box-none">
             <View style={[
               styles.bookingSheetCard,
@@ -639,11 +667,16 @@ export default function RideScreen() {
             </View>
           </SafeAreaView>
         ) : (
-          // Figma-aligned Home sheet ("Where to?")
+          // Home sheet ("Where to?")
           <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
             <HomeSheet
               onSearchPress={() => setSearchMode('destination')}
-              passengerName={profile?.name || "Passenger"}
+              onPickupPress={() => setSearchMode('pickup')}
+              firstName={profile?.firstName}
+              fullName={profile?.name}
+              pickupLabel={draft.pickup?.label}
+              isLocatingPickup={isLocationLoading}
+              locationPermissionDenied={permissionStatus === 'denied'}
             />
           </SafeAreaView>
         )
@@ -684,8 +717,6 @@ type TripSheetProps = {
 function TripSheet({
   status,
   onDismiss,
-  remainingDistanceMeters,
-  etaSeconds,
 }: TripSheetProps) {
   switch (status) {
     case 'requested':
@@ -709,6 +740,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface.bgPassenger,
   },
+  floatingControls: {
+    position: 'absolute',
+    right: spacing[4],
+    zIndex: 100,
+  },
   sheetArea: {
     position: 'absolute',
     left: 0,
@@ -725,13 +761,13 @@ const styles = StyleSheet.create({
   },
   sheetCard: {
     backgroundColor: colors.surface.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
   },
   bookingSheetCard: {
     backgroundColor: colors.surface.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     height: '85%',
     overflow: 'hidden',
   },
@@ -746,28 +782,92 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: [{ translateX: -75 }, { translateY: -60 }],
+    transform: [{ translateX: -80 }, { translateY: -64 }],
     alignItems: 'center',
     justifyContent: 'center',
-    width: 150,
+    width: 160,
   },
   centerPinBubble: {
     backgroundColor: colors.ink[900],
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing[3],
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: radius.md,
     marginBottom: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
-    maxWidth: 140,
+    maxWidth: 150,
   },
   centerPinBubbleText: {
     color: colors.white,
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: typography.size.caption,
+    fontWeight: typography.weight.bold,
     textAlign: 'center',
+  },
+  pinConfirmCard: {
+    backgroundColor: colors.surface.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[6],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  pinHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    marginBottom: spacing[3],
+  },
+  pinTitle: {
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  pinAddressBox: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    gap: 2,
+  },
+  pinAddressLabel: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  pinAddressSub: {
+    fontSize: typography.size.caption,
+    color: colors.ink[500],
+  },
+  serviceAreaWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    backgroundColor: '#FFF5F5',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radius.sm,
+    marginBottom: spacing[3],
+  },
+  serviceAreaWarningText: {
+    fontSize: typography.size.caption,
+    fontWeight: typography.weight.semibold,
+    color: colors.danger,
+  },
+  pinActionsRow: {
+    flexDirection: 'row',
+    gap: spacing[3],
+  },
+  cancelPinButton: {
+    flex: 1,
+    minHeight: 48,
+  },
+  confirmPinButton: {
+    flex: 2,
+    minHeight: 48,
   },
 });

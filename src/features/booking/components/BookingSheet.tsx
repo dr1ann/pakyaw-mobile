@@ -204,15 +204,8 @@ export function BookingSheet({
             <Text style={styles.pillValue}>{distanceKm} km</Text>
           </View>
           <View style={styles.pill}>
-            <Text style={styles.pillLabel}>TIME</Text>
+            <Text style={styles.pillLabel}>ESTIMATED TIME</Text>
             <Text style={styles.pillValue}>{durationMin} min</Text>
-          </View>
-          <View style={styles.pill}>
-            <Text style={styles.pillLabel}>TRAFFIC</Text>
-            <View style={styles.trafficValueRow}>
-              <View style={styles.trafficGreenDot} />
-              <Text style={styles.pillValue}>Light</Text>
-            </View>
           </View>
         </View>
       ) : null}
@@ -255,7 +248,7 @@ export function BookingSheet({
               <Text style={styles.modeText}>Hop On</Text>
             </View>
             <Text style={styles.modeSubText}>
-              Broadcast a Hop request along your corridor. Nearby active drivers on your route will receive your request automatically.
+              Request a Hop seat along this route. Joins an eligible ongoing Shared ride.
             </Text>
           </View>
         )}
@@ -318,14 +311,14 @@ export function BookingSheet({
         </View>
       </ScrollView>
 
-      {/* Smart Pickup Container */}
+      {/* Pickup Location Bar */}
       <View style={styles.pickupBar}>
         <View style={styles.pickupLeft}>
-          <SymbolIcon name="sparkles" size={16} tintColor={colors.amber.primary} style={styles.sparkleIcon} />
-          <View>
-            <Text style={styles.pickupLabel}>SMART PICKUP</Text>
+          <SymbolIcon name="mappin.circle.fill" size={18} tintColor={colors.blue.primary} style={styles.sparkleIcon} />
+          <View style={styles.pickupTextColumn}>
+            <Text style={styles.pickupLabel}>PICKUP POINT</Text>
             <Text style={styles.pickupValue} numberOfLines={1}>
-              {draft.pickup?.label || 'Verifying location...'}
+              {draft.pickup?.label || 'Current Location'}
             </Text>
           </View>
         </View>
@@ -333,6 +326,7 @@ export function BookingSheet({
           onPress={onSearchPickup}
           style={({ pressed }) => [styles.changeButton, pressed && styles.buttonPressed]}
           accessibilityLabel="Change pickup"
+          accessibilityRole="button"
         >
           <Text style={styles.changeText}>CHANGE</Text>
         </Pressable>
@@ -486,16 +480,8 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     color: colors.ink[700],
   },
-  trafficValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  trafficGreenDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.green.primary,
+  pickupTextColumn: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: spacing[5],

@@ -25,12 +25,7 @@ type StaticPlace = {
   readonly coords: { readonly lat: number; readonly lng: number };
 };
 
-type SavedPlace = StaticPlace & {
-  readonly id: string;
-  readonly icon: string;
-};
-
-const SUGGESTED_PLACES: readonly StaticPlace[] = [
+const ORMOC_LANDMARKS: readonly StaticPlace[] = [
   {
     label: 'Robinsons Place Ormoc',
     address: 'Brgy. Cogon, Ormoc City, Leyte',
@@ -53,23 +48,6 @@ const SUGGESTED_PLACES: readonly StaticPlace[] = [
   },
 ];
 
-const SAVED_PLACES: readonly SavedPlace[] = [
-  {
-    id: 'home',
-    icon: 'house.fill',
-    label: 'Home',
-    address: 'Brgy. Linao, Ormoc City',
-    coords: { lat: 11.015462101185108, lng: 124.59161360299319 },
-  },
-  {
-    id: 'work',
-    icon: 'briefcase.fill',
-    label: 'Work',
-    address: 'Ormoc Doctors Hospital, Ormoc City',
-    coords: { lat: 11.005074062234158, lng: 124.61175049393847 },
-  },
-];
-
 type SetDestinationSheetProps = {
   readonly mode: 'pickup' | 'destination';
   readonly onClose: () => void;
@@ -77,9 +55,14 @@ type SetDestinationSheetProps = {
   readonly onChooseOnMap: (coords: { lat: number; lng: number }) => void;
 };
 
-export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = 'destination' }: SetDestinationSheetProps) {
+export function SetDestinationSheet({
+  onClose,
+  onSelect,
+  onChooseOnMap,
+  mode = 'destination',
+}: SetDestinationSheetProps) {
   const [query, setQuery] = useState('');
-  
+
   const { data: predictions = [], isLoading } = useOrmocPlacesAutocomplete(query);
   const [resolvingPlace, setResolvingPlace] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -92,7 +75,7 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
         logger.warn('[SetDestinationSheet] Location permission not granted');
         Alert.alert(
           'Location Permission',
-          'Location permission is required to use your current location. Please enable it in your device settings.'
+          'Location permission is required to use your current location. Please enable it in device settings or choose a point on the map.'
         );
         return;
       }
@@ -102,14 +85,14 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
         logger.warn('[SetDestinationSheet] Current location not available yet');
         Alert.alert(
           'Location Unavailable',
-          'Could not determine your current location. Please try again in a moment.'
+          'Could not determine your current location yet. Please try again or choose a point on the map.'
         );
         return;
       }
 
       logger.info('[SetDestinationSheet] Reverse-geocoding current position...', loc);
       const place = await reverseGeocode(loc.latitude, loc.longitude);
-      
+
       if (place && place.coords && isInServiceArea(place.coords)) {
         logger.info('[SetDestinationSheet] Selected current location:', place);
         onSelect(place);
@@ -117,14 +100,14 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
         logger.warn('[SetDestinationSheet] Current location outside service area', place);
         Alert.alert(
           'Service Area',
-          'Service is currently available only within Ormoc City.'
+          'Pakyaw currently serves locations within Ormoc City.'
         );
       }
     } catch (err) {
       logger.error('[SetDestinationSheet] Failed to resolve current location', err);
       Alert.alert(
         'Location Error',
-        'Could not resolve your current location. Please try again or search for a location.'
+        'Could not resolve your current location. Please choose a point on the map or search for a place.'
       );
     } finally {
       setDetectingLocation(false);
@@ -142,11 +125,15 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
         logger.warn('[SetDestinationSheet] Resolved place outside service area or details missing', { details });
         Alert.alert(
           'Service Area',
-          'Service is currently available only within Ormoc City.'
+          'Pakyaw currently serves locations within Ormoc City.'
         );
       }
     } catch (err) {
       logger.error('[SetDestinationSheet] Failed to resolve place details', { err });
+      Alert.alert(
+        'Search Error',
+        'Unable to load details for this place. Please try another search or choose on the map.'
+      );
     } finally {
       setResolvingPlace(false);
     }
@@ -164,7 +151,7 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
       logger.warn('[SetDestinationSheet] Static place outside service area', place);
       Alert.alert(
         'Service Area',
-        'Service is currently available only within Ormoc City.'
+        'Pakyaw currently serves locations within Ormoc City.'
       );
     }
   }
@@ -173,34 +160,43 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
     logger.info('[SetDestinationSheet] Choose on Map selected');
     const state = useLocationStore.getState();
     const loc = state.location;
-    const coords = loc 
+    const coords = loc
       ? { lat: loc.latitude, lng: loc.longitude }
-      : { lat: 11.005074, lng: 124.611750 }; 
+      : { lat: 11.005074, lng: 124.61175 };
     onChooseOnMap(coords);
   }
 
-  const validSavedPlaces = SAVED_PLACES.filter((p) => isInServiceArea(p.coords));
-  const validSuggestedPlaces = SUGGESTED_PLACES.filter((p) => isInServiceArea(p.coords));
-
+  const validLandmarks = ORMOC_LANDMARKS.filter((p) => isInServiceArea(p.coords));
   const showSearchResults = query.trim().length >= 3;
 
   return (
     <View style={styles.container} testID="set-destination-sheet">
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>{mode === 'pickup' ? 'Where from?' : 'Where to?'}</Text>
-        <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close search">
+        <View>
+          <Text style={styles.title}>{mode === 'pickup' ? 'Where from?' : 'Where to?'}</Text>
+          <Text style={styles.subtitle}>
+            {mode === 'pickup' ? 'Set your pickup point' : 'Choose your destination in Ormoc'}
+          </Text>
+        </View>
+        <Pressable
+          onPress={onClose}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.rowPressed]}
+          accessibilityLabel="Close search"
+          accessibilityRole="button"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <SymbolIcon name="xmark" size={20} tintColor={colors.ink[500]} />
         </Pressable>
       </View>
 
-      {/* Search Bar */}
+      {/* Search Input Bar */}
       <View style={styles.searchBar}>
         <SymbolIcon name="magnifyingglass" size={20} tintColor={colors.blue.primary} style={styles.searchIcon} />
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder={mode === 'pickup' ? 'Search pickup...' : 'Search destination...'}
+          placeholder={mode === 'pickup' ? 'Search pickup location…' : 'Search destination in Ormoc…'}
           placeholderTextColor={colors.ink[400]}
           style={styles.input}
           autoFocus
@@ -223,9 +219,11 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
             <Pressable
               onPress={() => handleSelectPrediction(item.placeId, item.mainText)}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.mainText}, ${item.secondaryText || ''}`}
             >
               <View style={styles.iconContainer}>
-                <SymbolIcon name="mappin.circle.fill" size={22} tintColor={colors.ink[500]} />
+                <SymbolIcon name="mappin.circle.fill" size={22} tintColor={colors.blue.primary} />
               </View>
               <View style={styles.textContainer}>
                 <Text style={styles.rowLabel} numberOfLines={1}>
@@ -241,7 +239,13 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
           )}
           ListEmptyComponent={
             !isLoading ? (
-              <Text style={styles.emptyText}>No locations found in Ormoc City.</Text>
+              <View style={styles.emptyContainer}>
+                <SymbolIcon name="magnifyingglass" size={28} tintColor={colors.ink[400]} />
+                <Text style={styles.emptyTitle}>No locations found</Text>
+                <Text style={styles.emptySubtitle}>
+                  We could not find matches in Ormoc City. Try searching with a barangay name or choose on the map.
+                </Text>
+              </View>
             ) : null
           }
         />
@@ -249,12 +253,17 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         >
+          {/* Quick Map Actions */}
           <View style={styles.section}>
             <Text style={styles.sectionHeader}>Map Options</Text>
+
             <Pressable
               onPress={handleChooseOnMap}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Choose on map"
             >
               <View style={styles.iconContainer}>
                 <SymbolIcon name="map.fill" size={20} tintColor={colors.blue.primary} />
@@ -264,18 +273,17 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
                 <Text style={styles.rowSublabel}>Drag pin to exact location</Text>
               </View>
             </Pressable>
-          </View>
 
-          {mode === 'pickup' && (
-            <View style={styles.section}>
-              <Text style={styles.sectionHeader}>Current Location</Text>
+            {mode === 'pickup' && (
               <Pressable
                 onPress={handleUseCurrentLocation}
                 disabled={detectingLocation}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Use current location"
               >
                 <View style={styles.iconContainer}>
-                  <SymbolIcon name="location.fill" size={20} tintColor={colors.blue.primary} />
+                  <SymbolIcon name="location.fill" size={20} tintColor={colors.green.primary} />
                 </View>
                 <View style={styles.textContainer}>
                   <Text style={styles.rowLabel}>Use Current Location</Text>
@@ -285,45 +293,29 @@ export function SetDestinationSheet({ onClose, onSelect, onChooseOnMap, mode = '
                   <ActivityIndicator size="small" color={colors.blue.primary} style={styles.loader} />
                 )}
               </Pressable>
-            </View>
-          )}
+            )}
+          </View>
 
-          {validSavedPlaces.length > 0 && (
+          {/* Static Ormoc Landmarks */}
+          {validLandmarks.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>Saved Places</Text>
-              {validSavedPlaces.map((place) => (
-                <Pressable
-                  key={place.id}
-                  onPress={() => handleSelectStatic(place)}
-                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                >
-                  <View style={styles.iconContainer}>
-                    <SymbolIcon name={place.icon} size={20} tintColor={colors.blue.primary} />
-                  </View>
-                  <View style={styles.textContainer}>
-                    <Text style={styles.rowLabel}>{place.label}</Text>
-                    <Text style={styles.rowSublabel}>{place.address}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {validSuggestedPlaces.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionHeader}>Suggested Places</Text>
-              {validSuggestedPlaces.map((place) => (
+              <Text style={styles.sectionHeader}>Popular destinations in Ormoc</Text>
+              {validLandmarks.map((place) => (
                 <Pressable
                   key={place.label}
                   onPress={() => handleSelectStatic(place)}
                   style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${place.label}, ${place.address}`}
                 >
                   <View style={styles.iconContainer}>
-                    <SymbolIcon name="star.fill" size={20} tintColor={colors.amber.primary} />
+                    <SymbolIcon name="building.2.fill" size={20} tintColor={colors.ink[500]} />
                   </View>
                   <View style={styles.textContainer}>
                     <Text style={styles.rowLabel}>{place.label}</Text>
-                    <Text style={styles.rowSublabel}>{place.address}</Text>
+                    <Text style={styles.rowSublabel} numberOfLines={1}>
+                      {place.address}
+                    </Text>
                   </View>
                 </Pressable>
               ))}
@@ -344,7 +336,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing[4],
   },
@@ -353,8 +345,18 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     color: colors.ink[900],
   },
+  subtitle: {
+    fontSize: typography.size.caption,
+    color: colors.ink[500],
+    marginTop: 2,
+  },
   closeButton: {
-    padding: spacing[1],
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBar: {
     flexDirection: 'row',
@@ -364,6 +366,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
     height: 52,
     marginBottom: spacing[4],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
   },
   searchIcon: {
     marginRight: spacing[2],
@@ -385,8 +389,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing[5],
   },
   sectionHeader: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
+    fontSize: typography.size.caption,
+    fontWeight: typography.weight.bold,
     color: colors.ink[500],
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -398,6 +402,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     borderBottomWidth: 1,
     borderBottomColor: colors.border.subtle,
+    minHeight: 52,
   },
   rowPressed: {
     opacity: 0.7,
@@ -415,14 +420,27 @@ const styles = StyleSheet.create({
     color: colors.ink[900],
   },
   rowSublabel: {
-    fontSize: typography.size.bodySmall,
+    fontSize: typography.size.caption,
     color: colors.ink[500],
     marginTop: 2,
   },
-  emptyText: {
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing[8],
+    paddingHorizontal: spacing[4],
+    gap: spacing[2],
+  },
+  emptyTitle: {
     fontSize: typography.size.body,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    marginTop: spacing[2],
+  },
+  emptySubtitle: {
+    fontSize: typography.size.caption,
     color: colors.ink[500],
     textAlign: 'center',
-    marginTop: spacing[6],
+    lineHeight: 18,
   },
 });

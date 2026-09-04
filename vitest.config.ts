@@ -11,7 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'packages/shared/src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}', 'packages/shared/src/**/*.test.{ts,tsx}'],
     setupFiles: ['./vitest.setup.ts'],
     pool: 'forks',
   },

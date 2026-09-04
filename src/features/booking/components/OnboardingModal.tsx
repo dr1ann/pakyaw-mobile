@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Modal, View, Text, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { Button } from '@pakyaw/shared/components/ui/Button';
