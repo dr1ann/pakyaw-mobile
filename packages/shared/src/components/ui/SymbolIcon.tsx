@@ -38,6 +38,14 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   person: { ios: 'person', android: 'person', web: 'person' },
   'person.fill': { ios: 'person.fill', android: 'person', web: 'person' },
   'location.fill': { ios: 'location.fill', android: 'my_location', web: 'my_location' },
+  'location.slash': { ios: 'location.slash', android: 'location_off', web: 'location_off' },
+  'arrow.clockwise': { ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' },
+  'checkmark.circle.fill': { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' },
+  'building.2.fill': { ios: 'building.2.fill', android: 'domain', web: 'domain' },
+  'flag.fill': { ios: 'flag.fill', android: 'flag', web: 'flag' },
+  'chevron.right': { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
+  'phone.fill': { ios: 'phone.fill', android: 'phone', web: 'phone' },
+  'person.crop.circle': { ios: 'person.crop.circle', android: 'account_circle', web: 'account_circle' },
   'arrow.turn.up.left': { ios: 'arrow.turn.up.left', android: 'turn_left', web: 'turn_left' },
   'arrow.turn.up.right': { ios: 'arrow.turn.up.right', android: 'turn_right', web: 'turn_right' },
   'arrow.up.left': { ios: 'arrow.up.left', android: 'north_west', web: 'north_west' },
@@ -53,7 +61,12 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
 };
 
 export function SymbolIcon({ name, size = 24, tintColor, style }: SymbolIconProps) {
-  const platformName = SYMBOL_MAP[name] || { ios: name, android: name, web: name };
+  const fallbackAndroid = name.replace(/\./g, '_').replace(/_fill$/, '');
+  const platformName = SYMBOL_MAP[name] || {
+    ios: name,
+    android: fallbackAndroid,
+    web: fallbackAndroid,
+  };
 
   return (
     <SymbolView
