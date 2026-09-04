@@ -1,12 +1,9 @@
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { Button } from '@pakyaw/shared/components/ui/Button';
 import { EmptyState } from '@pakyaw/shared/components/ui/EmptyState';
-import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, spacing, typography } from '@/constants/theme';
 import { useTripHistory } from '../hooks/useTripHistory';
-import { tripHistoryViewState } from '../presentation';
 import { TripHistoryCard } from './TripHistoryCard';
 import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 
@@ -20,6 +17,7 @@ export function TripHistoryList({ uid }: TripHistoryListProps) {
     data,
     isLoading,
     isError,
+    error,
     isRefetching,
     fetchNextPage,
     hasNextPage,
@@ -28,34 +26,21 @@ export function TripHistoryList({ uid }: TripHistoryListProps) {
   } = useTripHistory(uid);
 
   const trips: TripHistoryItem[] = data?.pages.flatMap((page) => page.trips) ?? [];
-  const viewState = tripHistoryViewState({
-    isLoading,
-    isRefetching,
-    isError,
-    itemCount: trips.length,
-  });
 
-  if (viewState === 'loading') {
+  if (isLoading && !isRefetching) {
     return (
-      <View style={styles.loadingList} accessibilityLabel="Loading ride history">
-        {[0, 1, 2].map((item) => (
-          <View key={item} style={styles.skeletonCard}>
-            <View style={[styles.skeleton, styles.skeletonShort]} />
-            <View style={[styles.skeleton, styles.skeletonWide]} />
-            <View style={[styles.skeleton, styles.skeletonMedium]} />
-          </View>
-        ))}
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.blue.primary} size="large" />
       </View>
     );
   }
 
-  if (viewState === 'error') {
+  if (isError) {
     return (
       <View style={styles.center}>
-        <SymbolIcon name="arrow.clockwise" size={28} tintColor={colors.ink[400]} />
-        <Text style={styles.errorTitle}>Couldn’t load your rides</Text>
-        <Text style={styles.errorText}>Your previous rides have not been deleted. Try again when you’re back online.</Text>
-        <Button label="Try again" onPress={() => refetch()} fullWidth={false} style={styles.retryButton} />
+        <Text style={styles.errorText}>
+          {error instanceof Error ? error.message : 'Failed to load trip history.'}
+        </Text>
       </View>
     );
   }
@@ -87,9 +72,8 @@ export function TripHistoryList({ uid }: TripHistoryListProps) {
       ListEmptyComponent={
         !isLoading ? (
           <EmptyState
-            title="No rides yet"
-            description="Your completed and cancelled rides will appear here."
-            icon={<SymbolIcon name="clock" size={30} tintColor={colors.blue.primary} />}
+            title="No trips yet"
+            description="Your completed and cancelled trips will show up here."
           />
         ) : null
       }
@@ -111,47 +95,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing[8],
   },
-  loadingList: {
-    paddingTop: spacing[2],
-    gap: spacing[3],
-  },
-  skeletonCard: {
-    backgroundColor: colors.surface.card,
-    borderRadius: 16,
-    padding: spacing[4],
-    gap: spacing[3],
-  },
-  skeleton: {
-    backgroundColor: colors.surface.muted,
-    borderRadius: radius.sm,
-    height: 12,
-  },
-  skeletonShort: {
-    width: '36%',
-  },
-  skeletonWide: {
-    width: '85%',
-  },
-  skeletonMedium: {
-    width: '62%',
-  },
-  errorTitle: {
-    color: colors.ink[900],
-    fontSize: typography.size.h3,
-    fontFamily: typography.family.bold,
-    textAlign: 'center',
-  },
   footerLoader: {
     paddingVertical: spacing[4],
     alignItems: 'center',
   },
   errorText: {
     fontSize: typography.size.body,
-    color: colors.ink[500],
+    color: colors.danger,
     textAlign: 'center',
-    lineHeight: typography.lineHeight.body,
-  },
-  retryButton: {
-    marginTop: spacing[2],
   },
 });

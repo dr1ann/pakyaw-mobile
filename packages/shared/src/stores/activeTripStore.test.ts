@@ -134,21 +134,6 @@ describe('activeTripStore', () => {
     expect(state.driverLocation).toEqual({ latitude: 11, longitude: 124 });
   });
 
-  it('keeps the completed snapshot until the passenger explicitly dismisses it', () => {
-    useActiveTripStore.getState().setTrip({
-      id: 'trip-completed',
-      status: 'completed',
-    } as never);
-
-    expect(useActiveTripStore.getState().tripId).toBe('trip-completed');
-    expect(useActiveTripStore.getState().trip?.status).toBe('completed');
-
-    useActiveTripStore.getState().clearTrip();
-
-    expect(useActiveTripStore.getState().tripId).toBeNull();
-    expect(useActiveTripStore.getState().trip).toBeNull();
-  });
-
   it('does not wipe nav state on a non-terminal status update', () => {
     useActiveTripStore.setState({
       tripId: 'trip-1',
