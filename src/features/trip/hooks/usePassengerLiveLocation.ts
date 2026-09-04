@@ -66,7 +66,8 @@ export function usePassengerLiveLocation(
     const unsubscribe = onSnapshot(
       locationRef,
       (snapshot) => {
-        if (!snapshot || !snapshot.exists) {
+        const exists = snapshot ? (typeof snapshot.exists === 'function' ? snapshot.exists() : Boolean(snapshot.exists)) : false;
+        if (!exists) {
           setLocationData(null);
           return;
         }

@@ -18,6 +18,8 @@ import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/h
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { doc, firestore, onSnapshot } from '@/services/firebase/firebase';
 import { SosButton } from '@/features/safety/components/SosButton';
+import { PassengerPickupPresenceCard } from '@/features/trip/components/DriverTripSheets';
+import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -51,6 +53,14 @@ export function PersistentDriverTripDashboard({
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
+
+  const { passengerLocation, formattedDistanceToPickup, isBookingForOther } =
+    usePassengerLiveLocation(
+      trip?.id ?? null,
+      trip?.status ?? null,
+      trip?.pickup?.coords ?? null,
+      trip?.bookingFor ?? null
+    );
 
   // Entrance & State Transition Animations
   const [fadeAnim] = useState(() => new Animated.Value(0));
@@ -124,7 +134,8 @@ export function PersistentDriverTripDashboard({
   const vehicleDetails = driverPublic?.vehicle.description ?? driverPublic?.vehicle.type ?? null;
   const vehiclePlate = driverPublic?.vehicle.plateNumber ?? null;
 
-  const defaultPassengerName = trip?.passengerName || passengerDoc?.name || 'Passenger';
+  const thirdPartyRiderName = isBookingForOther && trip?.rider?.firstName ? trip.rider.firstName : null;
+  const defaultPassengerName = thirdPartyRiderName || trip?.passengerName || passengerDoc?.name || 'Passenger';
 
   const passengers = sharedRide?.passengers || (trip ? [{
     tripId: trip.id,
@@ -139,7 +150,6 @@ export function PersistentDriverTripDashboard({
     fare: trip.fare,
   }] : []);
 
-  const activePassengers = passengers.filter((p) => p.status === 'active');
   const isSharedTrip = trip?.mode === 'shared' || sharedRide != null;
   const maxSeats = sharedRide
     ? sharedRide.maxSeats
@@ -332,6 +342,16 @@ export function PersistentDriverTripDashboard({
         ) : null}
       </View>
 
+      {/* Passenger Pickup Presence Card (Live GPS for self-booking or Third-Party Details for other) */}
+      {status !== 'completed' && status !== 'cancelled' && (
+        <PassengerPickupPresenceCard
+          trip={trip}
+          formattedDistanceToPickup={formattedDistanceToPickup}
+          hasLiveLocation={!!passengerLocation}
+          isBookingForOther={isBookingForOther}
+        />
+      )}
+
       {/* Primary Transition Action Control & Driver Cancel (Testing) */}
       <View style={styles.actionsRow}>
         <Animated.View style={{ flex: 1, transform: [{ scale: buttonPulseAnim }] }}>
@@ -457,7 +477,7 @@ export function PersistentDriverTripDashboard({
                           {p.passengerName || `Passenger ${index + 1}`}
                         </Text>
                         <Text style={styles.passengerSeatsText}>
-                          {p.seatsCovered || 1} Seat reserved {p.isHop ? '• Hop Rider' : '• Shared'}
+                          {p.seatsCovered || 1} Seat reserved {p.isHop ? '• Hop Rider' : isSharedTrip ? '• Shared' : isBookingForOther ? '• Booked for someone else' : '• Solo'}
                         </Text>
                       </View>
                     </View>
@@ -473,6 +493,13 @@ export function PersistentDriverTripDashboard({
                       </Text>
                     </View>
                   </View>
+
+                  {isBookingForOther && trip?.pickupNote ? (
+                    <View style={styles.pickupNoteBox}>
+                      <Text style={styles.pickupNoteLabel}>PICKUP NOTE</Text>
+                      <Text style={styles.pickupNoteText}>{trip.pickupNote}</Text>
+                    </View>
+                  ) : null}
 
                   {/* Pickup & Dropoff Address */}
                   <View style={styles.routeBox}>
@@ -535,10 +562,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingTop: spacing[2],
     paddingBottom: spacing[4],
-    maxHeight: 280,
+    maxHeight: 380,
   },
   containerExpanded: {
-    maxHeight: 560,
+    maxHeight: 640,
+  },
+  pickupNoteBox: {
+    backgroundColor: '#FFF8EC',
+    borderRadius: radius.sm,
+    padding: spacing[2],
+    marginBottom: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(234, 136, 6, 0.25)',
+  },
+  pickupNoteLabel: {
+    fontSize: 9,
+    fontWeight: typography.weight.bold,
+    color: '#B96600',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  pickupNoteText: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[900],
+    fontWeight: typography.weight.medium,
   },
   handleContainer: {
     alignItems: 'center',

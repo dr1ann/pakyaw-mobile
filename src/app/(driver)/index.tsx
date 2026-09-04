@@ -176,7 +176,8 @@ export default function DriveScreen() {
   const { passengerLocation } = usePassengerLiveLocation(
     trip?.id ?? null,
     trip?.status ?? null,
-    trip?.pickup?.coords ?? null
+    trip?.pickup?.coords ?? null,
+    trip?.bookingFor ?? null
   );
 
   // Availability mutations.

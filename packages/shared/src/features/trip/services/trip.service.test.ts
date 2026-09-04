@@ -82,6 +82,51 @@ describe('Day 3 callable trip actions', () => {
     }));
   });
 
+  it('maps canonical third-party booking fields (bookingFor, rider, pickupNote)', () => {
+    const onSnap = vi.fn();
+    mocks.onSnapshot.mockImplementation((_ref, onNext) => {
+      onNext({
+        id: 'trip-third-party',
+        exists: () => true,
+        data: () => ({
+          passengerId: 'booker-uid-123',
+          driverId: 'driver-uid-456',
+          mode: 'solo',
+          status: 'accepted',
+          bookingFor: 'other',
+          rider: { firstName: 'Dree' },
+          pickupNote: 'Ghh',
+          pickup: { latitude: 11.005, longitude: 124.6075, label: 'Ormoc City Hall' },
+          destination: { latitude: 11.012, longitude: 124.615, label: 'Ormoc Superdome' },
+          route: { distanceMeters: 2_100, durationSeconds: 300, polyline: 'test-poly' },
+          passengerCount: 1,
+          billedSeats: 1,
+          fare: {
+            baseFare: 40,
+            distanceFare: 10,
+            surcharges: 0,
+            techFee: 5,
+            total: 55,
+            driverEarnings: 50,
+          },
+        }),
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribe('trip-third-party', onSnap, vi.fn());
+
+    expect(onSnap).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'trip-third-party',
+      bookingFor: 'other',
+      rider: { firstName: 'Dree' },
+      pickupNote: 'Ghh',
+      status: 'accepted',
+      passengerId: 'booker-uid-123',
+      driverId: 'driver-uid-456',
+    }));
+  });
+
   it('drops malformed or legacy Driver identity data instead of presenting it', () => {
     const onSnap = vi.fn();
     mocks.onSnapshot.mockImplementation((_ref, onNext) => {

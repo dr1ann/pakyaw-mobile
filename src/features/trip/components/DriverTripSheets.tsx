@@ -16,7 +16,7 @@ import { useTripTransition } from '@pakyaw/shared/features/trip/hooks/useTripAct
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
 
-function PassengerPickupPresenceCard({
+export function PassengerPickupPresenceCard({
   trip,
   formattedDistanceToPickup,
   hasLiveLocation,
