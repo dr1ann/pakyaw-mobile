@@ -332,7 +332,18 @@ export function useDriverRouteQuery(tripId: string | null) {
     if (!tripId || !query.data || !enabled) return;
     if (!isToPickup && !isToDestination) return;
 
-    const { overviewPolyline, distanceMeters, durationSeconds } = query.data;
+    const overviewPolyline = query.data.overviewPolyline;
+    const distanceMeters = Math.max(0, Math.round(query.data.distanceMeters));
+    const durationSeconds = Math.max(0, Math.round(query.data.durationSeconds));
+
+    if (
+      !overviewPolyline ||
+      typeof overviewPolyline !== 'string' ||
+      !Number.isFinite(distanceMeters) ||
+      !Number.isFinite(durationSeconds)
+    ) {
+      return;
+    }
 
     // Check if route changed significantly before writing to Firestore
     if (lastPublishedRouteRef.current !== null) {
