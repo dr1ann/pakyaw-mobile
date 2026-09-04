@@ -252,6 +252,30 @@ export default function RideScreen() {
     ownLocation: deviceLocation,
     phase,
     bottomPadding: isMinimized ? 160 : 320,
+    overviewCoordinates: useMemo(() => {
+      if (phase !== 'active' || !trip) return null;
+      const tripStatus = trip.status;
+      const isPrePickupOrArrived =
+        tripStatus === 'accepted' ||
+        tripStatus === 'driver_arriving' ||
+        tripStatus === 'driver_arrived';
+
+      if (isPrePickupOrArrived) {
+        const coords: { latitude: number; longitude: number }[] = [];
+        if (mapData.driverLocation) coords.push(mapData.driverLocation);
+        if (mapData.pickupLocation) coords.push(mapData.pickupLocation);
+        return coords.length > 0 ? coords : null;
+      }
+
+      if (tripStatus === 'in_progress') {
+        const coords: { latitude: number; longitude: number }[] = [];
+        if (mapData.driverLocation) coords.push(mapData.driverLocation);
+        if (mapData.destinationLocation) coords.push(mapData.destinationLocation);
+        return coords.length > 0 ? coords : null;
+      }
+
+      return null;
+    }, [phase, trip, mapData.driverLocation, mapData.pickupLocation, mapData.destinationLocation]),
   });
 
   // Query route polyline and info when pickup and destination are available
@@ -776,6 +800,8 @@ type TripSheetProps = {
 function TripSheet({
   status,
   onDismiss,
+  remainingDistanceMeters,
+  etaSeconds,
 }: TripSheetProps) {
   switch (status) {
     case 'requested':
@@ -784,7 +810,12 @@ function TripSheet({
     case 'driver_arriving':
     case 'driver_arrived':
     case 'in_progress':
-      return <DriverMatchedSheet />;
+      return (
+        <DriverMatchedSheet
+          remainingDistanceMeters={remainingDistanceMeters}
+          etaSeconds={etaSeconds}
+        />
+      );
     case 'completed':
       return <CompletedSheet onDismiss={onDismiss} />;
     case 'cancelled':

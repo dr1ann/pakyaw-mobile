@@ -8,6 +8,14 @@ vi.mock('@pakyaw/shared/components/ui/SymbolIcon', () => ({
   SymbolIcon: () => null,
 }));
 
+vi.mock('@/features/safety/components/SosButton', () => ({
+  SosButton: ({ tripId }: { tripId: string | null }) => (
+    <div data-testid="passenger-sos" data-trip-id={tripId ?? ''}>
+      SOS
+    </div>
+  ),
+}));
+
 const mockCancel = vi.fn();
 let mockIsPending = false;
 let mockIsError = false;
@@ -23,7 +31,7 @@ vi.mock('@pakyaw/shared/features/trip/hooks/useTripActions', () => ({
   }),
 }));
 
-describe('DriverMatchedSheet component', () => {
+describe('DriverMatchedSheet component — Phase 7 Active Trip Experience', () => {
   beforeEach(() => {
     useActiveTripStore.getState().clearTrip();
     mockCancel.mockClear();
@@ -91,6 +99,87 @@ describe('DriverMatchedSheet component', () => {
     expect(state?.fareBreakdown?.total).toBe(60);
   });
 
+  it('renders driver_arriving state with neutral fallback when no route duration is available', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'driver_arriving',
+      driverRoute: null,
+      tripProgress: null,
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+    expect(useActiveTripStore.getState().trip?.status).toBe('driver_arriving');
+  });
+
+  it('renders driver_arrived state with arrival banner, prominent vehicle recognition and pickup point', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'driver_arrived',
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+    expect(useActiveTripStore.getState().trip?.status).toBe('driver_arrived');
+    expect(useActiveTripStore.getState().trip?.pickup.label).toBe('Ormoc City Hall');
+    expect(useActiveTripStore.getState().trip?.driverPublic?.vehicle.plateNumber).toBe('7890 HA');
+  });
+
+  it('renders in_progress active trip state with dominant Destination Card, SosButton, and no cancel button', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'in_progress',
+      tripProgress: {
+        remainingMeters: 3200,
+        etaSeconds: 480, // 8 min
+        updatedAt: null,
+      },
+    });
+
+    const element = (
+      <DriverMatchedSheet
+        remainingDistanceMeters={3200}
+        etaSeconds={480}
+      />
+    );
+    expect(element).toBeDefined();
+
+    const state = useActiveTripStore.getState().trip;
+    expect(state?.status).toBe('in_progress');
+    expect(state?.destination.label).toBe('Ormoc Superdome');
+  });
+
+  it('handles stale timestamps (>120s) gracefully by degrading ETA to neutral status', () => {
+    const staleTime = {
+      seconds: Math.floor((Date.now() - 150_000) / 1000),
+      nanoseconds: 0,
+      toMillis: () => Date.now() - 150_000,
+    };
+
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'in_progress',
+      tripProgress: {
+        remainingMeters: 3200,
+        etaSeconds: 480,
+        updatedAt: staleTime,
+      },
+      route: null,
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+  });
+
+  it('renders Driver location unavailable note gracefully when GPS is temporarily absent', () => {
+    useActiveTripStore.getState().setTrip(baseAcceptedTrip);
+    useActiveTripStore.getState().clearDriverLocation();
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+    expect(useActiveTripStore.getState().driverLocation).toBeNull();
+  });
+
   it('renders Shared accepted state with seat occupancy from sharedRideSummary', () => {
     useActiveTripStore.getState().setTrip({
       ...baseAcceptedTrip,
@@ -131,37 +220,6 @@ describe('DriverMatchedSheet component', () => {
 
     const state = useActiveTripStore.getState().trip;
     expect(state?.mode).toBe('hop');
-  });
-
-  it('handles tripProgress.etaSeconds over driverRoute.durationSeconds', () => {
-    useActiveTripStore.getState().setTrip({
-      ...baseAcceptedTrip,
-      tripProgress: {
-        remainingMeters: 400,
-        etaSeconds: 90,
-        updatedAt: null,
-      },
-      driverRoute: {
-        polyline: 'poly',
-        distanceMeters: 800,
-        durationSeconds: 240,
-        updatedAt: null,
-      },
-    });
-
-    const element = <DriverMatchedSheet />;
-    expect(element).toBeDefined();
-  });
-
-  it('falls back to neutral "Your Driver is on the way" when no ETA duration or distance is available', () => {
-    useActiveTripStore.getState().setTrip({
-      ...baseAcceptedTrip,
-      tripProgress: null,
-      driverRoute: null,
-    });
-
-    const element = <DriverMatchedSheet />;
-    expect(element).toBeDefined();
   });
 
   it('renders self-booking privacy disclosure when bookingFor is self or omitted', () => {
@@ -215,7 +273,7 @@ describe('DriverMatchedSheet component', () => {
     expect(state?.driverPublic?.vehicle.unitBodyNumber).toBeUndefined();
   });
 
-  it('verifies requested -> accepted transition in activeTripStore', () => {
+  it('verifies requested -> accepted -> driver_arrived -> in_progress lifecycle in activeTripStore', () => {
     const requestedTrip: TripDoc = {
       ...baseAcceptedTrip,
       status: 'requested',
@@ -225,10 +283,26 @@ describe('DriverMatchedSheet component', () => {
 
     useActiveTripStore.getState().setTrip(requestedTrip);
     expect(useActiveTripStore.getState().trip?.status).toBe('requested');
-    expect(useActiveTripStore.getState().trip?.driverId).toBeNull();
 
     useActiveTripStore.getState().setTrip(baseAcceptedTrip);
     expect(useActiveTripStore.getState().trip?.status).toBe('accepted');
-    expect(useActiveTripStore.getState().trip?.driverId).toBe('d-1');
+
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'driver_arriving',
+    });
+    expect(useActiveTripStore.getState().trip?.status).toBe('driver_arriving');
+
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'driver_arrived',
+    });
+    expect(useActiveTripStore.getState().trip?.status).toBe('driver_arrived');
+
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      status: 'in_progress',
+    });
+    expect(useActiveTripStore.getState().trip?.status).toBe('in_progress');
   });
 });

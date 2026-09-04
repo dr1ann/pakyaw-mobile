@@ -14,34 +14,103 @@ import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { SosButton } from '@/features/safety/components/SosButton';
+import type { Timestamp } from '@pakyaw/shared/features/trip/types';
 
-export function DriverMatchedSheet() {
+export type DriverMatchedSheetProps = {
+  readonly remainingDistanceMeters?: number | null;
+  readonly etaSeconds?: number | null;
+};
+
+function isTimestampStale(ts: Timestamp | null | undefined, thresholdMs = 120_000): boolean {
+  if (!ts) return false;
+  let millis: number | null = null;
+  if (typeof ts.toMillis === 'function') {
+    millis = ts.toMillis();
+  } else if (typeof ts.toDate === 'function') {
+    millis = ts.toDate().getTime();
+  } else if (typeof ts.seconds === 'number') {
+    millis = ts.seconds * 1000 + Math.round((ts.nanoseconds || 0) / 1e6);
+  }
+  if (millis == null) return false;
+  return Date.now() - millis > thresholdMs;
+}
+
+export function DriverMatchedSheet({
+  remainingDistanceMeters: propRemainingDistanceMeters,
+  etaSeconds: propEtaSeconds,
+}: DriverMatchedSheetProps = {}) {
   const trip = useActiveTripStore((s) => s.trip);
   const driverLocation = useActiveTripStore((s) => s.driverLocation);
   const { mutate: cancel, isPending, isError, error, reset: resetCancel } = useCancelTrip();
 
   const [confirmCancel, setConfirmCancel] = useState(false);
 
-  // Distance from driver to trip pickup point
-  let driverDistanceMeters: number | null = null;
+  const status = trip?.status ?? 'accepted';
+  const isPrePickup = status === 'accepted' || status === 'driver_arriving';
+  const isArrived = status === 'driver_arrived';
+  const isInProgress = status === 'in_progress';
+
+  // Distance from driver to trip pickup point (for pre-pickup states)
+  let driverDistanceToPickupMeters: number | null = null;
   if (driverLocation && trip?.pickup?.coords) {
-    driverDistanceMeters = haversineMeters(
+    driverDistanceToPickupMeters = haversineMeters(
       { lat: driverLocation.latitude, lng: driverLocation.longitude },
       trip.pickup.coords
     );
   }
 
-  // Derived real ETA / Distance string without guesswork
-  let etaText = 'Your Driver is on the way';
-  if (trip?.tripProgress?.etaSeconds != null && trip.tripProgress.etaSeconds > 0) {
+  // Pre-pickup ETA derivation with stale checks
+  let prePickupEtaText = status === 'driver_arriving'
+    ? 'Heading to pickup'
+    : 'Your Driver is on the way';
+
+  const isTripProgressStale = isTimestampStale(trip?.tripProgress?.updatedAt);
+  const isDriverRouteStale = isTimestampStale(trip?.driverRoute?.updatedAt);
+
+  if (
+    !isTripProgressStale &&
+    trip?.tripProgress?.etaSeconds != null &&
+    trip.tripProgress.etaSeconds > 0
+  ) {
     const minutes = Math.max(1, Math.round(trip.tripProgress.etaSeconds / 60));
-    etaText = `~${minutes} min away`;
-  } else if (trip?.driverRoute?.durationSeconds != null && trip.driverRoute.durationSeconds > 0) {
+    prePickupEtaText = `~${minutes} min away`;
+  } else if (
+    !isDriverRouteStale &&
+    trip?.driverRoute?.durationSeconds != null &&
+    trip.driverRoute.durationSeconds > 0
+  ) {
     const minutes = Math.max(1, Math.round(trip.driverRoute.durationSeconds / 60));
-    etaText = `~${minutes} min away`;
-  } else if (driverDistanceMeters != null && driverDistanceMeters > 0) {
-    const km = (driverDistanceMeters / 1000).toFixed(1);
-    etaText = `${km} km away`;
+    prePickupEtaText = `~${minutes} min away`;
+  } else if (driverDistanceToPickupMeters != null && driverDistanceToPickupMeters > 0) {
+    const km = (driverDistanceToPickupMeters / 1000).toFixed(1);
+    prePickupEtaText = `${km} km away`;
+  }
+
+  // In-progress ETA / Remaining distance derivation
+  const activeRemainingMeters =
+    propRemainingDistanceMeters ??
+    (!isTripProgressStale ? trip?.tripProgress?.remainingMeters : null) ??
+    trip?.route?.distanceMeters ??
+    null;
+
+  const activeEtaSeconds =
+    propEtaSeconds ??
+    (!isTripProgressStale ? trip?.tripProgress?.etaSeconds : null) ??
+    trip?.route?.durationSeconds ??
+    null;
+
+  let inProgressEtaText = 'Heading to destination';
+  if (activeRemainingMeters != null && activeRemainingMeters > 0 && activeEtaSeconds != null && activeEtaSeconds > 0) {
+    const km = (activeRemainingMeters / 1000).toFixed(1);
+    const minutes = Math.max(1, Math.round(activeEtaSeconds / 60));
+    inProgressEtaText = `~${minutes} min · ${km} km`;
+  } else if (activeEtaSeconds != null && activeEtaSeconds > 0) {
+    const minutes = Math.max(1, Math.round(activeEtaSeconds / 60));
+    inProgressEtaText = `~${minutes} min remaining`;
+  } else if (activeRemainingMeters != null && activeRemainingMeters > 0) {
+    const km = (activeRemainingMeters / 1000).toFixed(1);
+    inProgressEtaText = `${km} km remaining`;
   }
 
   const mode = trip?.mode ?? 'solo';
@@ -103,7 +172,6 @@ export function DriverMatchedSheet() {
     ? 'Shared'
     : 'Pakyaw';
 
-
   return (
     <ScrollView
       style={styles.scrollView}
@@ -111,20 +179,45 @@ export function DriverMatchedSheet() {
       showsVerticalScrollIndicator={false}
       testID="driver-matched-sheet"
     >
-      {/* Top Header Row with Mode Badge & Live ETA Pill */}
+      {/* Top Header Row with Mode Badge & Status Pill */}
       <View style={styles.headerRow}>
         <View style={styles.modeBadge}>
           <SymbolIcon name="checkmark.circle.fill" size={14} tintColor={colors.green.primary} />
           <Text style={styles.modeBadgeText}>{modeBadgeText}</Text>
         </View>
 
-        <View style={styles.etaPill}>
-          <SymbolIcon name="clock" size={13} tintColor={colors.blue.primary} />
-          <Text style={styles.etaPillText}>{etaText}</Text>
-        </View>
+        {isArrived ? (
+          <View style={styles.arrivedPill} testID="driver-arrived-pill">
+            <SymbolIcon name="checkmark.circle.fill" size={13} tintColor={colors.green.primary} />
+            <Text style={styles.arrivedPillText}>Driver Arrived</Text>
+          </View>
+        ) : isInProgress ? (
+          <View style={styles.inProgressPill} testID="in-progress-pill">
+            <SymbolIcon name="clock" size={13} tintColor={colors.blue.primary} />
+            <Text style={styles.inProgressPillText}>{inProgressEtaText}</Text>
+          </View>
+        ) : (
+          <View style={styles.etaPill} testID="pre-pickup-eta-pill">
+            <SymbolIcon name="clock" size={13} tintColor={colors.blue.primary} />
+            <Text style={styles.etaPillText}>{prePickupEtaText}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Driver Profile & Vehicle Card */}
+      {/* Driver Arrived Announcement Banner */}
+      {isArrived && (
+        <View style={styles.arrivalBanner} testID="driver-arrived-banner">
+          <SymbolIcon name="bell.fill" size={18} tintColor={colors.green.primary} />
+          <View style={styles.arrivalBannerTextCol}>
+            <Text style={styles.arrivalBannerTitle}>Your Driver has arrived!</Text>
+            <Text style={styles.arrivalBannerSubtitle}>
+              Please meet your Driver at the pickup location.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Driver Profile & Vehicle Recognition Card */}
       <View style={[styles.driverCard, shadow.card]}>
         <View style={styles.profileRow}>
           <View style={styles.avatarWrapper}>
@@ -147,7 +240,7 @@ export function DriverMatchedSheet() {
           </View>
         </View>
 
-        {/* Prominent Vehicle Plate Badge */}
+        {/* Prominent Vehicle Plate & Body Number Badges */}
         <View style={styles.vehicleRow}>
           {plateNumber ? (
             <View
@@ -234,30 +327,70 @@ export function DriverMatchedSheet() {
         )}
       </View>
 
-      {/* Pickup Location Reminder Card */}
-      <View style={styles.pickupCard}>
-        <SymbolIcon name="mappin.circle.fill" size={18} tintColor={colors.blue.primary} />
-        <View style={styles.pickupTextCol}>
-          <Text style={styles.pickupTitle}>MEET AT PICKUP</Text>
-          <Text style={styles.pickupAddress} numberOfLines={2}>
-            {trip?.pickup?.label || 'Your pickup point'}
+      {/* Destination Card (Dominant during in_progress) */}
+      {isInProgress ? (
+        <View style={styles.destinationCard} testID="active-destination-card">
+          <SymbolIcon name="flag.fill" size={18} tintColor={colors.blue.primary} />
+          <View style={styles.destinationTextCol}>
+            <Text style={styles.destinationTitle}>HEADING TO DESTINATION</Text>
+            <Text style={styles.destinationAddress} numberOfLines={2}>
+              {trip?.destination?.label || 'Your destination'}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        /* Pickup Location Card (Pre-pickup & Arrived states) */
+        <View style={styles.pickupCard} testID="active-pickup-card">
+          <SymbolIcon name="mappin.circle.fill" size={18} tintColor={colors.blue.primary} />
+          <View style={styles.pickupTextCol}>
+            <Text style={styles.pickupTitle}>MEET AT PICKUP</Text>
+            <Text style={styles.pickupAddress} numberOfLines={2}>
+              {trip?.pickup?.label || 'Your pickup point'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Location Transparency Notice (Pre-pickup & Arrived states only) */}
+      {!isInProgress && (
+        <View style={styles.privacyNoticeCard} testID="privacy-notice-card">
+          <SymbolIcon
+            name={trip?.bookingFor === 'other' ? 'person.2.fill' : 'location.fill'}
+            size={14}
+            tintColor={colors.blue.primary}
+          />
+          <View style={styles.privacyTextCol}>
+            <Text style={styles.privacyNoticeText}>
+              {trip?.bookingFor === 'other'
+                ? "Because this ride is for someone else, your location won't be shared with the Driver."
+                : 'Your live location is temporarily shared with your assigned Driver until pickup to help them find you.'}
+            </Text>
+            {trip?.bookingFor === 'other' && trip.rider?.firstName ? (
+              <Text style={styles.privacyDetailText}>
+                Rider: {trip.rider.firstName}
+                {trip.pickupNote ? ` · Note: "${trip.pickupNote}"` : ''}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      )}
+
+      {/* Driver Location Temporarily Unavailable Note */}
+      {!driverLocation && isPrePickup && (
+        <View style={styles.driverLocationUnavailableCard} testID="driver-location-unavailable">
+          <SymbolIcon name="location.slash.fill" size={14} tintColor={colors.ink[500]} />
+          <Text style={styles.driverLocationUnavailableText}>
+            Live vehicle location temporarily unavailable.
           </Text>
         </View>
-      </View>
+      )}
 
-      {/* Privacy Transparency Notice */}
-      <View style={styles.privacyNoticeCard}>
-        <SymbolIcon
-          name={trip?.bookingFor === 'other' ? 'person.2.fill' : 'location.fill'}
-          size={14}
-          tintColor={colors.blue.primary}
-        />
-        <Text style={styles.privacyNoticeText}>
-          {trip?.bookingFor === 'other'
-            ? "Because this ride is for someone else, your location won't be shared with the Driver."
-            : 'Your live location is temporarily shared with your assigned Driver until pickup to help them find you.'}
-        </Text>
-      </View>
+      {/* Active Trip Safety Action (in_progress) */}
+      {isInProgress && (
+        <View style={styles.safetyContainer} testID="in-progress-sos-container">
+          <SosButton tripId={trip?.id ?? null} />
+        </View>
+      )}
 
       {/* Cancellation Error Banner */}
       {isError && (
@@ -272,42 +405,46 @@ export function DriverMatchedSheet() {
         </View>
       )}
 
-      {/* Cancellation Action with Confirmation */}
-      {confirmCancel ? (
-        <View style={styles.confirmBox}>
-          <Text style={styles.confirmTitle}>Cancel your confirmed ride?</Text>
-          <Text style={styles.confirmSubtitle}>
-            Your driver is already on the way to your pickup.
-          </Text>
-          <View style={styles.confirmActions}>
-            <Button
-              label="Keep Ride"
-              variant="outline"
-              onPress={() => setConfirmCancel(false)}
-              disabled={isPending}
-              style={styles.confirmBtn}
-            />
-            <Button
-              label={isPending ? 'Cancelling...' : 'Yes, Cancel'}
-              tone="destructive"
-              onPress={handlePerformCancel}
-              loading={isPending}
-              disabled={isPending}
-              style={styles.confirmBtn}
-              testID="passenger-confirm-cancel-matched"
-            />
+      {/* Cancellation Action (Permitted only during pre-pickup and arrived states) */}
+      {!isInProgress && (
+        confirmCancel ? (
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Cancel your confirmed ride?</Text>
+            <Text style={styles.confirmSubtitle}>
+              {isArrived
+                ? 'Your driver is already waiting at your pickup.'
+                : 'Your driver is already on the way to your pickup.'}
+            </Text>
+            <View style={styles.confirmActions}>
+              <Button
+                label="Keep Ride"
+                variant="outline"
+                onPress={() => setConfirmCancel(false)}
+                disabled={isPending}
+                style={styles.confirmBtn}
+              />
+              <Button
+                label={isPending ? 'Cancelling...' : 'Yes, Cancel'}
+                tone="destructive"
+                onPress={handlePerformCancel}
+                loading={isPending}
+                disabled={isPending}
+                style={styles.confirmBtn}
+                testID="passenger-confirm-cancel-matched"
+              />
+            </View>
           </View>
-        </View>
-      ) : (
-        <Button
-          label="Cancel Ride"
-          variant="ghost"
-          tone="destructive"
-          onPress={() => setConfirmCancel(true)}
-          disabled={isPending}
-          style={styles.cancelBtn}
-          testID="passenger-cancel-matched"
-        />
+        ) : (
+          <Button
+            label="Cancel Ride"
+            variant="ghost"
+            tone="destructive"
+            onPress={() => setConfirmCancel(true)}
+            disabled={isPending}
+            style={styles.cancelBtn}
+            testID="passenger-cancel-matched"
+          />
+        )
       )}
     </ScrollView>
   );
@@ -315,7 +452,7 @@ export function DriverMatchedSheet() {
 
 const styles = StyleSheet.create({
   scrollView: {
-    maxHeight: 460,
+    maxHeight: 520,
   },
   container: {
     paddingHorizontal: spacing[5],
@@ -356,6 +493,58 @@ const styles = StyleSheet.create({
     fontSize: typography.size.label,
     fontWeight: typography.weight.bold,
     color: colors.blue.primary,
+  },
+  arrivedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.green.tint,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+    borderRadius: radius.pill,
+    gap: 4,
+  },
+  arrivedPillText: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
+    color: colors.green.primary,
+  },
+  inProgressPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.blue.tint,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+    borderRadius: radius.pill,
+    gap: 4,
+  },
+  inProgressPillText: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  arrivalBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.green.tint,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    gap: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.green.primary,
+  },
+  arrivalBannerTextCol: {
+    flex: 1,
+  },
+  arrivalBannerTitle: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.green.primary,
+  },
+  arrivalBannerSubtitle: {
+    fontSize: typography.size.label,
+    color: colors.ink[700],
+    marginTop: 2,
   },
   driverCard: {
     backgroundColor: colors.surface.card,
@@ -556,6 +745,32 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
     color: colors.green.primary,
   },
+  destinationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  destinationTextCol: {
+    flex: 1,
+  },
+  destinationTitle: {
+    fontSize: 9,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[500],
+    letterSpacing: 0.6,
+  },
+  destinationAddress: {
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    marginTop: 2,
+  },
   pickupCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -584,7 +799,7 @@ const styles = StyleSheet.create({
   },
   privacyNoticeCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing[2],
     backgroundColor: colors.blue.tint,
     borderRadius: radius.md,
@@ -592,12 +807,38 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     marginBottom: spacing[3],
   },
-  privacyNoticeText: {
+  privacyTextCol: {
     flex: 1,
+  },
+  privacyNoticeText: {
     fontSize: typography.size.label,
     fontWeight: typography.weight.medium,
     color: colors.blue.primary,
     lineHeight: 16,
+  },
+  privacyDetailText: {
+    fontSize: typography.size.label - 1,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.deep,
+    marginTop: 3,
+  },
+  driverLocationUnavailableCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    marginBottom: spacing[3],
+  },
+  driverLocationUnavailableText: {
+    fontSize: typography.size.label,
+    color: colors.ink[500],
+    fontWeight: typography.weight.medium,
+  },
+  safetyContainer: {
+    marginBottom: spacing[3],
   },
   errorBanner: {
     flexDirection: 'row',
