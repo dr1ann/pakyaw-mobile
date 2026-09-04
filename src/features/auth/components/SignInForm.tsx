@@ -129,9 +129,9 @@ export function SignInForm() {
         router.replace('/passenger-account-state');
       } else if (resolution.status === 'needs_recovery') {
         setAccountNotFound(true);
-        setErrorMessage('No Pakyaw passenger account was found for this number.');
+        setErrorMessage('No Pakyaw Passenger account was found for this mobile number.');
       } else if (resolution.status === 'invalid_role') {
-        setErrorMessage('This account is registered as a driver. Please use the driver app to sign in.');
+        setErrorMessage('This mobile number is registered to a Pakyaw Driver account. Sign in using the Pakyaw Driver app.');
       } else {
         setErrorMessage('Unable to sign in. Please try again.');
       }

@@ -26,6 +26,7 @@ import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
 import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import MapView from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 

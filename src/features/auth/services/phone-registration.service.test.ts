@@ -235,7 +235,7 @@ describe('phone-registration.service', () => {
           termsAccepted: true,
           privacyAccepted: true,
         }),
-      ).rejects.toThrow('This account already exists with a different role.');
+      ).rejects.toThrow('This mobile number is registered to a Pakyaw Driver account. Sign in using the Pakyaw Driver app.');
     });
   });
 

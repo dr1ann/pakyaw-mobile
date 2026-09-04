@@ -51,7 +51,7 @@ export function storePassengerSessionResolution(resolution: PassengerSessionReso
       break;
 
     case 'invalid_role':
-      passengerStore.setError(resolution.uid, `Account has role '${resolution.role}', not 'passenger'.`);
+      passengerStore.clear();
       sessionStore.clear();
       break;
 

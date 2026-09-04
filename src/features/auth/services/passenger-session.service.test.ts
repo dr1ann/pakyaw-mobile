@@ -97,10 +97,13 @@ describe('passenger-session.service', () => {
       expect(useSessionStore.getState().status).toBe('unauthenticated');
     });
 
-    it('stores needs_recovery in stores', () => {
-      storePassengerSessionResolution({ status: 'needs_recovery', uid: 'uid-3' });
+    it('clears stores when resolution is invalid_role', () => {
+      useSessionStore.getState().setSession('uid-driver', 'passenger');
+      usePassengerSessionStore.getState().setActive('uid-driver', {} as any);
 
-      expect(usePassengerSessionStore.getState().status).toBe('needs_recovery');
+      storePassengerSessionResolution({ status: 'invalid_role', uid: 'uid-driver', role: 'driver' });
+
+      expect(usePassengerSessionStore.getState().status).toBe('unauthenticated');
       expect(useSessionStore.getState().status).toBe('unauthenticated');
     });
   });

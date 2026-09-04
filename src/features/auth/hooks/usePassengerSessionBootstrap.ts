@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { auth, onAuthStateChanged, type User } from '@/services/firebase/firebase';
+import { auth, onAuthStateChanged, signOut, type User } from '@/services/firebase/firebase';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { usePassengerSessionStore } from '@/features/auth/stores/passenger-session.store';
@@ -28,6 +28,12 @@ export function usePassengerSessionBootstrap(): void {
       void resolvePassengerSession(user.uid)
         .then((resolution) => {
           if (!mounted || generation !== resolutionGeneration) return;
+          if (resolution.status === 'invalid_role') {
+            signOut(auth).catch(() => undefined);
+            usePassengerSessionStore.getState().clear();
+            useSessionStore.getState().clear();
+            return;
+          }
           storePassengerSessionResolution(resolution);
         })
         .catch((error: unknown) => {

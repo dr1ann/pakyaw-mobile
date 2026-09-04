@@ -131,6 +131,13 @@ export async function createVerifiedPassengerProfile(input: {
       // Profile already exists for this UID; return safely
       return;
     }
+    if (data.role === 'driver') {
+      await signOut(auth).catch(() => undefined);
+      throw new Error(
+        'This mobile number is registered to a Pakyaw Driver account. Sign in using the Pakyaw Driver app.',
+      );
+    }
+    await signOut(auth).catch(() => undefined);
     throw new Error('This account already exists with a different role.');
   }
 
