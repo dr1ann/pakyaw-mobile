@@ -111,6 +111,12 @@ export interface GoogleGeocodingResult {
   readonly formatted_address: string;
   readonly address_components: readonly GoogleAddressComponent[];
   readonly types: readonly string[];
+  readonly geometry?: {
+    readonly location?: {
+      readonly lat: number;
+      readonly lng: number;
+    };
+  };
 }
 
 export interface ResolvedPickupDisplayLabel {
@@ -122,6 +128,27 @@ export interface ResolvedPickupDisplayLabel {
 export interface NearbyLandmarkResult {
   readonly name: string;
   readonly vicinity?: string;
+}
+
+interface Coordinate {
+  readonly lat: number;
+  readonly lng: number;
+}
+
+const NEARBY_LANDMARK_RADIUS_METERS = 150;
+const POLITICAL_RESULT_MAX_DISTANCE_METERS = 1_000;
+
+function distanceMeters(a: Coordinate, b: Coordinate): number {
+  const earthRadiusMeters = 6_371_000;
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latitudeDelta = toRadians(b.lat - a.lat);
+  const longitudeDelta = toRadians(b.lng - a.lng);
+  const latitudeA = toRadians(a.lat);
+  const latitudeB = toRadians(b.lat);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
 const FORBIDDEN_PRIMARY_EXACT = new Set([
@@ -155,11 +182,11 @@ export function isValidPrimaryPickupLabel(text: string | undefined | null): bool
 }
 
 /**
- * Supplementary Nearby Places lookup to find recognizable landmarks within ~60m of the selected coordinate.
+ * Supplementary Nearby Places lookup to find recognizable landmarks within 150m of the selected coordinate.
  * Note: Supplementary only. This must NEVER move or overwrite the authoritative pickup coordinates.
  */
 export async function getNearbyLandmark(lat: number, lng: number): Promise<NearbyLandmarkResult | null> {
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=60&key=${GOOGLE_MAPS_API_KEY}`;
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${NEARBY_LANDMARK_RADIUS_METERS}&key=${GOOGLE_MAPS_API_KEY}`;
 
   try {
     logger.info('[placesService] Fetching nearby landmarks', { lat, lng });
@@ -178,23 +205,32 @@ export async function getNearbyLandmark(lat: number, lng: number): Promise<Nearb
       readonly name?: string;
       readonly vicinity?: string;
       readonly types?: readonly string[];
+      readonly geometry?: { readonly location?: Coordinate };
     }[];
 
-    const validLandmark = results.find((r) => {
-      if (!r.name || !isValidPrimaryPickupLabel(r.name)) return false;
-      const types = r.types || [];
-      // Avoid broad political / locality entities returned in nearby search
-      if (
-        types.includes('locality') ||
-        types.includes('administrative_area_level_1') ||
-        types.includes('administrative_area_level_2') ||
-        types.includes('country') ||
-        types.includes('political')
-      ) {
-        return false;
-      }
-      return true;
-    });
+    const pin = { lat, lng };
+    const validLandmark = results
+      .filter((r) => {
+        if (!r.name || !isValidPrimaryPickupLabel(r.name)) return false;
+        const types = r.types || [];
+        // Avoid broad political / locality entities returned in nearby search.
+        if (
+          types.includes('locality') ||
+          types.includes('administrative_area_level_1') ||
+          types.includes('administrative_area_level_2') ||
+          types.includes('country') ||
+          types.includes('political')
+        ) {
+          return false;
+        }
+        const location = r.geometry?.location;
+        return !location || distanceMeters(pin, location) <= NEARBY_LANDMARK_RADIUS_METERS;
+      })
+      .sort((a, b) => {
+        const distanceA = a.geometry?.location ? distanceMeters(pin, a.geometry.location) : Number.POSITIVE_INFINITY;
+        const distanceB = b.geometry?.location ? distanceMeters(pin, b.geometry.location) : Number.POSITIVE_INFINITY;
+        return distanceA - distanceB;
+      })[0];
 
     if (validLandmark?.name) {
       return {
@@ -221,7 +257,8 @@ export async function getNearbyLandmark(lat: number, lng: number): Promise<Nearb
  * 6. Safe fallback ("Pinned location")
  */
 export function resolvePickupDisplayLabel(
-  results: readonly GoogleGeocodingResult[]
+  results: readonly GoogleGeocodingResult[],
+  pin?: Coordinate
 ): ResolvedPickupDisplayLabel {
   if (!results || results.length === 0) {
     return {
@@ -290,6 +327,11 @@ export function resolvePickupDisplayLabel(
 
   let primary: string | null = null;
   let secondary: string | undefined = undefined;
+
+  const isResultNearPin = (result: GoogleGeocodingResult): boolean => {
+    if (!pin || !result.geometry?.location) return true;
+    return distanceMeters(pin, result.geometry.location) <= POLITICAL_RESULT_MAX_DISTANCE_METERS;
+  };
 
   // 1. POI / Establishment / Premise
   const poiResult = cleanedResults.find((r) => {
@@ -372,10 +414,12 @@ export function resolvePickupDisplayLabel(
     }
   }
 
-  // 4. Sublocality / Barangay only (e.g. "Camp Downes") - must be explicitly returned by Google
+  // 4. Sublocality / Barangay only (e.g. "Camp Downes"). Political results often
+  // use the area's centroid, so reject a label whose geometry is far from the pin.
   if (!primary) {
     let foundSublocality: GoogleAddressComponent | undefined;
     for (const r of cleanedResults) {
+      if (!isResultNearPin(r)) continue;
       for (const c of r.address_components || []) {
         const types = c.types || [];
         if (
@@ -470,11 +514,11 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
       };
     }
 
-    const resolved = resolvePickupDisplayLabel(results);
+    const resolved = resolvePickupDisplayLabel(results, { lat, lng });
     let finalLabel = resolved.primary;
     let finalAddress = resolved.secondary || resolved.fullAddress;
 
-    // If reverse-geocoding did not resolve a specific POI directly on the point, but a nearby landmark is found within ~60m:
+    // If reverse-geocoding did not resolve a specific POI directly on the point, but a nearby landmark is found within 150m:
     // Present as "Near <Landmark>" while strictly keeping exact pin coordinates
     if (
       nearbyLandmark?.name &&

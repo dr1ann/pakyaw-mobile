@@ -111,6 +111,25 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
       expect(resolved.secondary).toBe('Ormoc City, Leyte');
     });
 
+    it('rejects a distant political-area label that does not represent the pin', () => {
+      const results: GoogleGeocodingResult[] = [
+        {
+          formatted_address: 'Linao, Ormoc City, Leyte, Philippines',
+          types: ['sublocality', 'political'],
+          geometry: { location: { lat: 11.035, lng: 124.625 } },
+          address_components: [
+            { long_name: 'Linao', short_name: 'Linao', types: ['sublocality', 'political'] },
+            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
+            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2', 'political'] },
+          ],
+        },
+      ];
+
+      const resolved = resolvePickupDisplayLabel(results, { lat: 10.9959, lng: 124.6183 });
+      expect(resolved.primary).toBe('Pinned location');
+      expect(resolved.primary).not.toBe('Linao');
+    });
+
     it('never assigns a barangay by proximity when only locality/province is returned: falls back to Pinned location', () => {
       const results: GoogleGeocodingResult[] = [
         {
@@ -156,9 +175,82 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
       expect(landmark?.name).toBe('Camp Downes Elementary School');
       expect(landmark?.vicinity).toBe('Camp Downes, Ormoc City');
     });
+
+    it('chooses the closest valid landmark instead of API result order', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          results: [
+            {
+              name: 'Farther Store',
+              vicinity: 'Ormoc City',
+              types: ['store', 'point_of_interest'],
+              geometry: { location: { lat: 10.9968, lng: 124.6183 } },
+            },
+            {
+              name: 'Camp Downes Elementary School',
+              vicinity: 'Camp Downes, Ormoc City',
+              types: ['school', 'point_of_interest'],
+              geometry: { location: { lat: 10.9960, lng: 124.6183 } },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+      const landmark = await getNearbyLandmark(10.9959, 124.6183);
+      expect(landmark?.name).toBe('Camp Downes Elementary School');
+    });
   });
 
   describe('reverseGeocode() end-to-end integration', () => {
+    it('replaces a distant Linao political result with the closest Camp Downes landmark', async () => {
+      vi.mocked(fetch).mockImplementation(async (url) => {
+        if (String(url).includes('geocode/json')) {
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'OK',
+              results: [
+                {
+                  formatted_address: 'Linao, Ormoc City, Leyte, Philippines',
+                  types: ['sublocality', 'political'],
+                  geometry: { location: { lat: 11.035, lng: 124.625 } },
+                  address_components: [
+                    { long_name: 'Linao', short_name: 'Linao', types: ['sublocality', 'political'] },
+                    { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
+                    { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2', 'political'] },
+                  ],
+                },
+              ],
+            }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                name: 'Camp Downes Elementary School',
+                vicinity: 'Camp Downes, Ormoc City',
+                types: ['school', 'point_of_interest', 'establishment'],
+                geometry: { location: { lat: 10.9960, lng: 124.6183 } },
+              },
+            ],
+          }),
+        } as unknown as Response;
+      });
+
+      const pinCoords = { lat: 10.9959, lng: 124.6183 };
+      const place = await reverseGeocode(pinCoords.lat, pinCoords.lng);
+      expect(place).toEqual({
+        label: 'Near Camp Downes Elementary School',
+        address: 'Camp Downes, Ormoc City',
+        coords: pinCoords,
+      });
+    });
+
     it('returns exact pin coordinates alongside enriched landmark label', async () => {
       const mockGeocodeResponse = {
         status: 'OK',
