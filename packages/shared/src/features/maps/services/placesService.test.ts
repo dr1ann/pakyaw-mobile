@@ -12,6 +12,7 @@ vi.mock('expo-constants', () => ({
 
 import {
   reverseGeocode,
+  reverseGeocodePin,
   resolvePickupDisplayLabel,
   isValidPrimaryPickupLabel,
   getNearbyLandmark,
@@ -396,6 +397,52 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
       expect(place?.label).not.toBe('Leyte');
       expect(place?.address).toBe('Ormoc City, Leyte');
       expect(place?.coords).toEqual(pinCoords);
+    });
+  });
+
+  describe('reverseGeocodePin() Google Maps-style custom pin display', () => {
+    it('keeps the pin as the title and describes the nearest specific POI with its vicinity', async () => {
+      vi.mocked(fetch).mockImplementation(async (url) => {
+        if (String(url).includes('geocode/json')) {
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'OK',
+              results: [
+                {
+                  formatted_address: '3 Cemetery Rd, Ormoc City, Leyte, Philippines',
+                  types: ['street_address'],
+                  address_components: [
+                    { long_name: 'Cemetery Road', short_name: 'Cemetery Rd', types: ['route'] },
+                    { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+                  ],
+                },
+              ],
+            }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                name: 'NISSAN ORMOC',
+                vicinity: 'Baybay–Southern Leyte, Boundary Road, Ormoc City',
+                types: ['car_dealer', 'store', 'point_of_interest', 'establishment'],
+                geometry: { location: { lat: 11.0024146, lng: 124.6135342 } },
+              },
+            ],
+          }),
+        } as unknown as Response;
+      });
+
+      const pin = await reverseGeocodePin(11.002489, 124.613571);
+      expect(pin).toEqual({
+        label: 'Dropped pin',
+        address: 'Near NISSAN ORMOC, Baybay–Southern Leyte, Boundary Road, Ormoc City',
+        coords: { lat: 11.002489, lng: 124.613571 },
+      });
     });
   });
 });

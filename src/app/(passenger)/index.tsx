@@ -42,7 +42,7 @@ import { HomeSheet } from '@/features/booking/components/HomeSheet';
 import { SearchingSheet } from '@/features/booking/components/SearchingSheet';
 import { SetDestinationSheet } from '@/features/booking/components/SetDestinationSheet';
 import { useRouteQuery } from '@/features/maps/hooks/useRouteQuery';
-import { reverseGeocode } from '@pakyaw/shared/features/maps/services/placesService';
+import { reverseGeocode, reverseGeocodePin } from '@pakyaw/shared/features/maps/services/placesService';
 import { CancelledSheet } from '@pakyaw/shared/features/trip/components/CancelledSheet';
 import { CompletedSheet } from '@pakyaw/shared/features/trip/components/CompletedSheet';
 import { DriverMatchedSheet } from '@/features/trip/components/DriverMatchedSheet';
@@ -356,7 +356,7 @@ export default function RideScreen() {
 
     void (async () => {
       try {
-        const place = await reverseGeocode(coords.latitude, coords.longitude);
+        const place = await reverseGeocodePin(coords.latitude, coords.longitude);
         if (place) {
           const currentPickup = useBookingDraftStore.getState().draft.pickup;
           if (isSameCoordinate(currentPickup?.coords, coords)) {
@@ -389,7 +389,7 @@ export default function RideScreen() {
 
     void (async () => {
       try {
-        const place = await reverseGeocode(coords.latitude, coords.longitude);
+        const place = await reverseGeocodePin(coords.latitude, coords.longitude);
         if (place) {
           const currentDest = useBookingDraftStore.getState().draft.destination;
           if (isSameCoordinate(currentDest?.coords, coords)) {
@@ -425,7 +425,7 @@ export default function RideScreen() {
       geocodeDebounceTimer.current = setTimeout(() => {
         void (async () => {
           try {
-            const place = await reverseGeocode(region.latitude, region.longitude);
+            const place = await reverseGeocodePin(region.latitude, region.longitude);
             if (place) {
               setPinSelection((current: Place | null) => {
                 if (current && isSameCoordinate(current.coords, newCoords)) {
@@ -634,7 +634,7 @@ export default function RideScreen() {
                   setIsGeocoding(true);
                   void (async () => {
                     try {
-                      const place = await reverseGeocode(coords.lat, coords.lng);
+                      const place = await reverseGeocodePin(coords.lat, coords.lng);
                       if (place) {
                         setPinSelection((current: Place | null) => {
                           if (current && isSameCoordinate(current.coords, coords)) {

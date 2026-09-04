@@ -482,7 +482,11 @@ export function resolvePickupDisplayLabel(
  * Strictly retains the exact { lat, lng } as authoritative coordinates.
  * Supplementary Nearby Places enrichment is used only for recognizable landmark labeling.
  */
-export async function reverseGeocode(lat: number, lng: number): Promise<Place | null> {
+async function resolveCoordinate(
+  lat: number,
+  lng: number,
+  displayMode: 'resolved_place' | 'dropped_pin'
+): Promise<Place | null> {
   const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
 
   try {
@@ -502,8 +506,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     if (data.status && data.status !== 'OK') {
       logger.error('[placesService] Geocoding API error', { status: data.status });
       return {
-        label: nearbyLandmark?.name || 'Pinned location',
-        address: nearbyLandmark?.vicinity || 'Ormoc City, Leyte',
+        label: displayMode === 'dropped_pin' ? 'Dropped pin' : nearbyLandmark?.name || 'Pinned location',
+        address: nearbyLandmark
+          ? `${displayMode === 'dropped_pin' ? `Near ${nearbyLandmark.name}, ` : ''}${nearbyLandmark.vicinity || 'Ormoc City, Leyte'}`
+          : 'Ormoc City, Leyte',
         coords: { lat, lng },
       };
     }
@@ -511,8 +517,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     const results = (data.results || []) as readonly GoogleGeocodingResult[];
     if (results.length === 0) {
       return {
-        label: nearbyLandmark?.name || 'Pinned location',
-        address: nearbyLandmark?.vicinity || 'Ormoc City, Leyte',
+        label: displayMode === 'dropped_pin' ? 'Dropped pin' : nearbyLandmark?.name || 'Pinned location',
+        address: nearbyLandmark
+          ? `${displayMode === 'dropped_pin' ? `Near ${nearbyLandmark.name}, ` : ''}${nearbyLandmark.vicinity || 'Ormoc City, Leyte'}`
+          : 'Ormoc City, Leyte',
         coords: { lat, lng },
       };
     }
@@ -520,6 +528,16 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     const resolved = resolvePickupDisplayLabel(results, { lat, lng });
     let finalLabel = resolved.primary;
     let finalAddress = resolved.secondary || resolved.fullAddress;
+
+    if (displayMode === 'dropped_pin') {
+      return {
+        label: 'Dropped pin',
+        address: nearbyLandmark?.name
+          ? `Near ${nearbyLandmark.name}${nearbyLandmark.vicinity ? `, ${nearbyLandmark.vicinity}` : ''}`
+          : resolved.fullAddress,
+        coords: { lat, lng },
+      };
+    }
 
     // If reverse-geocoding did not resolve a specific POI directly on the point, but a nearby landmark is found within 150m:
     // Present as "Near <Landmark>" while strictly keeping exact pin coordinates
@@ -546,9 +564,21 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
   } catch (err) {
     logger.error('[placesService] reverseGeocode failed', { err });
     return {
-      label: 'Pinned location',
+      label: displayMode === 'dropped_pin' ? 'Dropped pin' : 'Pinned location',
       address: 'Ormoc City, Leyte',
       coords: { lat, lng },
     };
   }
+}
+
+export function reverseGeocode(lat: number, lng: number): Promise<Place | null> {
+  return resolveCoordinate(lat, lng, 'resolved_place');
+}
+
+/**
+ * Resolve a user-positioned map pin using Google Maps-style presentation:
+ * the coordinate remains the identity, while the closest specific POI is context.
+ */
+export function reverseGeocodePin(lat: number, lng: number): Promise<Place | null> {
+  return resolveCoordinate(lat, lng, 'dropped_pin');
 }
