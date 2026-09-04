@@ -174,6 +174,7 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
       expect(landmark).not.toBeNull();
       expect(landmark?.name).toBe('Camp Downes Elementary School');
       expect(landmark?.vicinity).toBe('Camp Downes, Ormoc City');
+      expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('rankby=distance&type=point_of_interest');
     });
 
     it('chooses the closest valid landmark instead of API result order', async () => {
@@ -204,6 +205,52 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
   });
 
   describe('reverseGeocode() end-to-end integration', () => {
+    it('replaces an inaccurate cemetery road with the nearby visible business', async () => {
+      vi.mocked(fetch).mockImplementation(async (url) => {
+        if (String(url).includes('geocode/json')) {
+          return {
+            ok: true,
+            json: async () => ({
+              status: 'OK',
+              results: [
+                {
+                  formatted_address: 'Cemetery Rd, Can-adieng, Ormoc City, Leyte, Philippines',
+                  types: ['route'],
+                  address_components: [
+                    { long_name: 'Cemetery Road', short_name: 'Cemetery Rd', types: ['route'] },
+                    { long_name: 'Can-adieng', short_name: 'Can-adieng', types: ['sublocality', 'political'] },
+                    { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
+                  ],
+                },
+              ],
+            }),
+          } as unknown as Response;
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'OK',
+            results: [
+              {
+                name: 'NISSAN ORMOC',
+                vicinity: 'Ormoc City',
+                types: ['car_dealer', 'store', 'point_of_interest', 'establishment'],
+                geometry: { location: { lat: 11.0170, lng: 124.6070 } },
+              },
+            ],
+          }),
+        } as unknown as Response;
+      });
+
+      const pinCoords = { lat: 11.0172, lng: 124.6070 };
+      const place = await reverseGeocode(pinCoords.lat, pinCoords.lng);
+      expect(place).toEqual({
+        label: 'Near NISSAN ORMOC',
+        address: 'Cemetery Rd, Can-adieng, Ormoc City',
+        coords: pinCoords,
+      });
+    });
+
     it('replaces a distant Linao political result with the closest Camp Downes landmark', async () => {
       vi.mocked(fetch).mockImplementation(async (url) => {
         if (String(url).includes('geocode/json')) {

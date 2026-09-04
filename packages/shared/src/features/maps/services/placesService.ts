@@ -186,7 +186,10 @@ export function isValidPrimaryPickupLabel(text: string | undefined | null): bool
  * Note: Supplementary only. This must NEVER move or overwrite the authoritative pickup coordinates.
  */
 export async function getNearbyLandmark(lat: number, lng: number): Promise<NearbyLandmarkResult | null> {
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${NEARBY_LANDMARK_RADIUS_METERS}&key=${GOOGLE_MAPS_API_KEY}`;
+  // Distance ranking matches the nearby labels visible on Google Maps more closely
+  // than the default prominence ranking. The local distance filter below still
+  // enforces our strict maximum so a recognizable but far-away POI cannot win.
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&type=point_of_interest&key=${GOOGLE_MAPS_API_KEY}`;
 
   try {
     logger.info('[placesService] Fetching nearby landmarks', { lat, lng });
