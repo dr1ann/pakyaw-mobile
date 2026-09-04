@@ -14,6 +14,7 @@ import {
   doc,
   firestore,
   functions,
+  getDoc,
   httpsCallable,
   onSnapshot,
   serverTimestamp,
@@ -37,6 +38,7 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { isDriverPublicSnapshot, isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
@@ -327,6 +329,75 @@ export function subscribe(
       onErr(err);
     },
   );
+}
+
+export async function getTrip(tripId: string): Promise<TripDoc | null> {
+  const tripRef = doc(firestore, 'trips', tripId);
+  try {
+    const snap = await getDoc(tripRef);
+    if (snap && snap.exists()) {
+      return mapDocToTripDoc(snap.id, snap.data());
+    }
+    return null;
+  } catch (err) {
+    logger.error('[trip] getTrip failed', { err, tripId });
+    throw err;
+  }
+}
+
+export type ReconciliationResult =
+  | { outcome: 'retained_terminal'; trip: TripDoc }
+  | { outcome: 'cleared_missing' }
+  | { outcome: 'cleared_driver_mismatch'; driverId: string | null }
+  | { outcome: 'cleared_inconsistency'; status: TripStatus }
+  | { outcome: 'retained_network_error'; error: unknown };
+
+export async function reconcileActiveTrip(
+  tripId: string,
+  currentUid: string,
+): Promise<ReconciliationResult> {
+  try {
+    const canonicalTrip = await getTrip(tripId);
+
+    if (!canonicalTrip) {
+      logger.warn('[trip] reconciliation: canonical trip document does not exist; clearing local trip', { tripId });
+      useActiveTripStore.getState().clearTrip();
+      return { outcome: 'cleared_missing' };
+    }
+
+    if (canonicalTrip.driverId && canonicalTrip.driverId !== currentUid) {
+      logger.warn('[trip] reconciliation: trip assigned to different driver; clearing local trip', {
+        tripId,
+        canonicalDriverId: canonicalTrip.driverId,
+        currentUid,
+      });
+      useActiveTripStore.getState().clearTrip();
+      return { outcome: 'cleared_driver_mismatch', driverId: canonicalTrip.driverId };
+    }
+
+    if (canonicalTrip.status === 'completed' || canonicalTrip.status === 'cancelled') {
+      logger.info('[trip] reconciliation: canonical trip reached terminal state; updating store', {
+        tripId,
+        status: canonicalTrip.status,
+      });
+      useActiveTripStore.getState().setTrip(canonicalTrip);
+      return { outcome: 'retained_terminal', trip: canonicalTrip };
+    }
+
+    logger.warn('[trip] reconciliation: backend projection inconsistency — activeTripId is null but canonical trip is non-terminal; clearing local trip', {
+      tripId,
+      status: canonicalTrip.status,
+      driverId: canonicalTrip.driverId,
+    });
+    useActiveTripStore.getState().clearTrip();
+    return { outcome: 'cleared_inconsistency', status: canonicalTrip.status };
+  } catch (error) {
+    logger.error('[trip] reconciliation: authoritative read failed (network/offline); retaining presentation', {
+      tripId,
+      error,
+    });
+    return { outcome: 'retained_network_error', error };
+  }
 }
 
 export async function transition(

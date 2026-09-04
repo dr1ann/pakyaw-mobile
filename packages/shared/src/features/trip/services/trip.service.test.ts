@@ -4,12 +4,14 @@ const mocks = vi.hoisted(() => ({
   callable: vi.fn(),
   onSnapshot: vi.fn(),
   unsubscribe: vi.fn(),
+  getDoc: vi.fn(),
 }));
 
 vi.mock('@/services/firebase/firebase', () => ({
   firestore: {},
   functions: {},
   doc: vi.fn((...args: unknown[]) => args),
+  getDoc: mocks.getDoc,
   onSnapshot: mocks.onSnapshot,
   serverTimestamp: vi.fn(),
   updateDoc: vi.fn(),
@@ -17,7 +19,8 @@ vi.mock('@/services/firebase/firebase', () => ({
 }));
 
 import { CancelNotAllowedError, IllegalTransitionError } from '../errors';
-import { cancel, subscribe, transition } from './trip.service';
+import { cancel, getTrip, reconcileActiveTrip, subscribe, transition } from './trip.service';
+import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 describe('Day 3 callable trip actions', () => {
   beforeEach(() => {
@@ -209,6 +212,109 @@ describe('Day 3 callable trip actions', () => {
       tripId: 'trip-1',
       actorId: 'driver-1',
       reason: 'vehicle_issue',
+    });
+  });
+
+  describe('Authoritative trip reconciliation (reconcileActiveTrip)', () => {
+    beforeEach(() => {
+      useActiveTripStore.getState().clearTrip();
+      mocks.getDoc.mockReset();
+    });
+
+    it('canonical terminal read → retains terminal trip presentation', async () => {
+      mocks.getDoc.mockResolvedValueOnce({
+        id: 'trip-term-1',
+        exists: () => true,
+        data: () => ({
+          passengerId: 'p-1',
+          driverId: 'driver-1',
+          mode: 'solo',
+          status: 'completed',
+          pickup: { latitude: 11.005, longitude: 124.6075 },
+          destination: { latitude: 11.012, longitude: 124.615 },
+        }),
+      });
+
+      const res = await reconcileActiveTrip('trip-term-1', 'driver-1');
+
+      expect(res.outcome).toBe('retained_terminal');
+      expect(useActiveTripStore.getState().trip?.status).toBe('completed');
+    });
+
+    it('canonical non-terminal inconsistency → reconciles safely by clearing local trip', async () => {
+      mocks.getDoc.mockResolvedValueOnce({
+        id: 'trip-inconsistent',
+        exists: () => true,
+        data: () => ({
+          passengerId: 'p-1',
+          driverId: 'driver-1',
+          mode: 'solo',
+          status: 'driver_arrived',
+          pickup: { latitude: 11.005, longitude: 124.6075 },
+          destination: { latitude: 11.012, longitude: 124.615 },
+        }),
+      });
+
+      const res = await reconcileActiveTrip('trip-inconsistent', 'driver-1');
+
+      expect(res.outcome).toBe('cleared_inconsistency');
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('canonical trip missing → clears local trip', async () => {
+      mocks.getDoc.mockResolvedValueOnce({
+        id: 'trip-deleted',
+        exists: () => false,
+      });
+
+      const res = await reconcileActiveTrip('trip-deleted', 'driver-1');
+
+      expect(res.outcome).toBe('cleared_missing');
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('driverId mismatch → clears local trip', async () => {
+      mocks.getDoc.mockResolvedValueOnce({
+        id: 'trip-other-driver',
+        exists: () => true,
+        data: () => ({
+          passengerId: 'p-1',
+          driverId: 'other-driver-uid',
+          mode: 'solo',
+          status: 'in_progress',
+          pickup: { latitude: 11.005, longitude: 124.6075 },
+          destination: { latitude: 11.012, longitude: 124.615 },
+        }),
+      });
+
+      const res = await reconcileActiveTrip('trip-other-driver', 'driver-1');
+
+      expect(res.outcome).toBe('cleared_driver_mismatch');
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('network reconciliation failure → does not prematurely clear presentation', async () => {
+      useActiveTripStore.getState().setTripId('trip-network-err');
+      useActiveTripStore.getState().setTrip({
+        id: 'trip-network-err',
+        mode: 'solo',
+        status: 'driver_arriving',
+        passengerId: 'p-1',
+        driverId: 'driver-1',
+        pickup: { label: 'Pickup', coords: { lat: 11, lng: 124 } },
+        destination: { label: 'Dropoff', coords: { lat: 11.1, lng: 124.1 } },
+        passengerCount: 1,
+        billedSeats: 1,
+      } as any);
+
+      mocks.getDoc.mockRejectedValueOnce(new Error('Network offline'));
+
+      const res = await reconcileActiveTrip('trip-network-err', 'driver-1');
+
+      expect(res.outcome).toBe('retained_network_error');
+      // Trip presentation is preserved rather than discarded on network error
+      expect(useActiveTripStore.getState().trip).not.toBeNull();
+      expect(useActiveTripStore.getState().trip?.id).toBe('trip-network-err');
     });
   });
 });

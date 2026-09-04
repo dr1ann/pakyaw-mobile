@@ -511,38 +511,46 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       expect(useActiveTripStore.getState().trip).toBeNull();
     });
 
-    it('activeTripId null + trip remains non-terminal reconciles and clears stale state after grace window', () => {
-      vi.useFakeTimers();
-      try {
-        useActiveTripStore.getState().setTrip(sampleTrip);
-        expect(useActiveTripStore.getState().trip?.status).toBe('accepted');
+    it('activeTripId null first + delayed terminal snapshot → terminal still shown', () => {
+      // 1. Currently active trip in non-terminal state
+      useActiveTripStore.getState().setTrip(sampleTrip);
+      expect(useActiveTripStore.getState().trip?.status).toBe('accepted');
 
-        // Simulate DriveScreen effect logic with reconciliation timer
-        const currentStore = useActiveTripStore.getState();
-        const storeTrip = currentStore.trip;
-        if (storeTrip) {
-          const isTerminal = storeTrip.status === 'completed' || storeTrip.status === 'cancelled';
-          if (!isTerminal) {
-            setTimeout(() => {
-              const recheckStore = useActiveTripStore.getState();
-              const recheckTrip = recheckStore.trip;
-              if (recheckTrip && recheckTrip.status !== 'completed' && recheckTrip.status !== 'cancelled') {
-                useActiveTripStore.getState().clearTrip();
-              }
-            }, 5000);
-          }
+      // 2. Server activeTripId becomes null on driver doc
+      const serverActiveTripId = null;
+      if (serverActiveTripId === null) {
+        const storeTrip = useActiveTripStore.getState().trip;
+        if (!storeTrip && useActiveTripStore.getState().tripId) {
+          useActiveTripStore.getState().clearTrip();
         }
-
-        expect(useActiveTripStore.getState().trip).not.toBeNull();
-
-        // Fast-forward 5s grace window
-        vi.advanceTimersByTime(5000);
-
-        // Store is reconciled and cleared so driver is not trapped
-        expect(useActiveTripStore.getState().trip).toBeNull();
-      } finally {
-        vi.useRealTimers();
       }
+
+      // Store still retains active trip while awaiting reconciliation / snapshot
+      expect(useActiveTripStore.getState().trip).toEqual(sampleTrip);
+
+      // 3. Delayed terminal snapshot arrives across the wire
+      const delayedCompletedTrip: TripDoc = {
+        ...sampleTrip,
+        status: 'completed',
+      };
+      useActiveTripStore.getState().setTrip(delayedCompletedTrip);
+
+      // 4. Terminal sheet is presented
+      const mockDismiss = vi.fn(() => {
+        useActiveTripStore.getState().clearTrip();
+      });
+      const tree = PersistentDriverTripDashboard({
+        trip: useActiveTripStore.getState().trip,
+        onDismissTerminal: mockDismiss,
+      });
+      const json = JSON.stringify(tree);
+      expect(json).toContain('TRIP COMPLETED');
+
+      // 5. Driver taps Done -> cleared
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+      expect(mockDismiss).toHaveBeenCalledTimes(1);
+      expect(useActiveTripStore.getState().trip).toBeNull();
     });
   });
 });

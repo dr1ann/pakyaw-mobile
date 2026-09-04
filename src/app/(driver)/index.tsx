@@ -33,6 +33,7 @@ import { BoardingConfirmationToast } from '@/features/trip/components/BoardingCo
 import { LiveMap, type MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRideSession';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
+import { reconcileActiveTrip } from '@pakyaw/shared/features/trip/services/trip.service';
 import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
 import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
 import { logger } from '@pakyaw/shared/lib/logger';
@@ -73,7 +74,6 @@ export default function DriveScreen() {
   // Sync active trip and availability directly from drivers/{uid} document
   useEffect(() => {
     if (!uid) return;
-    let staleTripReconciliationTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsub = onSnapshot(doc(firestore, 'drivers', uid), (snap) => {
       if (snap && snap.exists) {
@@ -82,39 +82,22 @@ export default function DriveScreen() {
         const serverAvailability = data?.availability;
 
         if (typeof serverActiveTripId === 'string' && serverActiveTripId.trim().length > 0) {
-          if (staleTripReconciliationTimer) {
-            clearTimeout(staleTripReconciliationTimer);
-            staleTripReconciliationTimer = null;
-          }
           useActiveTripStore.getState().setTripId(serverActiveTripId.trim());
           useAvailabilityStore.getState().setAvailability('on_trip');
         } else if (serverActiveTripId === null) {
           // If serverActiveTripId is null:
           // 1. If no trip object is loaded (stale tripId only), clear immediately.
           // 2. If a terminal trip (completed/cancelled) is loaded, retain presentation until driver taps Done.
-          // 3. If a non-terminal trip is loaded, allow a grace window (5s) for the in-flight
-          //    terminal snapshot to arrive. If the trip remains non-terminal after the window,
-          //    reconcile by clearing the store so the driver is never trapped indefinitely.
+          // 3. If a non-terminal trip is loaded, explicitly reconcile against the canonical trips/{tripId} document.
+          //    We decide strictly on positive canonical evidence (read/snapshot), never on arbitrary timers.
           const currentStore = useActiveTripStore.getState();
           const storeTrip = currentStore.trip;
           if (!storeTrip && currentStore.tripId) {
             useActiveTripStore.getState().clearTrip();
           } else if (storeTrip) {
             const isTerminal = storeTrip.status === 'completed' || storeTrip.status === 'cancelled';
-            if (isTerminal) {
-              if (staleTripReconciliationTimer) {
-                clearTimeout(staleTripReconciliationTimer);
-                staleTripReconciliationTimer = null;
-              }
-            } else if (!staleTripReconciliationTimer) {
-              staleTripReconciliationTimer = setTimeout(() => {
-                const recheckStore = useActiveTripStore.getState();
-                const recheckTrip = recheckStore.trip;
-                if (recheckTrip && recheckTrip.status !== 'completed' && recheckTrip.status !== 'cancelled') {
-                  useActiveTripStore.getState().clearTrip();
-                }
-                staleTripReconciliationTimer = null;
-              }, 5000);
+            if (!isTerminal) {
+              void reconcileActiveTrip(storeTrip.id, uid);
             }
           }
         }
@@ -129,12 +112,7 @@ export default function DriveScreen() {
       }
     });
 
-    return () => {
-      if (staleTripReconciliationTimer) {
-        clearTimeout(staleTripReconciliationTimer);
-      }
-      unsub();
-    };
+    return () => unsub();
   }, [uid]);
 
   // Location subscription — starts/stops with availability & AppState.
