@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import MapView from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -209,6 +209,12 @@ export default function DriveScreen() {
         logger.warn('[drive] goOnline was rejected', {
           errorKind: err instanceof Error ? err.name : 'unknown',
         });
+        Alert.alert(
+          'Cannot Go Online',
+          err instanceof Error
+            ? err.message
+            : 'Unable to update availability. Please check your verification status and try again.',
+        );
       },
     });
   }
