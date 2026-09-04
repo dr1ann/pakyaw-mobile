@@ -27,7 +27,7 @@ import { isDriverPublicSnapshot, isRideMode } from '@pakyaw/shared/transport/con
 
 /** Historical trip reads may encounter documents written before Phase 1. */
 function historicalRideMode(value: unknown): TripDetail['mode'] {
-  return isRideMode(value) ? value : 'solo';
+  return value === 'hop' ? 'hop' : isRideMode(value) ? value : 'solo';
 }
 
 function translateFirebaseError(err: unknown): Error {

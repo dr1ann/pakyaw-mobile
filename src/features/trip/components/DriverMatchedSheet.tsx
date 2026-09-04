@@ -15,6 +15,7 @@ import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
 import { SosButton } from '@/features/safety/components/SosButton';
+import { DEFAULT_VEHICLE_CAPACITY } from '@pakyaw/shared/transport/contract';
 import type { Timestamp } from '@pakyaw/shared/features/trip/types';
 
 export type DriverMatchedSheetProps = {
@@ -115,6 +116,7 @@ export function DriverMatchedSheet({
 
   const mode = trip?.mode ?? 'solo';
   const isShared = mode === 'shared';
+  const isSharedOrHop = mode === 'shared' || mode === 'hop';
 
   const driverPublic = trip?.driverPublic;
   const driverName = driverPublic?.displayName || 'Driver Assigned';
@@ -136,8 +138,8 @@ export function DriverMatchedSheet({
   // Shared occupancy calculations
   const sharedRideSummary = trip?.sharedRideSummary;
   const maxSeats = isShared
-    ? (sharedRideSummary?.maxSeats ?? 6)
-    : Math.max(trip?.passengerCount || 0, trip?.billedSeats || 0, 4);
+    ? (sharedRideSummary?.maxSeats ?? DEFAULT_VEHICLE_CAPACITY)
+    : Math.max(trip?.passengerCount || 0, trip?.billedSeats || 0, DEFAULT_VEHICLE_CAPACITY);
 
   const userSeats = trip?.passengerCount || 1;
   const seatsOccupied = isShared

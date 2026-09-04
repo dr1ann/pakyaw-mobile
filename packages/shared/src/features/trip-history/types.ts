@@ -5,13 +5,13 @@ export type Timestamp = {
   toMillis?: () => number;
 };
 
-import type { RideMode } from '@pakyaw/shared/transport/contract';
+import type { AnyRideMode, RideMode } from '@pakyaw/shared/transport/contract';
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
 
 export type TripHistoryItem = {
   readonly tripId: string;
   readonly status: string;
-  readonly mode: RideMode;
+  readonly mode: AnyRideMode;
   readonly fare: number | null;
   readonly distanceMeters: number | null;
   readonly pickup: {

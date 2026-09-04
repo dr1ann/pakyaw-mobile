@@ -38,6 +38,10 @@ describe('transport contract', () => {
     expect(INITIAL_BILLED_SEATS).toBe(1);
     expect(isPassengerCountAllowed('shared', 1)).toBe(true);
     expect(isPassengerCountAllowed('shared', 2)).toBe(true);
+    expect(isPassengerCountAllowed('shared', 3)).toBe(true);
+    expect(isPassengerCountAllowed('shared', 4)).toBe(false);
+    expect(isPassengerCountAllowed('solo', 6)).toBe(true);
+    expect(isPassengerCountAllowed('solo', 7)).toBe(false);
   });
 
   it('names sharedRides as canonical and shared_rides as legacy', () => {

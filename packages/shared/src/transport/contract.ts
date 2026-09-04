@@ -40,6 +40,41 @@ export const LEGACY_SHARED_RIDES_COLLECTION = 'shared_rides' as const;
 export const INITIAL_PASSENGER_COUNT = 1;
 export const INITIAL_BILLED_SEATS = 1;
 export const MAX_PASSENGER_COUNT = 6;
+export const DEFAULT_VEHICLE_CAPACITY = 6;
+export const DEFAULT_SOLO_MIN_BILLED_SEATS = 4;
+export const DEFAULT_SHARED_MAX_SEATS_PER_BOOKING = 3;
+
+export type PublicTransportConfig = {
+  vehicleCapacity: number;
+  modes: {
+    solo: {
+      minPassengers: number;
+      maxPassengers: number;
+      minimumBilledSeats: number;
+    };
+    shared: {
+      minPassengers: number;
+      maxPassengers: number;
+      maxSeatsPerBooking: number;
+    };
+  };
+};
+
+export const DEFAULT_PUBLIC_TRANSPORT_CONFIG: PublicTransportConfig = {
+  vehicleCapacity: DEFAULT_VEHICLE_CAPACITY,
+  modes: {
+    solo: {
+      minPassengers: 1,
+      maxPassengers: DEFAULT_VEHICLE_CAPACITY,
+      minimumBilledSeats: DEFAULT_SOLO_MIN_BILLED_SEATS,
+    },
+    shared: {
+      minPassengers: 1,
+      maxPassengers: DEFAULT_VEHICLE_CAPACITY,
+      maxSeatsPerBooking: DEFAULT_SHARED_MAX_SEATS_PER_BOOKING,
+    },
+  },
+};
 
 export type LatLng = {
   latitude: number;
@@ -122,11 +157,14 @@ export function isDriverPublicSnapshot(value: unknown): value is DriverPublicSna
     && (value.vehicle.unitBodyNumber === undefined || value.vehicle.unitBodyNumber === null || typeof value.vehicle.unitBodyNumber === 'string');
 }
 
+export type LegacyRideMode = 'hop';
+export type AnyRideMode = RideMode | LegacyRideMode;
+
 export type Trip = {
   passengerId: string;
   driverId: string | null;
 
-  mode: RideMode;
+  mode: AnyRideMode;
   status: TripStatus;
 
   pickup: Place;
@@ -199,13 +237,20 @@ export type QuoteTripResult = {
   readonly fare: FareBreakdown;
 };
 
-export function isPassengerCountAllowed(mode: RideMode, passengerCount: number): boolean {
-  void mode;
-  return (
-    Number.isInteger(passengerCount) &&
-    passengerCount >= 1 &&
-    passengerCount <= MAX_PASSENGER_COUNT
-  );
+export function isPassengerCountAllowed(
+  mode: RideMode,
+  passengerCount: number,
+  limits?: { vehicleCapacity?: number; maxSeatsPerBooking?: number }
+): boolean {
+  if (!Number.isInteger(passengerCount) || passengerCount < 1) {
+    return false;
+  }
+  if (mode === 'shared') {
+    const max = limits?.maxSeatsPerBooking ?? DEFAULT_SHARED_MAX_SEATS_PER_BOOKING;
+    return passengerCount <= max;
+  }
+  const max = limits?.vehicleCapacity ?? DEFAULT_VEHICLE_CAPACITY;
+  return passengerCount <= max;
 }
 
 export type SharedRideStatus = 'forming' | 'active' | 'completed' | 'cancelled';

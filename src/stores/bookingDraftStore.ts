@@ -38,10 +38,10 @@ export type BookingDraft = {
 
 export type BookingDraftState = {
   readonly draft: BookingDraft;
-  setRideMode: (mode: BookingRideSelection) => void;
+  setRideMode: (mode: BookingRideSelection, maxSharedSeats?: number) => void;
   setPickup: (pickup: Place | null) => void;
   setDestination: (destination: Place | null) => void;
-  setPassengerCount: (count: number) => void;
+  setPassengerCount: (count: number, maxSeats?: number, minSeats?: number) => void;
   setRoute: (route: AcceptedRoute | null) => void;
   setBookingFor: (bookingFor: 'self' | 'other') => void;
   setRiderFirstName: (name: string) => void;
@@ -62,10 +62,10 @@ const emptyDraft: BookingDraft = {
 
 export const useBookingDraftStore = create<BookingDraftState>((set) => ({
   draft: emptyDraft,
-  setRideMode: (rideMode) =>
+  setRideMode: (rideMode, maxSharedSeats = 3) =>
     set((state) => {
       let nextPassengerCount = state.draft.passengerCount;
-      if (rideMode === 'shared' && nextPassengerCount > 3) {
+      if (rideMode === 'shared' && nextPassengerCount > maxSharedSeats) {
         nextPassengerCount = 1;
       }
       return {
@@ -84,8 +84,8 @@ export const useBookingDraftStore = create<BookingDraftState>((set) => ({
     set((state) => ({
       draft: { ...state.draft, destination },
     })),
-  setPassengerCount: (count) =>
-    set((state) => ({ draft: { ...state.draft, passengerCount: clamp(count) } })),
+  setPassengerCount: (count, maxSeats, minSeats) =>
+    set((state) => ({ draft: { ...state.draft, passengerCount: clamp(count, maxSeats, minSeats) } })),
   setRoute: (route) =>
     set((state) => ({
       draft: { ...state.draft, route },

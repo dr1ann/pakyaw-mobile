@@ -3,55 +3,52 @@ import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import type { PublicTransportConfig } from '@pakyaw/shared/transport/contract';
+import { DEFAULT_PUBLIC_TRANSPORT_CONFIG } from '@pakyaw/shared/transport/contract';
 import type { BookingRideSelection } from '../types';
 
 type OnboardingModalProps = {
   readonly mode: BookingRideSelection;
   readonly isVisible: boolean;
   readonly onClose: () => void;
+  readonly config?: PublicTransportConfig;
 };
 
-const MODE_CONTENT: Record<
-  BookingRideSelection,
-  {
-    title: string;
-    badge: string;
-    icon: string;
-    color: string;
-    description: string;
-    points: readonly string[];
-  }
-> = {
-  private: {
-    title: 'Pakyaw',
-    badge: 'Private Trip',
-    icon: 'car.fill',
-    color: colors.blue.primary,
-    description: 'Book the entire tricycle for a private trip directly to your destination.',
-    points: [
-      'Private ride for you and your companions.',
-      'Direct route with no extra passenger pickups.',
-      'Covers up to 4 riders, with up to 6 riders supported.',
-    ],
-  },
-  shared: {
-    title: 'Shared',
-    badge: 'Shared Trip',
-    icon: 'person.2.fill',
-    color: colors.green.primary,
-    description: 'Book individual seats on a shared route with other passengers.',
-    points: [
-      'Select 1 to 3 seats for your ride.',
-      'Pay per seat based on your route distance.',
-      'Other passengers along your route corridor may share the ride.',
-    ],
-  },
-};
-
-export function OnboardingModal({ mode, isVisible, onClose }: OnboardingModalProps) {
+export function OnboardingModal({ mode, isVisible, onClose, config = DEFAULT_PUBLIC_TRANSPORT_CONFIG }: OnboardingModalProps) {
   if (!isVisible) return null;
 
-  const content = MODE_CONTENT[mode];
+  const soloMax = config.modes.solo.maxPassengers || config.vehicleCapacity || 6;
+  const soloMinBilled = config.modes.solo.minimumBilledSeats || 4;
+  const sharedMax = config.modes.shared.maxSeatsPerBooking || 3;
+
+  const modeContent = {
+    private: {
+      title: 'Pakyaw',
+      badge: 'Private Trip',
+      icon: 'car.fill',
+      color: colors.blue.primary,
+      description: 'Book the entire tricycle for a private trip directly to your destination.',
+      points: [
+        'Private ride for you and your companions.',
+        'Direct route with no extra passenger pickups.',
+        `Covers up to ${soloMinBilled} riders, with up to ${soloMax} riders supported.`,
+      ],
+    },
+    shared: {
+      title: 'Shared',
+      badge: 'Shared Trip',
+      icon: 'person.2.fill',
+      color: colors.green.primary,
+      description: 'Book individual seats on a shared route with other passengers.',
+      points: [
+        `Select 1 to ${sharedMax} seats for your ride.`,
+        'Pay per seat based on your route distance.',
+        'Other passengers along your route corridor may share the ride.',
+      ],
+    },
+  };
+
+  const content = modeContent[mode];
 
   return (
     <Modal

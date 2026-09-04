@@ -6,11 +6,13 @@ import { MAX_SEATS, MIN_SEATS } from '@/lib/seatModel';
 export type SeatStepperProps = {
   value: number;
   onChange: (value: number) => void;
+  min?: number;
+  max?: number;
 };
 
-export function SeatStepper({ value, onChange }: SeatStepperProps) {
-  const canDecrement = value > MIN_SEATS;
-  const canIncrement = value < MAX_SEATS;
+export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS }: SeatStepperProps) {
+  const canDecrement = value > min;
+  const canIncrement = value < max;
 
   return (
     <View style={styles.row}>

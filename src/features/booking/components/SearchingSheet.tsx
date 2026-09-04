@@ -91,7 +91,7 @@ export function SearchingSheet() {
     });
   }
 
-  const mode = trip?.mode ?? 'solo';
+  const mode: RideMode = trip?.mode === 'shared' ? 'shared' : 'solo';
   const config = MODE_CONFIG[mode] ?? MODE_CONFIG.solo;
   const isTimedOut = trip?.matching?.stage === 'timed_out';
 

@@ -14,6 +14,7 @@ import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
 import { FareQuoteBreakdown } from './FareQuoteBreakdown';
 import { useQuote } from '@/features/booking/hooks/useQuote';
+import { useTransportConfig } from '@/features/booking/hooks/useTransportConfig';
 import { toRideMode, type CreateBookingInput, type BookingRideSelection } from '../types';
 
 type BookingSheetProps = {
@@ -59,6 +60,11 @@ export function BookingSheet({
   const setBookingFor = useBookingDraftStore((s) => s.setBookingFor);
   const setRiderFirstName = useBookingDraftStore((s) => s.setRiderFirstName);
   const setPickupNote = useBookingDraftStore((s) => s.setPickupNote);
+
+  const { config: transportConfig } = useTransportConfig();
+  const sharedMaxSeats = transportConfig.modes.shared.maxSeatsPerBooking || 3;
+  const soloMaxSeats = transportConfig.modes.solo.maxPassengers || transportConfig.vehicleCapacity || 6;
+  const soloMinBilledSeats = transportConfig.modes.solo.minimumBilledSeats || 4;
 
   const [showInfoModal, setShowInfoModal] = useState(false);
 
@@ -184,6 +190,7 @@ export function BookingSheet({
         mode={draft.rideMode}
         isVisible={showInfoModal}
         onClose={() => setShowInfoModal(false)}
+        config={transportConfig}
       />
 
       {/* Route Header Card */}
@@ -294,7 +301,10 @@ export function BookingSheet({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <RideModeSelector selectedMode={draft.rideMode} onSelectMode={setRideMode} />
+        <RideModeSelector
+          selectedMode={draft.rideMode}
+          onSelectMode={(mode) => setRideMode(mode, sharedMaxSeats)}
+        />
 
         {/* Selected Mode Context & Summary Card */}
         <View style={styles.modeSummaryCard}>
@@ -324,8 +334,8 @@ export function BookingSheet({
                 </Text>
                 <Text style={styles.rowSubtitle}>
                   {draft.rideMode === 'private'
-                    ? 'Standard fare covers up to 4 riders. Up to 6 supported.'
-                    : 'Cover 1 to 3 seats on this route.'}
+                    ? `Standard fare covers up to ${soloMinBilledSeats} riders. Up to ${soloMaxSeats} supported.`
+                    : `Cover 1 to ${sharedMaxSeats} seats on this route.`}
                 </Text>
               </View>
               <View style={styles.stepperContainer}>
@@ -344,11 +354,11 @@ export function BookingSheet({
                 </Pressable>
                 <Text style={styles.stepperValue}>{draft.passengerCount}</Text>
                 <Pressable
-                  onPress={() => setPassengerCount(draft.passengerCount + 1)}
-                  disabled={draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6}
+                  onPress={() => setPassengerCount(draft.passengerCount + 1, draft.rideMode === 'shared' ? sharedMaxSeats : soloMaxSeats)}
+                  disabled={draft.rideMode === 'shared' ? draft.passengerCount >= sharedMaxSeats : draft.passengerCount >= soloMaxSeats}
                   style={({ pressed }) => [
                     styles.stepperButton,
-                    (draft.rideMode === 'shared' ? draft.passengerCount >= 3 : draft.passengerCount >= 6) && styles.stepperDisabled,
+                    (draft.rideMode === 'shared' ? draft.passengerCount >= sharedMaxSeats : draft.passengerCount >= soloMaxSeats) && styles.stepperDisabled,
                     pressed && styles.stepperPressed,
                   ]}
                   accessibilityRole="button"

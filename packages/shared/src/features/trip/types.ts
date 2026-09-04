@@ -17,6 +17,7 @@ export type Timestamp = {
 
 import type { Place } from '@pakyaw/shared/types/place';
 import type {
+  AnyRideMode,
   DriverPublicSnapshot,
   FareBreakdown,
   RideMode,
@@ -25,6 +26,7 @@ import type {
 } from '@pakyaw/shared/transport/contract';
 
 export type {
+  AnyRideMode,
   DriverPublicSnapshot,
   RideMode,
   TripStatus,
@@ -36,7 +38,7 @@ export type {
  */
 export type TripDoc = {
   readonly id: string;
-  readonly mode: RideMode;
+  readonly mode: AnyRideMode;
   readonly status: TripStatus;
   readonly passengerId: string;
   readonly passengerName?: string;
