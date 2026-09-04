@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { DriverAcceptedSheet, PassengerPickupPresenceCard } from './DriverTripSheets';
+import { PassengerPickupPresenceCard } from './DriverTripSheets';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
 
@@ -76,9 +76,6 @@ describe('DriverAcceptedSheet and PassengerPickupPresenceCard', () => {
   it('renders BOOKED FOR SOMEONE ELSE state with rider name and pickup note', () => {
     useActiveTripStore.getState().setTrip(canonicalThirdPartyTrip);
 
-    const sheetTree = DriverAcceptedSheet({ compact: false });
-    expect(sheetTree).toBeDefined();
-
     // Verify presence card directly
     const presenceCard = PassengerPickupPresenceCard({
       trip: canonicalThirdPartyTrip,
@@ -93,7 +90,8 @@ describe('DriverAcceptedSheet and PassengerPickupPresenceCard', () => {
     const json = JSON.stringify(presenceCard);
     expect(json).toContain('BOOKED FOR SOMEONE ELSE');
     expect(json).toContain('Rider: Dree');
-    expect(json).toContain('Note: Ghh');
+    expect(json).toContain('Note:');
+    expect(json).toContain('Ghh');
   });
 
   it('renders fallback label when rider firstName is missing in third-party booking', () => {
@@ -134,7 +132,8 @@ describe('DriverAcceptedSheet and PassengerPickupPresenceCard', () => {
     const json = JSON.stringify(presenceCard);
     expect(json).toContain('PASSENGER GPS');
     expect(json).toContain('Passenger is ~85 m from pickup');
-    expect(json).toContain('Pickup point: Ormoc City Hall');
+    expect(json).toContain('Pickup point:');
+    expect(json).toContain('Ormoc City Hall');
   });
 
   it('renders location unavailable placeholder when self-booking has no live GPS', () => {

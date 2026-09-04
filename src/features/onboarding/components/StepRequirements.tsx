@@ -97,6 +97,13 @@ export function StepRequirements({
         </Text>
       </View>
 
+      {/* Requirements Disclaimer */}
+      <View style={styles.disclaimerBox}>
+        <Text style={styles.disclaimerText}>
+          Requirements are based on the current Pakyaw verification checklist and may be updated as local operating requirements are finalized.
+        </Text>
+      </View>
+
       {/* Progress tracker card */}
       <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
@@ -185,6 +192,20 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     lineHeight: 20,
+  },
+  disclaimerBox: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  disclaimerText: {
+    fontSize: typography.size.caption,
+    fontFamily: typography.family.regular,
+    color: colors.ink[500],
+    lineHeight: typography.lineHeight.caption,
   },
   progressCard: {
     backgroundColor: colors.surface.card,

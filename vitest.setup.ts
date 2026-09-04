@@ -12,6 +12,33 @@ process.env.EXPO_PUBLIC_FIREBASE_APP_ID =
 process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? 'AIzaSy_test_key';
 
+(globalThis as any).__DEV__ = true;
+
+// In-memory mock for AsyncStorage in tests
+const inMemoryStorage = new Map<string, string>();
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: vi.fn(async (key: string) => inMemoryStorage.get(key) ?? null),
+    setItem: vi.fn(async (key: string, value: string) => {
+      inMemoryStorage.set(key, value);
+    }),
+    removeItem: vi.fn(async (key: string) => {
+      inMemoryStorage.delete(key);
+    }),
+    clear: vi.fn(async () => {
+      inMemoryStorage.clear();
+    }),
+    getAllKeys: vi.fn(async () => Array.from(inMemoryStorage.keys())),
+    multiGet: vi.fn(async (keys: string[]) => keys.map((k) => [k, inMemoryStorage.get(k) ?? null])),
+    multiSet: vi.fn(async (entries: [string, string][]) => {
+      for (const [k, v] of entries) inMemoryStorage.set(k, v);
+    }),
+    multiRemove: vi.fn(async (keys: string[]) => {
+      for (const k of keys) inMemoryStorage.delete(k);
+    }),
+  },
+}));
+
 vi.mock('react-native', () => ({
   StyleSheet: {
     create: (styles: Record<string, unknown>) => styles,
