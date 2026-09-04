@@ -138,6 +138,10 @@ export type Trip = {
 
   fare: FareBreakdown;
 
+  bookingFor?: 'self' | 'other';
+  rider?: { firstName: string } | null;
+  pickupNote?: string | null;
+
   sharedRideId?: string | null;
   sharedRideSummary?: SharedRideSummary | null;
   driverPublic?: DriverPublicSnapshot | null;
@@ -180,6 +184,10 @@ export type RequestTripInput = {
   passengerCount: number;
 
   displayedFare?: number | null;
+
+  bookingFor?: 'self' | 'other';
+  rider?: { firstName: string } | null;
+  pickupNote?: string | null;
 };
 
 export type QuoteTripInput = Omit<RequestTripInput, 'passengerId' | 'displayedFare'>;
