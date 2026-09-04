@@ -46,7 +46,7 @@ export function storePassengerSessionResolution(resolution: PassengerSessionReso
       break;
 
     case 'needs_recovery':
-      passengerStore.setNeedsRecovery(resolution.uid);
+      passengerStore.clear();
       sessionStore.clear();
       break;
 

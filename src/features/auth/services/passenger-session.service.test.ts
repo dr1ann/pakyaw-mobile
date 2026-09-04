@@ -106,5 +106,15 @@ describe('passenger-session.service', () => {
       expect(usePassengerSessionStore.getState().status).toBe('unauthenticated');
       expect(useSessionStore.getState().status).toBe('unauthenticated');
     });
+
+    it('clears stores when resolution is needs_recovery (missing account document)', () => {
+      useSessionStore.getState().setSession('uid-missing', 'passenger');
+      usePassengerSessionStore.getState().setActive('uid-missing', {} as any);
+
+      storePassengerSessionResolution({ status: 'needs_recovery', uid: 'uid-missing' });
+
+      expect(usePassengerSessionStore.getState().status).toBe('unauthenticated');
+      expect(useSessionStore.getState().status).toBe('unauthenticated');
+    });
   });
 });

@@ -28,7 +28,7 @@ export function usePassengerSessionBootstrap(): void {
       void resolvePassengerSession(user.uid)
         .then((resolution) => {
           if (!mounted || generation !== resolutionGeneration) return;
-          if (resolution.status === 'invalid_role') {
+          if (resolution.status === 'invalid_role' || resolution.status === 'needs_recovery') {
             signOut(auth).catch(() => undefined);
             usePassengerSessionStore.getState().clear();
             useSessionStore.getState().clear();
