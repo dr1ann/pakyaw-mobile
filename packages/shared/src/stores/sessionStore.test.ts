@@ -5,6 +5,7 @@ import {
   useSessionStore,
   type SessionState,
 } from './sessionStore';
+import { useActiveTripStore } from './activeTripStore';
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: {
@@ -73,5 +74,30 @@ describe('sessionStore', () => {
     } as SessionState;
 
     expect(getPersistedSessionState(state)).toEqual({ onboardingSeen: true });
+  });
+
+  it('logout clears retained terminal/local trip from activeTripStore', () => {
+    useActiveTripStore.getState().setTripId('trip-test-123');
+    expect(useActiveTripStore.getState().tripId).toBe('trip-test-123');
+
+    // Logging out clears session and activeTripStore
+    useSessionStore.getState().clear();
+
+    expect(useSessionStore.getState().status).toBe('unauthenticated');
+    expect(useActiveTripStore.getState().tripId).toBeNull();
+    expect(useActiveTripStore.getState().trip).toBeNull();
+  });
+
+  it('UID/account change cannot inherit another Driver retained trip', () => {
+    // Driver A signs in and has active trip state
+    useSessionStore.getState().setSession('driver-a', 'driver');
+    useActiveTripStore.getState().setTripId('trip-driver-a');
+    expect(useActiveTripStore.getState().tripId).toBe('trip-driver-a');
+
+    // Driver B signs in on same device -> activeTripStore is wiped
+    useSessionStore.getState().setSession('driver-b', 'driver');
+    expect(useSessionStore.getState().uid).toBe('driver-b');
+    expect(useActiveTripStore.getState().tripId).toBeNull();
+    expect(useActiveTripStore.getState().trip).toBeNull();
   });
 });

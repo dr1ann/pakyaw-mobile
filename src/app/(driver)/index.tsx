@@ -73,6 +73,8 @@ export default function DriveScreen() {
   // Sync active trip and availability directly from drivers/{uid} document
   useEffect(() => {
     if (!uid) return;
+    let staleTripReconciliationTimer: ReturnType<typeof setTimeout> | null = null;
+
     const unsub = onSnapshot(doc(firestore, 'drivers', uid), (snap) => {
       if (snap && snap.exists) {
         const data = snap.data();
@@ -80,16 +82,40 @@ export default function DriveScreen() {
         const serverAvailability = data?.availability;
 
         if (typeof serverActiveTripId === 'string' && serverActiveTripId.trim().length > 0) {
+          if (staleTripReconciliationTimer) {
+            clearTimeout(staleTripReconciliationTimer);
+            staleTripReconciliationTimer = null;
+          }
           useActiveTripStore.getState().setTripId(serverActiveTripId.trim());
           useAvailabilityStore.getState().setAvailability('on_trip');
         } else if (serverActiveTripId === null) {
-          // If serverActiveTripId is null, do NOT wipe local presentation state
-          // if a trip is currently loaded. The local activeTripStore maintains
-          // the terminal summary (completed/cancelled) until the driver explicitly taps Done.
-          // Only clear if the store has a stale tripId without any loaded trip object.
-          const storeTrip = useActiveTripStore.getState().trip;
-          if (!storeTrip && useActiveTripStore.getState().tripId) {
+          // If serverActiveTripId is null:
+          // 1. If no trip object is loaded (stale tripId only), clear immediately.
+          // 2. If a terminal trip (completed/cancelled) is loaded, retain presentation until driver taps Done.
+          // 3. If a non-terminal trip is loaded, allow a grace window (5s) for the in-flight
+          //    terminal snapshot to arrive. If the trip remains non-terminal after the window,
+          //    reconcile by clearing the store so the driver is never trapped indefinitely.
+          const currentStore = useActiveTripStore.getState();
+          const storeTrip = currentStore.trip;
+          if (!storeTrip && currentStore.tripId) {
             useActiveTripStore.getState().clearTrip();
+          } else if (storeTrip) {
+            const isTerminal = storeTrip.status === 'completed' || storeTrip.status === 'cancelled';
+            if (isTerminal) {
+              if (staleTripReconciliationTimer) {
+                clearTimeout(staleTripReconciliationTimer);
+                staleTripReconciliationTimer = null;
+              }
+            } else if (!staleTripReconciliationTimer) {
+              staleTripReconciliationTimer = setTimeout(() => {
+                const recheckStore = useActiveTripStore.getState();
+                const recheckTrip = recheckStore.trip;
+                if (recheckTrip && recheckTrip.status !== 'completed' && recheckTrip.status !== 'cancelled') {
+                  useActiveTripStore.getState().clearTrip();
+                }
+                staleTripReconciliationTimer = null;
+              }, 5000);
+            }
           }
         }
 
@@ -103,7 +129,12 @@ export default function DriveScreen() {
       }
     });
 
-    return () => unsub();
+    return () => {
+      if (staleTripReconciliationTimer) {
+        clearTimeout(staleTripReconciliationTimer);
+      }
+      unsub();
+    };
   }, [uid]);
 
   // Location subscription — starts/stops with availability & AppState.

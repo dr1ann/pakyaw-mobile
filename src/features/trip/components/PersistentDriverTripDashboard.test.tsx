@@ -348,7 +348,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
   });
 
   describe('Terminal state race condition resilience', () => {
-    it('Order A: trips status becomes completed first, then driver activeTripId becomes null -> retains presentation until Done', () => {
+    it('completed: trip terminal first → activeTripId null', () => {
       // 1. Trip document transitions to completed
       const completedTrip: TripDoc = {
         ...sampleTrip,
@@ -357,7 +357,6 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       useActiveTripStore.getState().setTrip(completedTrip);
 
       // 2. Server activeTripId becomes null (backend cleaned up active trip)
-      // Simulation of DriveScreen's onSnapshot logic for drivers/{uid}:
       const serverActiveTripId = null;
       if (serverActiveTripId === null) {
         const storeTrip = useActiveTripStore.getState().trip;
@@ -388,7 +387,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       expect(useActiveTripStore.getState().trip).toBeNull();
     });
 
-    it('Order B: driver activeTripId becomes null first, then trips status becomes completed -> retains presentation until Done', () => {
+    it('completed: activeTripId null first → trip terminal', () => {
       // 1. Currently active trip
       useActiveTripStore.getState().setTrip(sampleTrip);
 
@@ -428,6 +427,122 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       primaryBtn.props.onPress();
       expect(mockDismiss).toHaveBeenCalledTimes(1);
       expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('cancelled: trip terminal first → activeTripId null', () => {
+      // 1. Trip document transitions to cancelled
+      const cancelledTrip: TripDoc = {
+        ...sampleTrip,
+        status: 'cancelled',
+        cancelReason: 'passenger_cancelled',
+      };
+      useActiveTripStore.getState().setTrip(cancelledTrip);
+
+      // 2. Server activeTripId becomes null
+      const serverActiveTripId = null;
+      if (serverActiveTripId === null) {
+        const storeTrip = useActiveTripStore.getState().trip;
+        if (!storeTrip && useActiveTripStore.getState().tripId) {
+          useActiveTripStore.getState().clearTrip();
+        }
+      }
+
+      // 3. Verify store still retains cancelled trip
+      expect(useActiveTripStore.getState().trip).toEqual(cancelledTrip);
+
+      // 4. Render dashboard
+      const mockDismiss = vi.fn(() => {
+        useActiveTripStore.getState().clearTrip();
+      });
+      const tree = PersistentDriverTripDashboard({
+        trip: useActiveTripStore.getState().trip,
+        onDismissTerminal: mockDismiss,
+      });
+      const json = JSON.stringify(tree);
+      expect(json).toContain('TRIP CANCELLED');
+      expect(json).toContain('Done • Back to Map');
+
+      // 5. Driver taps Done -> local store cleared
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+      expect(mockDismiss).toHaveBeenCalledTimes(1);
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('cancelled: activeTripId null first → trip terminal', () => {
+      // 1. Currently active trip
+      useActiveTripStore.getState().setTrip(sampleTrip);
+
+      // 2. Server activeTripId becomes null before trip snapshot lands
+      const serverActiveTripId = null;
+      if (serverActiveTripId === null) {
+        const storeTrip = useActiveTripStore.getState().trip;
+        if (!storeTrip && useActiveTripStore.getState().tripId) {
+          useActiveTripStore.getState().clearTrip();
+        }
+      }
+
+      expect(useActiveTripStore.getState().trip).toEqual(sampleTrip);
+
+      // 3. Trip snapshot arrives with cancelled status
+      const cancelledTrip: TripDoc = {
+        ...sampleTrip,
+        status: 'cancelled',
+        cancelReason: 'driver_cancelled',
+      };
+      useActiveTripStore.getState().setTrip(cancelledTrip);
+      expect(useActiveTripStore.getState().trip?.status).toBe('cancelled');
+
+      // 4. Render dashboard
+      const mockDismiss = vi.fn(() => {
+        useActiveTripStore.getState().clearTrip();
+      });
+      const tree = PersistentDriverTripDashboard({
+        trip: useActiveTripStore.getState().trip,
+        onDismissTerminal: mockDismiss,
+      });
+      const json = JSON.stringify(tree);
+      expect(json).toContain('TRIP CANCELLED');
+
+      // 5. Driver taps Done -> local store cleared
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+      expect(mockDismiss).toHaveBeenCalledTimes(1);
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('activeTripId null + trip remains non-terminal reconciles and clears stale state after grace window', () => {
+      vi.useFakeTimers();
+      try {
+        useActiveTripStore.getState().setTrip(sampleTrip);
+        expect(useActiveTripStore.getState().trip?.status).toBe('accepted');
+
+        // Simulate DriveScreen effect logic with reconciliation timer
+        const currentStore = useActiveTripStore.getState();
+        const storeTrip = currentStore.trip;
+        if (storeTrip) {
+          const isTerminal = storeTrip.status === 'completed' || storeTrip.status === 'cancelled';
+          if (!isTerminal) {
+            setTimeout(() => {
+              const recheckStore = useActiveTripStore.getState();
+              const recheckTrip = recheckStore.trip;
+              if (recheckTrip && recheckTrip.status !== 'completed' && recheckTrip.status !== 'cancelled') {
+                useActiveTripStore.getState().clearTrip();
+              }
+            }, 5000);
+          }
+        }
+
+        expect(useActiveTripStore.getState().trip).not.toBeNull();
+
+        // Fast-forward 5s grace window
+        vi.advanceTimersByTime(5000);
+
+        // Store is reconciled and cleared so driver is not trapped
+        expect(useActiveTripStore.getState().trip).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

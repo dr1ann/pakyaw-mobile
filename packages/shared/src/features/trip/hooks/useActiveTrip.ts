@@ -50,6 +50,16 @@ export function useActiveTrip(): void {
         tripId,
         (trip) => {
           if (trip) {
+            const currentUid = useSessionStore.getState().uid;
+            if (trip.driverId && currentUid && trip.driverId !== currentUid) {
+              logger.warn('[trip] active trip assigned to different driver', {
+                tripId,
+                tripDriverId: trip.driverId,
+                currentUid,
+              });
+              clearTrip();
+              return;
+            }
             setTrip(trip);
           } else {
             logger.warn('[trip] active trip document disappeared', { tripId });

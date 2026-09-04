@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { useActiveTripStore } from './activeTripStore';
+
 export type SessionStatus = 'loading' | 'unauthenticated' | 'authenticated';
 export type SessionRole = 'passenger' | 'driver' | null;
 
@@ -30,14 +32,23 @@ export function getPersistedSessionState(
 
 export const useSessionStore = create<SessionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       status: 'loading',
       uid: null,
       role: null,
       onboardingSeen: false,
       signingIn: false,
-      setSession: (uid, role) => set({ status: 'authenticated', uid, role }),
-      clear: () => set({ status: 'unauthenticated', uid: null, role: null }),
+      setSession: (uid, role) => {
+        const currentUid = get().uid;
+        if (currentUid && currentUid !== uid) {
+          useActiveTripStore.getState().clearTrip();
+        }
+        set({ status: 'authenticated', uid, role });
+      },
+      clear: () => {
+        useActiveTripStore.getState().clearTrip();
+        set({ status: 'unauthenticated', uid: null, role: null });
+      },
       setStatus: (status) => set({ status }),
       setOnboardingSeen: (value) => set({ onboardingSeen: value }),
       setSigningIn: (value) => set({ signingIn: value }),
