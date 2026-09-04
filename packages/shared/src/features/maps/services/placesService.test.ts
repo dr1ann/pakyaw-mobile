@@ -207,7 +207,7 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
       const place = await reverseGeocode(pinCoords.lat, pinCoords.lng);
 
       expect(place).not.toBeNull();
-      expect(place?.label).toBe('Camp Downes Elementary School');
+      expect(place?.label).toBe('Near Camp Downes Elementary School');
       // Authoritative coordinates remain the exact pin coordinates
       expect(place?.coords).toEqual({ lat: 10.995912, lng: 124.618345 });
     });

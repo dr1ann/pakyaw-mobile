@@ -474,8 +474,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     let finalLabel = resolved.primary;
     let finalAddress = resolved.secondary || resolved.fullAddress;
 
-    // If reverse-geocoding did not resolve a specific POI, but nearby landmark is found within 60m:
-    // Promote nearby landmark to primary label while keeping exact pin coordinates
+    // If reverse-geocoding did not resolve a specific POI directly on the point, but a nearby landmark is found within ~60m:
+    // Present as "Near <Landmark>" while strictly keeping exact pin coordinates
     if (
       nearbyLandmark?.name &&
       (finalLabel === 'Pinned location' ||
@@ -483,7 +483,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
           (r.types || []).some((t) => ['point_of_interest', 'establishment', 'premise'].includes(t))
         ))
     ) {
-      finalLabel = nearbyLandmark.name;
+      finalLabel = `Near ${nearbyLandmark.name}`;
       if (resolved.primary !== 'Pinned location') {
         finalAddress = `${resolved.primary}, Ormoc City`;
       } else if (nearbyLandmark.vicinity) {

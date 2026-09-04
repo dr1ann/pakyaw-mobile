@@ -92,6 +92,15 @@ export default function RideScreen() {
   const permissionStatus = useLocationStore((s) => s.permissionStatus);
 
   const mapRef = useRef<MapView>(null);
+  const geocodeDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (geocodeDebounceTimer.current) {
+        clearTimeout(geocodeDebounceTimer.current);
+      }
+    };
+  }, []);
 
   // Derive phase: Booking / Connecting / Active / Terminal
   const phase = useMemo<'booking' | 'connecting' | 'active' | 'terminal'>(() => {
@@ -371,47 +380,63 @@ export default function RideScreen() {
 
   const handleMapRegionChangeComplete = (region: { latitude: number; longitude: number }) => {
     if (searchMode === 'pin_pickup') {
-      setIsGeocoding(true);
+      // Immediate coordinate update with truthful generic label while moving
       setPickup({
         coords: { lat: region.latitude, lng: region.longitude },
         label: 'Pinned location',
       });
-      void (async () => {
-        try {
-          const place = await reverseGeocode(region.latitude, region.longitude);
-          if (place) {
-            const currentPickup = useBookingDraftStore.getState().draft.pickup;
-            if (isSameCoordinate(currentPickup?.coords, region)) {
-              setPickup(place);
-            }
-          }
-        } catch (err) {
-          logger.error('[RideScreen] Failed to reverse-geocode map center pickup', err);
-        } finally {
-          setIsGeocoding(false);
-        }
-      })();
-    } else if (searchMode === 'pin_destination') {
       setIsGeocoding(true);
+
+      if (geocodeDebounceTimer.current) {
+        clearTimeout(geocodeDebounceTimer.current);
+      }
+
+      geocodeDebounceTimer.current = setTimeout(() => {
+        void (async () => {
+          try {
+            const place = await reverseGeocode(region.latitude, region.longitude);
+            if (place) {
+              const currentPickup = useBookingDraftStore.getState().draft.pickup;
+              if (isSameCoordinate(currentPickup?.coords, region)) {
+                setPickup(place);
+              }
+            }
+          } catch (err) {
+            logger.error('[RideScreen] Failed to reverse-geocode map center pickup', err);
+          } finally {
+            setIsGeocoding(false);
+          }
+        })();
+      }, 400);
+    } else if (searchMode === 'pin_destination') {
+      // Immediate coordinate update with truthful generic label while moving
       setDestination({
         coords: { lat: region.latitude, lng: region.longitude },
         label: 'Pinned location',
       });
-      void (async () => {
-        try {
-          const place = await reverseGeocode(region.latitude, region.longitude);
-          if (place) {
-            const currentDest = useBookingDraftStore.getState().draft.destination;
-            if (isSameCoordinate(currentDest?.coords, region)) {
-              setDestination(place);
+      setIsGeocoding(true);
+
+      if (geocodeDebounceTimer.current) {
+        clearTimeout(geocodeDebounceTimer.current);
+      }
+
+      geocodeDebounceTimer.current = setTimeout(() => {
+        void (async () => {
+          try {
+            const place = await reverseGeocode(region.latitude, region.longitude);
+            if (place) {
+              const currentDest = useBookingDraftStore.getState().draft.destination;
+              if (isSameCoordinate(currentDest?.coords, region)) {
+                setDestination(place);
+              }
             }
+          } catch (err) {
+            logger.error('[RideScreen] Failed to reverse-geocode map center destination', err);
+          } finally {
+            setIsGeocoding(false);
           }
-        } catch (err) {
-          logger.error('[RideScreen] Failed to reverse-geocode map center destination', err);
-        } finally {
-          setIsGeocoding(false);
-        }
-      })();
+        })();
+      }, 400);
     }
   };
 
