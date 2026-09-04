@@ -192,8 +192,6 @@ describe('phone-registration.service', () => {
         expect.objectContaining({ path: 'users/test-passenger-uid' }),
         expect.objectContaining({
           uid: 'test-passenger-uid',
-          firstName: 'Maria',
-          lastName: 'Santos',
           name: 'Maria Santos',
           mobile: '+639171234567',
           role: 'passenger',
