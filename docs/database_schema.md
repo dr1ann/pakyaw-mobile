@@ -30,22 +30,21 @@ That is the **entire** MVP data model — four document classes. Everything else
 Profile + role for any account. A driver also has a `drivers/{uid}` doc (same uid); `users/{uid}` is still their identity/profile record.
 
 ```ts
-type RiderType = 'regular' | 'student' | 'pwd' | 'senior';
-type UserRole  = 'passenger' | 'driver';
+type AccountStatus = 'active' | 'suspended' | 'blocked';
+type UserRole      = 'passenger' | 'driver';
 
 interface UserDoc {
-  uid: string;                 // == auth uid (redundant for convenience)
+  uid: string;                 // == auth uid
   role: UserRole;              // routes the app into (passenger) or (driver)
-  firstName: string;
-  lastName: string;
-  phone: string;               // +63 E.164 format (NFR-2). Captured at sign-up but NOT verified in MVP.
-  phoneVerified: boolean;      // MVP: hard-coded false (SMS OTP deferred to Phase 3.5b — FR-1.1.3).
-                               // Field exists so the schema is forward-compatible with the future
-                               // linkWithCredential flow that will flip it to true.
-  email: string | null;        // passengers sign up with email; driver may be null
-  riderType: RiderType;        // FR-1.1.4 — STORED ONLY, not priced in MVP
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  firstName?: string;          // First name (non-empty string)
+  lastName?: string;           // Last name (non-empty string)
+  name: string;                // Composed compatibility/display name: `${firstName} ${lastName}`.trim()
+  mobile: string;              // +63 E.164 format verified via Firebase Phone Auth
+  accountStatus: AccountStatus;// 'active' | 'suspended' | 'blocked'
+  termsAcceptedAt?: Timestamp; // Server timestamp when Terms of Service were accepted
+  privacyAcceptedAt?: Timestamp;// Server timestamp when Privacy Policy was accepted
+  createdAt: Timestamp;        // Server timestamp
+  updatedAt: Timestamp;        // Server timestamp
 }
 ```
 

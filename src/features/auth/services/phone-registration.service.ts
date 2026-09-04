@@ -133,6 +133,8 @@ export async function createVerifiedPassengerProfile(input: {
 
   await setDoc(userRef, {
     uid: user.uid,
+    firstName: trimmedFirstName,
+    lastName: trimmedLastName,
     name: composedName,
     mobile: normalizedInputMobile,
     role: 'passenger',
