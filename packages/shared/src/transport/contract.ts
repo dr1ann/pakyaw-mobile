@@ -40,6 +40,41 @@ export const LEGACY_SHARED_RIDES_COLLECTION = 'shared_rides' as const;
 export const INITIAL_PASSENGER_COUNT = 1;
 export const INITIAL_BILLED_SEATS = 1;
 export const MAX_PASSENGER_COUNT = 6;
+export const DEFAULT_VEHICLE_CAPACITY = 6;
+export const DEFAULT_SOLO_MIN_BILLED_SEATS = 4;
+export const DEFAULT_SHARED_MAX_SEATS_PER_BOOKING = 3;
+
+export type PublicTransportConfig = {
+  vehicleCapacity: number;
+  modes: {
+    solo: {
+      minPassengers: number;
+      maxPassengers: number;
+      minimumBilledSeats: number;
+    };
+    shared: {
+      minPassengers: number;
+      maxPassengers: number;
+      maxSeatsPerBooking: number;
+    };
+  };
+};
+
+export const DEFAULT_PUBLIC_TRANSPORT_CONFIG: PublicTransportConfig = {
+  vehicleCapacity: DEFAULT_VEHICLE_CAPACITY,
+  modes: {
+    solo: {
+      minPassengers: 1,
+      maxPassengers: DEFAULT_VEHICLE_CAPACITY,
+      minimumBilledSeats: DEFAULT_SOLO_MIN_BILLED_SEATS,
+    },
+    shared: {
+      minPassengers: 1,
+      maxPassengers: DEFAULT_VEHICLE_CAPACITY,
+      maxSeatsPerBooking: DEFAULT_SHARED_MAX_SEATS_PER_BOOKING,
+    },
+  },
+};
 
 export type LatLng = {
   latitude: number;

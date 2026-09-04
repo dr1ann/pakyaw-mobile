@@ -24,6 +24,7 @@ import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { SosButton } from '@/features/safety/components/SosButton';
 import { PassengerPickupPresenceCard } from '@/features/trip/components/DriverTripSheets';
 import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
+import { DEFAULT_VEHICLE_CAPACITY } from '@pakyaw/shared/transport/contract';
 
 type PersistentDriverTripDashboardProps = {
   readonly trip: TripDoc | null;
@@ -141,7 +142,7 @@ export function PersistentDriverTripDashboard({
 
   // Occupancy values
   const seatsReserved = occupancy?.seatsReserved ?? (sharedRide?.seatsBooked ?? (activeTrip?.billedSeats || 1));
-  const maxSeats = occupancy?.maxSeats ?? (sharedRide?.maxSeats ?? 4);
+  const maxSeats = occupancy?.maxSeats ?? (sharedRide?.maxSeats ?? DEFAULT_VEHICLE_CAPACITY);
   const onboardCount = occupancy?.onboardCount ?? 0;
 
   // Dynamic Navigation & Status Button Actions
