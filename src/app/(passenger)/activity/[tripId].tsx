@@ -1,23 +1,30 @@
-
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@pakyaw/shared/components/ui/Card';
 import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
 import { Screen } from '@pakyaw/shared/components/ui/Screen';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
+import {
+  formatPeso,
+  formatRoadDistance,
+  formatTripDateTime,
+  passengerCancellationCopy,
+  passengerRideModeLabel,
+} from '@/features/trip-history/presentation';
 
 export default function TripDetailScreen() {
   const router = useRouter();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  const { data: trip, isLoading, error } = useTripDetail(tripId);
+  const { data: trip, isLoading, error, refetch, isFetching } = useTripDetail(tripId);
 
   if (isLoading) {
     return (
       <Screen background="passenger" style={styles.center}>
-        <ActivityIndicator color={colors.blue.primary} size="large" />
+        <ActivityIndicator color={colors.blue.primary} size="large" accessibilityLabel="Loading trip details" />
       </Screen>
     );
   }
@@ -25,289 +32,148 @@ export default function TripDetailScreen() {
   if (error || !trip) {
     return (
       <Screen background="passenger" style={styles.center}>
-        <Text style={styles.errorText}>
-          {error instanceof Error ? error.message : 'Failed to load trip details.'}
-        </Text>
-        <Pressable style={styles.backBtn} onPress={() => router.replace('/activity')}>
-          <Text style={styles.backBtnText}>Go Back</Text>
+        <SymbolIcon name="arrow.clockwise" size={30} tintColor={colors.ink[400]} />
+        <Text style={styles.errorTitle}>Couldn’t load this ride</Text>
+        <Text style={styles.errorCopy}>Check your connection and try again.</Text>
+        <Pressable onPress={() => refetch()} disabled={isFetching} style={styles.retryButton} accessibilityRole="button">
+          <Text style={styles.retryLabel}>{isFetching ? 'Trying again…' : 'Try again'}</Text>
+        </Pressable>
+        <Pressable onPress={() => router.replace('/activity')} accessibilityRole="button" style={styles.backButton}>
+          <Text style={styles.backButtonLabel}>Back to Activity</Text>
         </Pressable>
       </Screen>
     );
   }
 
-  const driverName = trip.driver?.displayName ?? 'Driver details unavailable';
-  const plate = trip.driver?.plate ?? 'Plate unavailable';
-  const dateStr = formatDate(trip.requestedAt);
+  const completed = trip.status === 'completed';
+  const happenedAt = completed ? trip.completedAt ?? trip.requestedAt : trip.cancelledAt ?? trip.requestedAt;
+  const dateTime = formatTripDateTime(happenedAt, true) ?? 'Date unavailable';
+  const timestampLabel = completed
+    ? trip.completedAt ? 'Completed' : 'Requested'
+    : trip.cancelledAt ? 'Cancelled' : 'Requested';
+  const fare = completed ? formatPeso(trip.fare) : null;
+  const distance = completed ? formatRoadDistance(trip.route?.distanceMeters) : null;
+  const driverName = trip.driverPublic?.displayName ?? trip.driver?.displayName ?? null;
+  const vehicle = trip.driverPublic?.vehicle;
+  const cancellationCopy = passengerCancellationCopy(trip.cancelReason);
 
   return (
     <Screen background="passenger" style={styles.container} scroll padded>
-      {/* Back Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backLink} onPress={() => router.replace('/activity')}>
-          <Text style={styles.backLinkText}>← Back to Activity</Text>
+        <Pressable style={styles.backLink} onPress={() => router.replace('/activity')} accessibilityRole="button">
+          <Text style={styles.backLinkText}>← Activity</Text>
         </Pressable>
-        <Text style={styles.title}>Trip Details</Text>
+        <Text style={styles.title}>{completed ? 'Trip summary' : 'Ride details'}</Text>
+        <Text style={styles.date}>{`${timestampLabel} ${dateTime}`}</Text>
       </View>
 
-      {/* Main Info Card */}
-      <Card style={styles.card}>
-        <View style={styles.metaRow}>
-          <Text style={styles.dateLabel}>{dateStr}</Text>
-          <StatusPill
-            label={trip.status === 'completed' ? 'Completed' : 'Cancelled'}
-            tone={trip.status === 'completed' ? 'success' : 'danger'}
-            dot
-          />
+      <Card style={styles.summaryCard}>
+        <View style={styles.summaryHeader}>
+          <View>
+            <Text style={styles.mode}>{passengerRideModeLabel(trip.mode)}</Text>
+            <Text style={styles.modeCaption}>{completed ? 'Ride completed' : 'Ride cancelled'}</Text>
+          </View>
+          <StatusPill label={completed ? 'Completed' : 'Cancelled'} tone={completed ? 'success' : 'neutral'} dot />
         </View>
+        {fare ? (
+          <View style={styles.fareRow} accessibilityLabel={`Trip fare ${fare}`}>
+            <Text style={styles.fareLabel}>Trip fare</Text>
+            <Text style={styles.fare}>{fare}</Text>
+          </View>
+        ) : null}
+        {distance ? <Text style={styles.distance}>{distance} by road route</Text> : null}
+      </Card>
 
-        {/* Route Details */}
+      <Card style={styles.card}>
+        <Text style={styles.sectionTitle}>Your route</Text>
         <View style={styles.routeRow}>
-          <RouteConnector height={64} />
+          <RouteConnector height={72} />
           <View style={styles.routeText}>
             <View>
-              <Text style={styles.addressLabel}>PICKUP</Text>
-              <Text style={styles.addressValue} numberOfLines={2}>
-                {trip.pickup.label}
-              </Text>
+              <Text style={styles.routeLabel}>PICKUP</Text>
+              <Text style={styles.routeValue}>{trip.pickup.label}</Text>
             </View>
             <View>
-              <Text style={styles.addressLabel}>DESTINATION</Text>
-              <Text style={styles.addressValue} numberOfLines={2}>
-                {trip.destination.label}
-              </Text>
+              <Text style={styles.routeLabel}>DESTINATION</Text>
+              <Text style={styles.routeValue}>{trip.destination.label}</Text>
             </View>
           </View>
         </View>
       </Card>
 
-      {/* Driver Details Card (only if driver exists) */}
-      <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>Driver & Vehicle</Text>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Driver Name</Text>
-          <Text style={styles.detailValue}>{driverName}</Text>
-        </View>
-        {trip.driver ? (
-          <>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>License Plate</Text>
-              <Text style={styles.detailValue}>{plate}</Text>
+      {driverName ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Driver & vehicle</Text>
+          <View style={styles.driverRow}>
+            {trip.driverPublic?.profilePhotoUrl ? (
+              <Image source={{ uri: trip.driverPublic.profilePhotoUrl }} style={styles.avatar} accessibilityLabel={`${driverName} profile photo`} />
+            ) : (
+              <View style={styles.avatarFallback} accessibilityLabel="Driver photo unavailable">
+                <SymbolIcon name="person.fill" size={18} tintColor={colors.blue.primary} />
+              </View>
+            )}
+            <View style={styles.driverCopy}>
+              <Text style={styles.driverName}>{driverName}</Text>
+              {vehicle?.type ? <Text style={styles.vehicle}>{vehicle.type}</Text> : null}
+              {vehicle?.plateNumber || trip.driver?.plate ? (
+                <Text style={styles.plate}>Plate {vehicle?.plateNumber ?? trip.driver?.plate}</Text>
+              ) : null}
             </View>
-          </>
-        ) : null}
-      </Card>
+          </View>
+        </Card>
+      ) : null}
 
-      {/* Booking Details Card */}
-      <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>Booking Details</Text>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Ride Mode</Text>
-          <Text style={styles.detailValue}>PAKYAW (Solo)</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Passenger Count</Text>
-          <Text style={styles.detailValue}>{trip.passengerCount}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Billed Seats</Text>
-          <Text style={styles.detailValue}>{trip.billedSeats}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Trip ID</Text>
-          <Text style={styles.detailValueId} numberOfLines={1} selectable={true}>
-            {trip.id}
-          </Text>
-        </View>
-      </Card>
+      {trip.bookingFor === 'other' ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Ride for: Someone else</Text>
+          {trip.rider?.firstName ? <Text style={styles.riderCopy}>Rider: {trip.rider.firstName}</Text> : null}
+        </Card>
+      ) : null}
 
-      {/* Cancellation Details (if cancelled) */}
-      {trip.status === 'cancelled' && (trip.cancelledBy || trip.cancelReason) ? (
-        <Card style={[styles.card, styles.cancelledCard]}>
-          <Text style={[styles.sectionTitle, styles.cancelledTitle]}>Cancellation Info</Text>
-          {trip.cancelledBy ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Cancelled By</Text>
-              <Text style={styles.detailValue}>
-                {trip.cancelledBy.charAt(0).toUpperCase() + trip.cancelledBy.slice(1)}
-              </Text>
-            </View>
-          ) : null}
-          {trip.cancelReason ? (
-            <View style={styles.cancelReasonRow}>
-              <Text style={styles.detailLabel}>Reason</Text>
-              <Text style={styles.cancelReasonValue}>{trip.cancelReason}</Text>
-            </View>
-          ) : null}
+      {!completed && cancellationCopy ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Cancellation</Text>
+          <Text style={styles.riderCopy}>{cancellationCopy}</Text>
         </Card>
       ) : null}
     </Screen>
   );
 }
 
-function formatDate(timestamp: any): string {
-  if (!timestamp) return '—';
-  let date: Date;
-  if (timestamp instanceof Date) {
-    date = timestamp;
-  } else if (
-    typeof timestamp === 'object' &&
-    timestamp !== null &&
-    'toDate' in timestamp &&
-    typeof (timestamp as { toDate: unknown }).toDate === 'function'
-  ) {
-    date = (timestamp as { toDate: () => Date }).toDate();
-  } else {
-    date = new Date(timestamp as string | number);
-  }
-
-  return (
-    date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    }) +
-    ' at ' +
-    date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing[5],
-  },
-  header: {
-    marginBottom: spacing[5],
-    gap: spacing[2],
-  },
-  backLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing[1],
-  },
-  backLinkText: {
-    fontSize: typography.size.bodySmall,
-    color: colors.blue.primary,
-    fontWeight: typography.weight.bold,
-  },
-  title: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.extraBold,
-    color: colors.ink[900],
-  },
-  card: {
-    marginBottom: spacing[4],
-    paddingHorizontal: spacing[4],
-    paddingVertical: spacing[4],
-    gap: spacing[3],
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-    paddingBottom: spacing[3],
-  },
-  dateLabel: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-    fontWeight: typography.weight.medium,
-  },
-  routeRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: spacing[4],
-    marginTop: spacing[2],
-  },
-  routeText: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingVertical: spacing[1],
-  },
-  addressLabel: {
-    fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[500],
-    letterSpacing: typography.letterSpacing.label,
-    marginBottom: 2,
-  },
-  addressValue: {
-    fontSize: typography.size.body,
-    color: colors.ink[900],
-    fontWeight: typography.weight.medium,
-  },
-  sectionTitle: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.ink[900],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-    paddingBottom: spacing[2],
-    marginBottom: spacing[1],
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing[1],
-  },
-  detailLabel: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-  },
-  detailValue: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[900],
-  },
-  detailValueId: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-    maxWidth: '60%',
-  },
-  cancelledCard: {
-    borderColor: colors.danger,
-    borderWidth: 1,
-  },
-  cancelledTitle: {
-    color: colors.danger,
-    borderBottomColor: colors.danger + '20',
-  },
-  cancelReasonRow: {
-    gap: spacing[1],
-    paddingVertical: spacing[1],
-  },
-  cancelReasonValue: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[700],
-    fontStyle: 'italic',
-    marginTop: spacing[1],
-  },
-  errorText: {
-    fontSize: typography.size.body,
-    color: colors.danger,
-    textAlign: 'center',
-    marginBottom: spacing[4],
-  },
-  backBtn: {
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[6],
-    borderRadius: radius.pill,
-    backgroundColor: colors.blue.primary,
-  },
-  backBtnText: {
-    color: colors.white,
-    fontWeight: typography.weight.bold,
-    fontSize: typography.size.body,
-  },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6], gap: spacing[3] },
+  header: { marginBottom: spacing[5], gap: spacing[1] },
+  backLink: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center' },
+  backLinkText: { color: colors.blue.primary, fontSize: typography.size.bodySmall, fontFamily: typography.family.bold },
+  title: { color: colors.ink[900], fontSize: typography.size.h1, fontFamily: typography.family.extraBold },
+  date: { color: colors.ink[500], fontSize: typography.size.bodySmall, fontFamily: typography.family.medium },
+  summaryCard: { marginBottom: spacing[4], gap: spacing[3], backgroundColor: colors.blue.tint },
+  summaryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing[3] },
+  mode: { color: colors.ink[900], fontSize: typography.size.h3, fontFamily: typography.family.bold },
+  modeCaption: { color: colors.ink[500], fontSize: typography.size.bodySmall, fontFamily: typography.family.medium },
+  fareRow: { borderTopWidth: 1, borderTopColor: colors.blue.primary + '20', paddingTop: spacing[3], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  fareLabel: { color: colors.ink[700], fontSize: typography.size.body, fontFamily: typography.family.semibold },
+  fare: { color: colors.blue.primary, fontSize: typography.size.h2, fontFamily: typography.family.extraBold },
+  distance: { color: colors.ink[500], fontSize: typography.size.caption, fontFamily: typography.family.medium },
+  card: { marginBottom: spacing[4], gap: spacing[3] },
+  sectionTitle: { color: colors.ink[900], fontSize: typography.size.bodyMd, fontFamily: typography.family.bold },
+  routeRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing[3] },
+  routeText: { flex: 1, justifyContent: 'space-between', gap: spacing[4] },
+  routeLabel: { color: colors.ink[400], fontSize: typography.size.label, fontFamily: typography.family.bold, letterSpacing: typography.letterSpacing.label },
+  routeValue: { color: colors.ink[900], fontSize: typography.size.body, fontFamily: typography.family.semibold, marginTop: 2 },
+  driverRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  avatar: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.surface.muted },
+  avatarFallback: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.blue.tint, alignItems: 'center', justifyContent: 'center' },
+  driverCopy: { flex: 1, gap: 1 },
+  driverName: { color: colors.ink[900], fontSize: typography.size.body, fontFamily: typography.family.bold },
+  vehicle: { color: colors.ink[500], fontSize: typography.size.bodySmall, fontFamily: typography.family.medium },
+  plate: { color: colors.ink[500], fontSize: typography.size.bodySmall, fontFamily: typography.family.medium },
+  riderCopy: { color: colors.ink[700], fontSize: typography.size.body, fontFamily: typography.family.medium },
+  errorTitle: { color: colors.ink[900], fontSize: typography.size.h3, fontFamily: typography.family.bold },
+  errorCopy: { color: colors.ink[500], fontSize: typography.size.body, textAlign: 'center' },
+  retryButton: { minHeight: 48, paddingHorizontal: spacing[5], justifyContent: 'center', backgroundColor: colors.blue.primary, borderRadius: radius.pill },
+  retryLabel: { color: colors.white, fontSize: typography.size.button, fontFamily: typography.family.bold },
+  backButton: { minHeight: 48, paddingHorizontal: spacing[4], justifyContent: 'center' },
+  backButtonLabel: { color: colors.blue.primary, fontSize: typography.size.body, fontFamily: typography.family.bold },
 });

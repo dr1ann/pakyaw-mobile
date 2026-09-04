@@ -4,7 +4,7 @@
  * Subscribes to trips/{tripId} via trip.service.subscribe and pushes
  * snapshots into activeTripStore. Tears down on:
  *   - tripId becomes null (no active trip)
- *   - component unmount
+ *   - component unmount (listener only; the persisted trip handoff remains)
  *   - sign out (uid drops)
  *
  * No router.push, no UI logic, no side effects beyond updating store.
@@ -21,13 +21,37 @@ import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 let activeTripId: string | null = null;
 let activeUnsubscribe: (() => void) | null = null;
 let subscriptionCount = 0;
+let activeTripOwnerId: string | null = null;
+
+function retainTerminalSnapshot(tripId: string, source: 'missing' | 'error'): boolean {
+  const trip = useActiveTripStore.getState().trip;
+  const isTerminal = trip?.status === 'completed' || trip?.status === 'cancelled';
+  if (trip?.id === tripId && isTerminal) {
+    logger.warn('[trip] retaining terminal trip snapshot until passenger dismissal', { tripId, source });
+    return true;
+  }
+  return false;
+}
 
 export function useActiveTrip(): void {
   const tripId = useActiveTripStore((s) => s.tripId);
   const uid = useSessionStore((s) => s.uid);
 
   useEffect(() => {
-    if (tripId == null || uid == null) {
+    // A completed snapshot may stay in memory while the Passenger changes
+    // tabs, but it must never survive an actual account change. Do not clear
+    // during cold-start session hydration (there is no known prior owner yet).
+    if (uid == null || (activeTripOwnerId != null && activeTripOwnerId !== uid)) {
+      if (activeTripOwnerId != null) {
+        logger.info('[trip] clearing active trip after account change', { activeTripId });
+        activeTripOwnerId = null;
+        useActiveTripStore.getState().clearTrip();
+      }
+      return;
+    }
+
+    if (tripId == null) {
+      activeTripOwnerId = null;
       return;
     }
 
@@ -41,6 +65,7 @@ export function useActiveTrip(): void {
       }
 
       activeTripId = tripId;
+      activeTripOwnerId = uid;
       subscriptionCount = 1;
       logger.info('[trip] subscribing to active trip', { tripId });
 
@@ -53,12 +78,16 @@ export function useActiveTrip(): void {
             setTrip(trip);
           } else {
             logger.warn('[trip] active trip document disappeared', { tripId });
-            clearTrip();
+            if (!retainTerminalSnapshot(tripId, 'missing')) {
+              clearTrip();
+            }
           }
         },
         (err) => {
           logger.error('[trip] active trip subscription error', { err, tripId });
-          clearTrip();
+          if (!retainTerminalSnapshot(tripId, 'error')) {
+            clearTrip();
+          }
         },
       );
     }
@@ -75,7 +104,9 @@ export function useActiveTrip(): void {
           }
           activeTripId = null;
           subscriptionCount = 0;
-          useActiveTripStore.getState().clearTrip();
+          // Do not clear the persisted trip here. Tabs can unmount the Ride
+          // screen while a trip is active, and a completed trip must survive
+          // until the Passenger explicitly dismisses its handoff.
         }
       }
     };

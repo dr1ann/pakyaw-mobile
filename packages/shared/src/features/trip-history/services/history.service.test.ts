@@ -107,6 +107,49 @@ describe('history.service', () => {
       expect(result.nextCursor).toBeNull();
     });
 
+    it('projects only authoritative passenger-safe completed history fields', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            id: 'trip-safe',
+            data: () => ({
+              status: 'completed',
+              mode: 'shared',
+              pickup: { label: 'Saved pickup snapshot' },
+              destination: { label: 'Saved destination snapshot' },
+              fareBreakdown: { total: 72.5, driverEarnings: 60 },
+              route: { distanceMeters: 1_450, durationSeconds: 400 },
+              requestedAt: { seconds: 1000, nanoseconds: 0 },
+              completedAt: { seconds: 1100, nanoseconds: 0 },
+              bookingFor: 'other',
+              rider: { firstName: 'Mara', phone: 'private' },
+              driverPublic: {
+                driverId: 'd-1',
+                displayName: 'John Driver',
+                profilePhotoUrl: null,
+                vehicle: { type: 'tricycle', description: 'Blue tricycle', plateNumber: 'ABC-123', unitBodyNumber: 'UNIT-001' },
+                verification: { verified: true },
+              },
+              driver: { phone: 'private', rating: 4.8 },
+            }),
+          },
+        ],
+      });
+
+      const result = await listForPassenger('p-1', { limit: 5, cursor: null });
+
+      expect(result.trips[0]).toMatchObject({
+        mode: 'shared',
+        fareTotal: 72.5,
+        routeDistanceMeters: 1_450,
+        bookingFor: 'other',
+        riderFirstName: 'Mara',
+        driver: { displayName: 'John Driver', plate: 'ABC-123' },
+      });
+      expect(result.trips[0].driver).not.toHaveProperty('phone');
+      expect(result.trips[0].driver).not.toHaveProperty('rating');
+    });
+
     it('paginates using cursor when provided', async () => {
       mockGetDocs.mockResolvedValueOnce({
         docs: [
@@ -207,6 +250,16 @@ describe('history.service', () => {
       expect(trip.driverPublic?.vehicle.plateNumber).toBe('ABC-123');
       expect(trip.driver).not.toHaveProperty('rating');
       expect(trip.driver).not.toHaveProperty('phone');
+    });
+
+    it('does not expose an in-progress trip through Activity detail', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        id: 'trip-active',
+        data: () => ({ status: 'in_progress' }),
+      });
+
+      await expect(getTrip('trip-active')).rejects.toThrow(NotFoundError);
     });
 
     it('throws NotFoundError when trip does not exist', async () => {

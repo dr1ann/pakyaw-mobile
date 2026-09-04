@@ -12,6 +12,7 @@ export default function ActivityScreen() {
     <Screen background="passenger" style={styles.container} padded={false}>
       <View style={styles.header}>
         <Text style={styles.pageTitle}>Activity</Text>
+        <Text style={styles.pageSubtitle}>Your completed and cancelled rides</Text>
       </View>
       <View style={styles.listWrap}>
         {uid ? (
@@ -35,6 +36,12 @@ const styles = StyleSheet.create({
     fontSize: typography.size.h1,
     fontWeight: typography.weight.extraBold,
     color: colors.ink[900],
+  },
+  pageSubtitle: {
+    marginTop: spacing[1],
+    fontSize: typography.size.body,
+    fontFamily: typography.family.medium,
+    color: colors.ink[500],
   },
   listWrap: {
     flex: 1,

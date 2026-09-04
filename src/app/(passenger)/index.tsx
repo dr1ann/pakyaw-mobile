@@ -24,6 +24,7 @@ import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useR
 import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, BackHandler, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
 import MapView from 'react-native-maps';
@@ -48,12 +49,12 @@ import {
   reverseGeocodePin,
 } from '@pakyaw/shared/features/maps/services/placesService';
 import { CancelledSheet } from '@pakyaw/shared/features/trip/components/CancelledSheet';
-import { CompletedSheet } from '@pakyaw/shared/features/trip/components/CompletedSheet';
 import { DriverMatchedSheet } from '@/features/trip/components/DriverMatchedSheet';
+import { TripCompletionSheet } from '@/features/trip/components/TripCompletionSheet';
 import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
-import type { TripStatus } from '@pakyaw/shared/features/trip/types';
+import type { TripDoc, TripStatus } from '@pakyaw/shared/features/trip/types';
 import type { Place } from '@pakyaw/shared/types/place';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
 import { getDistanceToStepEnd } from '@pakyaw/shared/lib/geoProjection';
@@ -77,6 +78,7 @@ function isSameCoordinate(
 }
 
 export default function RideScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const trip = useActiveTripStore((s) => s.trip);
   const tripId = useActiveTripStore((s) => s.tripId);
@@ -518,6 +520,11 @@ export default function RideScreen() {
     useActiveTripStore.getState().clearTrip();
   }
 
+  function handleViewActivity() {
+    handleDismissTerminal();
+    router.replace('/activity');
+  }
+
   const status = trip?.status ?? (tripId ? 'requested' : null);
   const isSheetSelfContained = status === null || status === 'requested';
 
@@ -617,7 +624,7 @@ export default function RideScreen() {
       />
 
       {/* Floating Map Controls */}
-      {!isPinMode && (
+      {!isPinMode && phase !== 'terminal' && (
         <View style={[styles.floatingControls, { top: insets.top + 16 }]} pointerEvents="box-none">
           <MapActionButton
             icon={<SymbolIcon name="location.fill" size={18} tintColor={colors.blue.primary} />}
@@ -811,7 +818,9 @@ export default function RideScreen() {
         isSheetSelfContained ? (
           <TripSheet
             status={status}
+            trip={trip}
             onDismiss={handleDismissTerminal}
+            onViewActivity={handleViewActivity}
             remainingDistanceMeters={progressStats.remainingDistanceMeters}
             etaSeconds={progressStats.etaSeconds}
           />
@@ -820,7 +829,9 @@ export default function RideScreen() {
             <View style={[styles.sheetCard, shadow.float]}>
               <TripSheet
                 status={status}
+                trip={trip}
                 onDismiss={handleDismissTerminal}
+                onViewActivity={handleViewActivity}
                 remainingDistanceMeters={progressStats.remainingDistanceMeters}
                 etaSeconds={progressStats.etaSeconds}
               />
@@ -835,14 +846,18 @@ export default function RideScreen() {
 
 type TripSheetProps = {
   status: TripStatus | null;
+  trip: TripDoc | null;
   onDismiss: () => void;
+  onViewActivity: () => void;
   remainingDistanceMeters: number | null;
   etaSeconds: number | null;
 };
 
 function TripSheet({
   status,
+  trip,
   onDismiss,
+  onViewActivity,
   remainingDistanceMeters,
   etaSeconds,
 }: TripSheetProps) {
@@ -860,7 +875,7 @@ function TripSheet({
         />
       );
     case 'completed':
-      return <CompletedSheet onDismiss={onDismiss} />;
+      return trip ? <TripCompletionSheet trip={trip} onDone={onDismiss} onViewActivity={onViewActivity} /> : null;
     case 'cancelled':
       return <CancelledSheet onDismiss={onDismiss} />;
     default:
