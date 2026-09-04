@@ -40,8 +40,5 @@ export function useAcceptTrip(): UseMutationResult<
       // (e.g. useActiveTrip → activeTripStore.trip) will surface the trip.
       useActiveTripStore.getState().setTripId(variables.tripId);
     },
-    onError: (_err, variables) => {
-      useAvailabilityStore.getState().removeIncomingRequest(variables.tripId);
-    },
   });
 }

@@ -12,9 +12,11 @@
  * - NO passenger live GPS displayed before acceptance.
  * - For third-party bookings (bookingFor === 'other'), shows only rider first name and pickup note.
  *
- * Acceptance:
- * - Uses backend-authoritative acceptTripOffer callable.
- * - Handles already-taken race conditions gracefully without throwing application errors.
+ * Acceptance & Decline Semantics:
+ * - Accept and Decline use backend-authoritative callables (acceptTripOffer, declineTripOffer).
+ * - Client NEVER infers an authoritative outcome from a network failure.
+ * - Network errors show retryable connection feedback without discarding valid offers.
+ * - Authoritative 'already_taken' / 'invalid' / 'already_closed' or expiry triggers calm dismissal.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -47,6 +49,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
   const acceptMutation = useAcceptTrip();
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
   const calculateRemainingSeconds = useCallback(() => {
@@ -56,7 +59,8 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
   const [timeLeft, setTimeLeft] = useState(calculateRemainingSeconds);
 
-  const handleDecline = useCallback(() => {
+  // Expiry-driven removal: triggered only when authoritative deadline has elapsed
+  const handleExpiry = useCallback(() => {
     useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
     if (driverUid !== null) {
       void declineTripOffer(request.tripId, request.offerId, driverUid).catch(() => undefined);
@@ -72,15 +76,20 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
-        handleDecline();
+        handleExpiry();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [calculateRemainingSeconds, handleDecline, request.offerId]);
+  }, [calculateRemainingSeconds, handleExpiry, request.offerId]);
 
   const isPending = acceptMutation.isPending;
-  const disabled = isPending || driverUid == null || statusFeedback !== null;
+  const isActionBusy = isPending || isDeclining;
+  const isTerminalFeedback =
+    statusFeedback === 'This ride is no longer available.' ||
+    statusFeedback === 'Request expired or invalid.';
+  const disabled = isActionBusy || driverUid == null || isTerminalFeedback;
+
   const isShared = request.mode === 'shared';
   const isHop = request.mode === 'hop';
   const isOther = request.bookingFor === 'other';
@@ -129,20 +138,41 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
               useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
             }, 2000);
           } else if (result === 'invalid') {
-            setStatusFeedback('Request expired or invalid.');
+            setStatusFeedback('This ride is no longer available.');
             setTimeout(() => {
               useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
             }, 2000);
           }
         },
-        onError: (err) => {
-          setStatusFeedback(err.message || 'Unable to accept request.');
+        onError: (_err) => {
+          // Network / Server failure: DO NOT discard valid offer or claim ride taken!
+          setStatusFeedback('Connection error. Please try again.');
           setTimeout(() => {
-            useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
-          }, 2500);
+            setStatusFeedback((curr) => (curr === 'Connection error. Please try again.' ? null : curr));
+          }, 3000);
         },
       }
     );
+  }
+
+  async function handleManualDecline() {
+    if (driverUid == null || isActionBusy) return;
+    setIsDeclining(true);
+    setStatusFeedback(null);
+    try {
+      const result = await declineTripOffer(request.tripId, request.offerId, driverUid);
+      if (result === 'declined' || result === 'already_closed' || result === 'invalid') {
+        useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
+      }
+    } catch {
+      // Network / Server failure: DO NOT pretend decline succeeded!
+      setStatusFeedback('Connection error. Please try again.');
+      setTimeout(() => {
+        setStatusFeedback((curr) => (curr === 'Connection error. Please try again.' ? null : curr));
+      }, 3000);
+    } finally {
+      setIsDeclining(false);
+    }
   }
 
   function handleToggleMinimize() {
@@ -313,17 +343,24 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Decline ride request"
-          onPress={handleDecline}
-          disabled={isPending}
+          onPress={handleManualDecline}
+          disabled={isActionBusy || isTerminalFeedback}
           style={({ pressed }) => [
             styles.actionButton,
             styles.declineButton,
             pressed && styles.actionPressed,
-            isPending && styles.actionDisabled,
+            (isActionBusy || isTerminalFeedback) && styles.actionDisabled,
           ]}
           testID="decline-button"
         >
-          <Text style={styles.declineLabel}>Decline</Text>
+          {isDeclining ? (
+            <View style={styles.declineLoadingContent}>
+              <ActivityIndicator color={colors.ink[700]} size="small" />
+              <Text style={styles.declineLabel}>Declining…</Text>
+            </View>
+          ) : (
+            <Text style={styles.declineLabel}>Decline</Text>
+          )}
         </Pressable>
 
         <Pressable
@@ -565,6 +602,11 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     backgroundColor: colors.surface.muted,
+  },
+  declineLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
   },
   declineLabel: {
     fontSize: typography.size.body,

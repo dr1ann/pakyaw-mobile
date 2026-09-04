@@ -4,13 +4,25 @@ const mocks = vi.hoisted(() => ({
   acceptMutate: vi.fn(),
   declineTripOffer: vi.fn(),
   vibrate: vi.fn(),
+  removeIncomingRequest: vi.fn(),
+  setTripId: vi.fn(),
 }));
+
+let stateFeedbackValue: string | null = null;
+const mockSetStatusFeedback = vi.fn((val: any) => {
+  stateFeedbackValue = typeof val === 'function' ? val(stateFeedbackValue) : val;
+});
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
-    useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, vi.fn()],
+    useState: (initial: any) => {
+      if (initial === null || typeof initial === 'string') {
+        return [stateFeedbackValue ?? initial, mockSetStatusFeedback];
+      }
+      return [typeof initial === 'function' ? initial() : initial, vi.fn()];
+    },
     useCallback: (fn: any) => fn,
     useEffect: vi.fn(),
   };
@@ -38,6 +50,14 @@ vi.mock('@pakyaw/shared/stores/sessionStore', () => ({
   useSessionStore: (selector: (s: any) => any) => selector({ uid: 'driver-test-1' }),
 }));
 
+vi.mock('@pakyaw/shared/stores/activeTripStore', () => ({
+  useActiveTripStore: {
+    getState: () => ({
+      setTripId: mocks.setTripId,
+    }),
+  },
+}));
+
 vi.mock('@/stores/availabilityStore', () => ({
   useAvailabilityStore: Object.assign(
     (selector: (s: any) => any) =>
@@ -47,7 +67,7 @@ vi.mock('@/stores/availabilityStore', () => ({
       }),
     {
       getState: () => ({
-        removeIncomingRequest: vi.fn(),
+        removeIncomingRequest: mocks.removeIncomingRequest,
       }),
     }
   ),
@@ -92,6 +112,8 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    stateFeedbackValue = null;
+    mocks.declineTripOffer.mockResolvedValue('declined');
   });
 
   it('renders Pakyaw request with authoritative fare, locations, and mode badge', () => {
@@ -110,7 +132,6 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
     const json = JSON.stringify(tree);
 
     expect(json).toContain('4.8 km trip');
-    // Regression check: straight-line pickup->destination Haversine (~7.6 km) must NOT be shown as the trip distance
     expect(json).not.toContain('7.6 km trip');
   });
 
@@ -118,7 +139,6 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
     const tree = IncomingRequestCard({ request: baseRequest });
     const json = JSON.stringify(tree);
 
-    // Driver at (11.002, 124.603) to pickup at (11.005, 124.605) is ~0.4 km
     expect(json).toContain('Distance to pickup');
     expect(json).toContain('km to pickup');
   });
@@ -134,7 +154,6 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
 
     expect(json).toContain('Trip distance');
     expect(json).toContain('—');
-    // Must never calculate Haversine distance and display it as trip distance
     expect(json).not.toMatch(/\d+\.\d+ km trip/);
   });
 
@@ -185,8 +204,6 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
     expect(json).toContain('Rider: ');
     expect(json).toContain('Maria');
     expect(json).toContain('Behind the church near mango tree');
-
-    // Privacy invariant: no sensitive booker fields
     expect(json).not.toMatch(/09\d{9}/);
     expect(json).not.toContain('@');
   });
@@ -197,5 +214,79 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
 
     expect(json).toContain('Accept ride request for ₱180.00');
     expect(json).toContain('Decline ride request');
+  });
+
+  describe('Accept & Decline Action Semantics & Race Protections', () => {
+    function getButtons(tree: any) {
+      let acceptBtn: any = null;
+      let declineBtn: any = null;
+      function walk(node: any) {
+        if (!node || typeof node !== 'object') return;
+        if (node.props?.testID === 'accept-button') acceptBtn = node.props;
+        if (node.props?.testID === 'decline-button') declineBtn = node.props;
+        if (Array.isArray(node.props?.children)) {
+          node.props.children.forEach(walk);
+        } else if (node.props?.children) {
+          walk(node.props.children);
+        }
+      }
+      walk(tree);
+      return { acceptBtn, declineBtn };
+    }
+
+    it('Accept network error does not become "already taken" and does not discard the offer', () => {
+      const tree = IncomingRequestCard({ request: baseRequest });
+      const { acceptBtn } = getButtons(tree);
+
+      mocks.acceptMutate.mockImplementation((_vars: any, options: any) => {
+        options.onError(new Error('Network request failed'));
+      });
+
+      acceptBtn.onPress();
+
+      expect(mockSetStatusFeedback).toHaveBeenCalledWith('Connection error. Please try again.');
+      // Must NOT immediately remove the request from the local store
+      expect(mocks.removeIncomingRequest).not.toHaveBeenCalled();
+    });
+
+    it('already_taken clears the offer and shows calm feedback', () => {
+      vi.useFakeTimers();
+      const tree = IncomingRequestCard({ request: baseRequest });
+      const { acceptBtn } = getButtons(tree);
+
+      mocks.acceptMutate.mockImplementation((_vars: any, options: any) => {
+        options.onSuccess('already_taken');
+      });
+
+      acceptBtn.onPress();
+
+      expect(mockSetStatusFeedback).toHaveBeenCalledWith('This ride is no longer available.');
+      vi.advanceTimersByTime(2500);
+      expect(mocks.removeIncomingRequest).toHaveBeenCalledWith('trip-101');
+      vi.useRealTimers();
+    });
+
+    it('Decline success clears the offer from store', async () => {
+      mocks.declineTripOffer.mockResolvedValue('declined');
+      const tree = IncomingRequestCard({ request: baseRequest });
+      const { declineBtn } = getButtons(tree);
+
+      await declineBtn.onPress();
+
+      expect(mocks.declineTripOffer).toHaveBeenCalledWith('trip-101', 'offer-101', 'driver-test-1');
+      expect(mocks.removeIncomingRequest).toHaveBeenCalledWith('trip-101');
+    });
+
+    it('Decline network failure does not falsely claim success and preserves offer', async () => {
+      mocks.declineTripOffer.mockRejectedValue(new Error('Network timeout'));
+      const tree = IncomingRequestCard({ request: baseRequest });
+      const { declineBtn } = getButtons(tree);
+
+      await declineBtn.onPress();
+
+      expect(mockSetStatusFeedback).toHaveBeenCalledWith('Connection error. Please try again.');
+      // Must NOT remove offer on network failure
+      expect(mocks.removeIncomingRequest).not.toHaveBeenCalled();
+    });
   });
 });
