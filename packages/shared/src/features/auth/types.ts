@@ -31,8 +31,12 @@ export type AccountStatus = 'active' | 'suspended' | 'blocked';
 export interface UserDoc {
   /** Firebase Auth UID (document ID == uid) */
   uid: string;
-  /** Full passenger name (minimum 2 characters) */
+  /** Full passenger name (minimum 2 characters, composed from firstName + lastName) */
   name: string;
+  /** First name (minimum 2 characters) */
+  firstName?: string;
+  /** Last name (minimum 2 characters) */
+  lastName?: string;
   /** Philippine E.164 mobile number verified via Firebase Phone Auth */
   mobile: string;
   /** Role discriminator */
@@ -47,7 +51,6 @@ export interface UserDoc {
   createdAt: Timestamp;
   /** Server timestamp when the user profile was last modified */
   updatedAt: Timestamp;
-
 }
 
 /**

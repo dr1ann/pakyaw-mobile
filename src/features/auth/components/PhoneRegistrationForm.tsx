@@ -32,7 +32,8 @@ export function PhoneRegistrationForm() {
   const router = useRouter();
 
   // Form State
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -61,9 +62,15 @@ export function PhoneRegistrationForm() {
     if (busy) return;
     setErrorMessage(null);
 
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2) {
-      setErrorMessage('Please enter your full name (at least 2 characters).');
+    const trimmedFirstName = firstName.trim();
+    if (trimmedFirstName.length < 2) {
+      setErrorMessage('Please enter your first name (at least 2 characters).');
+      return;
+    }
+
+    const trimmedLastName = lastName.trim();
+    if (trimmedLastName.length < 2) {
+      setErrorMessage('Please enter your last name (at least 2 characters).');
       return;
     }
 
@@ -125,7 +132,8 @@ export function PhoneRegistrationForm() {
       const uid = credential.user.uid;
 
       await createVerifiedPassengerProfile({
-        name: name.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         mobile,
         termsAccepted,
         privacyAccepted,
@@ -201,18 +209,32 @@ export function PhoneRegistrationForm() {
 
       {!confirmation ? (
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Full name</Text>
+          <Text style={styles.label}>First name</Text>
           <TextInput
             style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g. Juan dela Cruz"
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholder="e.g. Juan"
             placeholderTextColor={colors.ink[400]}
             autoCapitalize="words"
             autoCorrect={false}
-            autoComplete="name"
+            autoComplete="given-name"
             editable={!busy}
-            testID="passenger-name-input"
+            testID="registration-firstname-input"
+          />
+
+          <Text style={styles.label}>Last name</Text>
+          <TextInput
+            style={styles.input}
+            value={lastName}
+            onChangeText={setLastName}
+            placeholder="e.g. Dela Cruz"
+            placeholderTextColor={colors.ink[400]}
+            autoCapitalize="words"
+            autoCorrect={false}
+            autoComplete="family-name"
+            editable={!busy}
+            testID="registration-lastname-input"
           />
 
           <Text style={styles.label}>Mobile number</Text>
@@ -263,10 +285,22 @@ export function PhoneRegistrationForm() {
           ) : null}
 
           <Pressable
-            disabled={busy || !termsAccepted || !privacyAccepted || name.trim().length < 2 || mobile.trim().length < 10}
+            disabled={
+              busy ||
+              !termsAccepted ||
+              !privacyAccepted ||
+              firstName.trim().length < 2 ||
+              lastName.trim().length < 2 ||
+              mobile.trim().length < 10
+            }
             style={[
               styles.btnPrimary,
-              (busy || !termsAccepted || !privacyAccepted || name.trim().length < 2 || mobile.trim().length < 10) &&
+              (busy ||
+                !termsAccepted ||
+                !privacyAccepted ||
+                firstName.trim().length < 2 ||
+                lastName.trim().length < 2 ||
+                mobile.trim().length < 10) &&
                 styles.btnDisabled,
             ]}
             onPress={sendCode}

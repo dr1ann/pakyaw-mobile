@@ -7,9 +7,14 @@ import {
   serverTimestamp,
   setDoc,
   signInWithPhoneNumber,
+  signOut,
   type Auth,
   type ConfirmationResult,
 } from '@/services/firebase/firebase';
+import {
+  resolvePassengerSession,
+  type PassengerSessionResolution,
+} from '@/features/auth/services/passenger-session.service';
 
 export class PhoneVerificationConfigurationError extends Error {
   constructor(message = 'Mobile verification is temporarily unavailable. Please try again later.') {
@@ -83,7 +88,8 @@ export async function startPassengerPhoneVerification(
 }
 
 export async function createVerifiedPassengerProfile(input: {
-  readonly name: string;
+  readonly firstName: string;
+  readonly lastName: string;
   readonly mobile: string;
   readonly termsAccepted: boolean;
   readonly privacyAccepted: boolean;
@@ -96,9 +102,15 @@ export async function createVerifiedPassengerProfile(input: {
     throw new Error('Verify this mobile number before creating an account.');
   }
 
-  const trimmedName = input.name.trim();
-  if (trimmedName.length < 2) {
-    throw new Error('Enter your full name (at least 2 characters).');
+  const trimmedFirstName = input.firstName.trim();
+  const trimmedLastName = input.lastName.trim();
+
+  if (trimmedFirstName.length < 2) {
+    throw new Error('Enter your first name (at least 2 characters).');
+  }
+
+  if (trimmedLastName.length < 2) {
+    throw new Error('Enter your last name (at least 2 characters).');
   }
 
   if (!input.termsAccepted || !input.privacyAccepted) {
@@ -111,15 +123,19 @@ export async function createVerifiedPassengerProfile(input: {
   if (existing.exists()) {
     const data = existing.data() as { role?: string; accountStatus?: string };
     if (data.role === 'passenger') {
-      // Profile already exists for this UID; update if needed or return
+      // Profile already exists for this UID; return safely
       return;
     }
     throw new Error('This account already exists with a different role.');
   }
 
+  const composedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
+
   await setDoc(userRef, {
     uid: user.uid,
-    name: trimmedName,
+    firstName: trimmedFirstName,
+    lastName: trimmedLastName,
+    name: composedName,
     mobile: normalizedInputMobile,
     role: 'passenger',
     accountStatus: 'active',
@@ -128,4 +144,26 @@ export async function createVerifiedPassengerProfile(input: {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function verifyAndResolvePassengerSignIn(
+  confirmation: ConfirmationResult,
+  code: string,
+): Promise<PassengerSessionResolution> {
+  const trimmedCode = code.trim();
+  if (trimmedCode.length < 6) {
+    throw new Error('Please enter the 6-digit verification code.');
+  }
+
+  const credential = await confirmation.confirm(trimmedCode);
+  const uid = credential.user.uid;
+
+  const resolution = await resolvePassengerSession(uid);
+
+  if (resolution.status === 'needs_recovery' || resolution.status === 'invalid_role') {
+    // If no passenger account exists or the role is not passenger, do not keep an orphaned/invalid Firebase auth state active
+    await signOut(auth).catch(() => undefined);
+  }
+
+  return resolution;
 }

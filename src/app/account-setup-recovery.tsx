@@ -26,7 +26,8 @@ export default function AccountSetupRecoveryScreen() {
   const currentUser = auth.currentUser;
   const phoneNumber = currentUser?.phoneNumber ?? '';
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,9 +37,15 @@ export default function AccountSetupRecoveryScreen() {
     if (busy) return;
     setErrorMessage(null);
 
-    const trimmedName = name.trim();
-    if (trimmedName.length < 2) {
-      setErrorMessage('Please enter your full name (at least 2 characters).');
+    const trimmedFirstName = firstName.trim();
+    if (trimmedFirstName.length < 2) {
+      setErrorMessage('Please enter your first name (at least 2 characters).');
+      return;
+    }
+
+    const trimmedLastName = lastName.trim();
+    if (trimmedLastName.length < 2) {
+      setErrorMessage('Please enter your last name (at least 2 characters).');
       return;
     }
 
@@ -56,7 +63,8 @@ export default function AccountSetupRecoveryScreen() {
 
     try {
       await createVerifiedPassengerProfile({
-        name: trimmedName,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
         mobile: phoneNumber,
         termsAccepted,
         privacyAccepted,
@@ -101,18 +109,32 @@ export default function AccountSetupRecoveryScreen() {
           editable={false}
         />
 
-        <Text style={styles.label}>Full name</Text>
+        <Text style={styles.label}>First name</Text>
         <TextInput
           style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Juan dela Cruz"
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="e.g. Juan"
           placeholderTextColor={colors.ink[400]}
           autoCapitalize="words"
           autoCorrect={false}
-          autoComplete="name"
+          autoComplete="given-name"
           editable={!busy}
-          testID="recovery-name-input"
+          testID="recovery-firstname-input"
+        />
+
+        <Text style={styles.label}>Last name</Text>
+        <TextInput
+          style={styles.input}
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="e.g. Dela Cruz"
+          placeholderTextColor={colors.ink[400]}
+          autoCapitalize="words"
+          autoCorrect={false}
+          autoComplete="family-name"
+          editable={!busy}
+          testID="recovery-lastname-input"
         />
 
         <View style={styles.checkboxContainer}>
@@ -150,10 +172,21 @@ export default function AccountSetupRecoveryScreen() {
         ) : null}
 
         <Pressable
-          disabled={busy || !termsAccepted || !privacyAccepted || name.trim().length < 2}
+          disabled={
+            busy ||
+            !termsAccepted ||
+            !privacyAccepted ||
+            firstName.trim().length < 2 ||
+            lastName.trim().length < 2
+          }
           style={[
             styles.btnPrimary,
-            (busy || !termsAccepted || !privacyAccepted || name.trim().length < 2) && styles.btnDisabled,
+            (busy ||
+              !termsAccepted ||
+              !privacyAccepted ||
+              firstName.trim().length < 2 ||
+              lastName.trim().length < 2) &&
+              styles.btnDisabled,
           ]}
           onPress={handleCompleteSetup}
           accessibilityRole="button"
