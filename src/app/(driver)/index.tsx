@@ -83,7 +83,12 @@ export default function DriveScreen() {
           useActiveTripStore.getState().setTripId(serverActiveTripId.trim());
           useAvailabilityStore.getState().setAvailability('on_trip');
         } else if (serverActiveTripId === null) {
-          if (useActiveTripStore.getState().tripId) {
+          // If serverActiveTripId is null, do NOT wipe local presentation state
+          // if a trip is currently loaded. The local activeTripStore maintains
+          // the terminal summary (completed/cancelled) until the driver explicitly taps Done.
+          // Only clear if the store has a stale tripId without any loaded trip object.
+          const storeTrip = useActiveTripStore.getState().trip;
+          if (!storeTrip && useActiveTripStore.getState().tripId) {
             useActiveTripStore.getState().clearTrip();
           }
         }

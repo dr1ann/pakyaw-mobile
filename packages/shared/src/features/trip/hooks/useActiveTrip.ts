@@ -75,7 +75,6 @@ export function useActiveTrip(): void {
           }
           activeTripId = null;
           subscriptionCount = 0;
-          useActiveTripStore.getState().clearTrip();
         }
       }
     };

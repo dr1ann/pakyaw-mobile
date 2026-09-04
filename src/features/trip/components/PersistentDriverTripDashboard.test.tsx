@@ -150,7 +150,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     useActiveTripStore.getState().clearTrip();
   });
 
-  it('renders accepted state correctly with pickup information and Start Navigation CTA', () => {
+  it('renders accepted state correctly with pickup information and Head to Pickup CTA', () => {
     const tree = PersistentDriverTripDashboard({
       trip: sampleTrip,
     });
@@ -161,7 +161,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     expect(json).toContain('Ormoc City Hall');
     expect(json).toContain('Juan Dela Cruz');
     expect(json).toContain('ABC 1234');
-    expect(json).toContain('Start Navigation');
+    expect(json).toContain('Head to Pickup');
     expect(json).toContain('Cancel Ride');
 
     const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
@@ -189,6 +189,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     const json = JSON.stringify(tree);
 
     expect(json).toContain('HEADING TO PICKUP');
+    expect(json).toContain('Heading to pickup:');
     expect(json).toContain('Arrived at Pickup');
     expect(json).toContain('Cancel Ride');
 
@@ -204,7 +205,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     );
   });
 
-  it('renders driver_arrived state with Start Trip CTA', () => {
+  it('renders driver_arrived state with At pickup: banner and Start Trip CTA', () => {
     const arrivedTrip: TripDoc = {
       ...sampleTrip,
       status: 'driver_arrived',
@@ -216,6 +217,8 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     const json = JSON.stringify(tree);
 
     expect(json).toContain('ARRIVED AT PICKUP');
+    expect(json).toContain('At pickup:');
+    expect(json).not.toContain('Heading to pickup:');
     expect(json).toContain('Start Trip');
     expect(json).toContain('Cancel Ride');
 
@@ -342,5 +345,89 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     primaryBtn.props.onPress();
 
     expect(mockTransition).toHaveBeenCalled();
+  });
+
+  describe('Terminal state race condition resilience', () => {
+    it('Order A: trips status becomes completed first, then driver activeTripId becomes null -> retains presentation until Done', () => {
+      // 1. Trip document transitions to completed
+      const completedTrip: TripDoc = {
+        ...sampleTrip,
+        status: 'completed',
+      };
+      useActiveTripStore.getState().setTrip(completedTrip);
+
+      // 2. Server activeTripId becomes null (backend cleaned up active trip)
+      // Simulation of DriveScreen's onSnapshot logic for drivers/{uid}:
+      const serverActiveTripId = null;
+      if (serverActiveTripId === null) {
+        const storeTrip = useActiveTripStore.getState().trip;
+        if (!storeTrip && useActiveTripStore.getState().tripId) {
+          useActiveTripStore.getState().clearTrip();
+        }
+      }
+
+      // 3. Verify that the store still retains completed trip
+      expect(useActiveTripStore.getState().trip).toEqual(completedTrip);
+
+      // 4. Render dashboard
+      const mockDismiss = vi.fn(() => {
+        useActiveTripStore.getState().clearTrip();
+      });
+      const tree = PersistentDriverTripDashboard({
+        trip: useActiveTripStore.getState().trip,
+        onDismissTerminal: mockDismiss,
+      });
+      const json = JSON.stringify(tree);
+      expect(json).toContain('TRIP COMPLETED');
+      expect(json).toContain('RIDE COMPLETED SUCCESSFULLY');
+
+      // 5. Driver taps Done -> local store cleared
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+      expect(mockDismiss).toHaveBeenCalledTimes(1);
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
+
+    it('Order B: driver activeTripId becomes null first, then trips status becomes completed -> retains presentation until Done', () => {
+      // 1. Currently active trip
+      useActiveTripStore.getState().setTrip(sampleTrip);
+
+      // 2. Server activeTripId becomes null before trip snapshot lands
+      const serverActiveTripId = null;
+      if (serverActiveTripId === null) {
+        const storeTrip = useActiveTripStore.getState().trip;
+        if (!storeTrip && useActiveTripStore.getState().tripId) {
+          useActiveTripStore.getState().clearTrip();
+        }
+      }
+
+      // Store still retains active trip and tripId
+      expect(useActiveTripStore.getState().trip).toEqual(sampleTrip);
+
+      // 3. Trip snapshot arrives with completed status
+      const completedTrip: TripDoc = {
+        ...sampleTrip,
+        status: 'completed',
+      };
+      useActiveTripStore.getState().setTrip(completedTrip);
+      expect(useActiveTripStore.getState().trip?.status).toBe('completed');
+
+      // 4. Render dashboard
+      const mockDismiss = vi.fn(() => {
+        useActiveTripStore.getState().clearTrip();
+      });
+      const tree = PersistentDriverTripDashboard({
+        trip: useActiveTripStore.getState().trip,
+        onDismissTerminal: mockDismiss,
+      });
+      const json = JSON.stringify(tree);
+      expect(json).toContain('TRIP COMPLETED');
+
+      // 5. Driver taps Done -> local store cleared
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+      expect(mockDismiss).toHaveBeenCalledTimes(1);
+      expect(useActiveTripStore.getState().trip).toBeNull();
+    });
   });
 });

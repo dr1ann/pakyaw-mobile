@@ -289,7 +289,7 @@ export function PersistentDriverTripDashboard({
   const getActionConfig = (status: TripStatus) => {
     switch (status) {
       case 'accepted':
-        return { label: 'Start Navigation', tone: 'default' as const };
+        return { label: 'Head to Pickup', tone: 'default' as const };
       case 'driver_arriving':
         return { label: 'Arrived at Pickup', tone: 'default' as const };
       case 'driver_arrived':
@@ -338,7 +338,11 @@ export function PersistentDriverTripDashboard({
   const targetLabel = isHeadingToDestination
     ? (trip?.destination?.label || 'Destination')
     : (trip?.pickup?.label || 'Pickup Location');
-  const targetPrefix = isHeadingToDestination ? 'Heading to destination:' : 'Heading to pickup:';
+  const targetPrefix = isHeadingToDestination
+    ? 'Heading to destination:'
+    : status === 'driver_arrived'
+      ? 'At pickup:'
+      : 'Heading to pickup:';
 
   // Can the Driver cancel at this stage?
   const canDriverCancel = status === 'accepted' || status === 'driver_arriving' || status === 'driver_arrived';
