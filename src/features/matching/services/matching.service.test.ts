@@ -140,21 +140,21 @@ describe('matching.service — server offers', () => {
     expect(onOffers).toHaveBeenCalledWith([]);
   });
 
-  it('maps a server-created Hop offer without inventing mode or seat values', () => {
+  it('maps a server-created Shared offer with sharedRideId without inventing mode or seat values', () => {
     const onOffers = vi.fn();
     mocks.onSnapshot.mockImplementation((_query, onNext) => {
       onNext({
         docs: [{
-          id: 'hop-offer',
+          id: 'shared-offer',
           data: () => ({
-            tripId: 'hop-trip',
+            tripId: 'shared-trip',
             driverId: 'driver-1',
             status: 'pending',
-            mode: 'hop',
+            mode: 'shared',
             passengerCount: 1,
             billedSeats: 1,
-            pickup: { latitude: 11.0, longitude: 124.6, label: 'Hop pickup' },
-            destination: { latitude: 11.1, longitude: 124.7, label: 'Hop destination' },
+            pickup: { latitude: 11.0, longitude: 124.6, label: 'Shared pickup' },
+            destination: { latitude: 11.1, longitude: 124.7, label: 'Shared destination' },
             fare: { total: 45, driverEarnings: 40 },
             sharedRideId: 'shared-1',
             offeredAt: { toMillis: () => 1_700_000_000_000 },
@@ -168,7 +168,7 @@ describe('matching.service — server offers', () => {
     subscribeDriverOffers('driver-1', onOffers, vi.fn());
 
     expect(onOffers.mock.calls[0][0][0]).toMatchObject({
-      mode: 'hop',
+      mode: 'shared',
       passengerCount: 1,
       billedSeats: 1,
       fare: { total: 45, driverEarnings: 40 },

@@ -337,12 +337,12 @@ describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () =
     expect(json).toContain('Ana');
   });
 
-  // 4. Hop member
-  it('Scenario 4: Hop member — joins Shared session with Hop badge, updates occupancy, obeys backend sequence', () => {
-    const tripCarloHop: TripDoc = {
+  // 4. Shared member joining active session
+  it('Scenario 4: Shared member — joins Shared session with Shared badge, updates occupancy, obeys backend sequence', () => {
+    const tripCarloShared: TripDoc = {
       ...baseSoloTrip,
       id: 'trip-carlo',
-      mode: 'hop',
+      mode: 'shared',
       rider: { firstName: 'Carlo' },
       pickup: { label: 'Ormoc Doctor Hospital', coords: { lat: 11.012, lng: 124.61 } },
       destination: { label: 'SM Center Ormoc', coords: { lat: 11.009, lng: 124.608 } },
@@ -369,7 +369,7 @@ describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () =
           seats: 1,
           pickup: { latitude: 11.012, longitude: 124.61, label: 'Ormoc Doctor Hospital' },
           destination: { latitude: 11.009, longitude: 124.608, label: 'SM Center Ormoc' },
-          mode: 'hop',
+          mode: 'shared',
           status: 'reserved',
         },
       ],
@@ -395,14 +395,14 @@ describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () =
     const tree = PersistentDriverTripDashboard({
       trip: null,
       sharedRide,
-      memberTrips: { 'trip-carlo': tripCarloHop },
+      memberTrips: { 'trip-carlo': tripCarloShared },
       currentStop: sharedRide.operational?.stops[0] ?? null,
-      currentTrip: tripCarloHop,
+      currentTrip: tripCarloShared,
       occupancy: { seatsReserved: 1, maxSeats: 4, onboardCount: 0, waitingCount: 1 },
     });
     const json = JSON.stringify(tree);
 
-    expect(json).toContain('Hop');
+    expect(json).toContain('Shared');
     expect(json).toContain('Pick up Carlo');
     expect(json).toContain('Ormoc Doctor Hospital');
   });

@@ -37,7 +37,7 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
           seats: 1,
           pickup: { latitude: 11.012, longitude: 124.61, label: 'Ormoc Doctor Hospital' },
           destination: { latitude: 11.009, longitude: 124.608, label: 'SM Center Ormoc' },
-          mode: 'hop',
+          mode: 'shared',
           status: 'reserved',
         },
       ],
@@ -75,7 +75,7 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
     expect(result?.operational?.nextStopId).toBe('trip-1:dropoff');
     expect(result?.operational?.stopOrder).toHaveLength(5);
     expect(result?.passengers).toHaveLength(3);
-    expect(result?.passengers[2].isHop).toBe(true);
+    expect(result?.passengers[2].seatsCovered).toBe(1);
   });
 
   it('rejects malformed shared ride documents safely without throwing', () => {
@@ -139,7 +139,7 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
           seats: 1,
           pickup: { latitude: 11.005, longitude: 124.6075, label: 'Near Place' },
           destination: { latitude: 11.002, longitude: 124.605, label: 'Near Dest' },
-          mode: 'hop',
+          mode: 'shared',
           status: 'reserved',
         },
       ],
@@ -213,27 +213,27 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
     expect(initial?.seatsBooked).toBe(1);
     expect(initial?.operational?.currentStopId).toBe('trip-1:pickup');
 
-    // Hop passenger added while driving
+    // Shared passenger added while driving
     const updatedRaw = {
       ...initialRaw,
       seatsReserved: 2,
-      tripIds: ['trip-1', 'trip-hop'],
+      tripIds: ['trip-1', 'trip-join'],
       members: [
         ...initialRaw.members,
         {
-          tripId: 'trip-hop',
-          passengerId: 'p-hop',
+          tripId: 'trip-join',
+          passengerId: 'p-join',
           seats: 1,
           pickup: { latitude: 11.01, longitude: 124.61, label: 'Doctor Hospital' },
           destination: { latitude: 11.002, longitude: 124.605, label: 'Ormoc Port' },
-          mode: 'hop',
+          mode: 'shared',
           status: 'reserved',
         },
       ],
       operational: {
-        stopOrder: ['trip-1:pickup', 'trip-hop:pickup', 'trip-1:dropoff', 'trip-hop:dropoff'],
+        stopOrder: ['trip-1:pickup', 'trip-join:pickup', 'trip-1:dropoff', 'trip-join:dropoff'],
         currentStopId: 'trip-1:pickup', // Current stop remains stable!
-        nextStopId: 'trip-hop:pickup',
+        nextStopId: 'trip-join:pickup',
         stops: [
           {
             id: 'trip-1:pickup',
@@ -243,8 +243,8 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
             status: 'pending',
           },
           {
-            id: 'trip-hop:pickup',
-            tripId: 'trip-hop',
+            id: 'trip-join:pickup',
+            tripId: 'trip-join',
             kind: 'pickup',
             place: { latitude: 11.01, longitude: 124.61, label: 'Doctor Hospital' },
             status: 'pending',
@@ -257,6 +257,6 @@ describe('useSharedRideSession / mapCanonicalSharedRide canonical mapping', () =
     expect(updated?.seatsBooked).toBe(2);
     expect(updated?.members).toHaveLength(2);
     expect(updated?.operational?.currentStopId).toBe('trip-1:pickup');
-    expect(updated?.operational?.nextStopId).toBe('trip-hop:pickup');
+    expect(updated?.operational?.nextStopId).toBe('trip-join:pickup');
   });
 });

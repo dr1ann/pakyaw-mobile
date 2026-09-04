@@ -173,20 +173,20 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
     expect(json).toContain('Shared ride: other passengers with matching routes may join.');
   });
 
-  it('renders Hop request with hop badge and hop notice', () => {
-    const hopRequest: IncomingRequest = {
+  it('renders Shared request joining active shared ride with shared badge and join notice', () => {
+    const activeSharedRequest: IncomingRequest = {
       ...baseRequest,
-      mode: 'hop',
+      mode: 'shared',
       passengerCount: 1,
       billedSeats: 1,
       sharedRideId: 'shared-session-99',
     };
 
-    const tree = IncomingRequestCard({ request: hopRequest });
+    const tree = IncomingRequestCard({ request: activeSharedRequest });
     const json = JSON.stringify(tree);
 
-    expect(json).toContain('HOP');
-    expect(json).toContain('Hop request: joins your active Shared Ride upon acceptance.');
+    expect(json).toContain('SHARED');
+    expect(json).toContain('Shared ride: joins your active Shared Ride upon acceptance.');
   });
 
   it('renders third-party booking notice with rider first name and note without exposing personal info', () => {

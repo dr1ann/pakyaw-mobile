@@ -91,7 +91,6 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const disabled = isActionBusy || driverUid == null || isTerminalFeedback;
 
   const isShared = request.mode === 'shared';
-  const isHop = request.mode === 'hop';
   const isOther = request.bookingFor === 'other';
 
   // Authoritative road trip distance (pickup → destination)
@@ -180,7 +179,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     setIsMinimized((m) => !m);
   }
 
-  const modeLabel = isHop ? 'HOP' : isShared ? 'SHARED' : 'PAKYAW';
+  const modeLabel = isShared ? 'SHARED' : 'PAKYAW';
   const passengerLabel = `${request.passengerCount} ${request.passengerCount === 1 ? 'passenger' : 'passengers'}`;
 
   return (
@@ -191,17 +190,13 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
           <View
             style={[
               styles.badge,
-              isHop ? styles.badgeHop : isShared ? styles.badgeShared : styles.badgePrivate,
+              isShared ? styles.badgeShared : styles.badgePrivate,
             ]}
           >
             <Text
               style={[
                 styles.badgeText,
-                isHop
-                  ? styles.badgeTextHop
-                  : isShared
-                    ? styles.badgeTextShared
-                    : styles.badgeTextPrivate,
+                isShared ? styles.badgeTextShared : styles.badgeTextPrivate,
               ]}
             >
               {modeLabel}
@@ -307,8 +302,8 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
             </View>
           </View>
 
-          {/* Shared / Hop Guidance */}
-          {(isShared || isHop) && (
+          {/* Shared Guidance */}
+          {isShared && (
             <View style={styles.sharedNotice}>
               <SymbolIcon
                 name="person.3.fill"
@@ -317,8 +312,8 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
                 style={{ marginTop: 2 }}
               />
               <Text style={styles.sharedNoticeText}>
-                {isHop
-                  ? 'Hop request: joins your active Shared Ride upon acceptance.'
+                {request.sharedRideId
+                  ? 'Shared ride: joins your active Shared Ride upon acceptance.'
                   : 'Shared ride: other passengers with matching routes may join.'}
               </Text>
             </View>

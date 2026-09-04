@@ -598,10 +598,10 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       bookingFor: 'self',
     };
 
-    const tripCarloHop: TripDoc = {
+    const tripCarloShared: TripDoc = {
       ...sampleTrip,
       id: 'trip-carlo',
-      mode: 'hop',
+      mode: 'shared',
       status: 'accepted',
       passengerCount: 1,
       billedSeats: 1,
@@ -659,7 +659,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
           seats: 1,
           pickup: { latitude: 11.012, longitude: 124.61, label: 'Ormoc Doctor Hospital' },
           destination: { latitude: 11.009, longitude: 124.608, label: 'SM Center Ormoc' },
-          mode: 'hop' as const,
+          mode: 'shared' as const,
           status: 'reserved' as const,
         },
       ],
@@ -696,7 +696,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
         memberTrips: {
           'trip-maria': tripMaria,
           'trip-ana': tripAna,
-          'trip-carlo': tripCarloHop,
+          'trip-carlo': tripCarloShared,
         },
         currentStop: sharedRideSample.operational.stops[0],
         nextStop: sharedRideSample.operational.stops[1],
@@ -731,12 +731,12 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       expect(json).toContain('Drop off Ana');
       expect(json).toContain('Ormoc Port');
 
-      // Passenger member list with Shared and Hop distinction
+      // Passenger member list
       expect(json).toContain('PASSENGERS (3)');
       expect(json).toContain('Ana');
       expect(json).toContain('Maria');
       expect(json).toContain('Carlo');
-      expect(json).toContain('Hop');
+      expect(json).toContain('Shared');
     });
 
     it('renders third-party traveller with rider.firstName and "Booked for someone else" indicator', () => {
@@ -746,7 +746,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
         memberTrips: {
           'trip-maria': tripMaria,
           'trip-ana': tripAna,
-          'trip-carlo': tripCarloHop,
+          'trip-carlo': tripCarloShared,
         },
         currentStop: {
           id: 'trip-carlo:pickup',
@@ -756,7 +756,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
           status: 'pending',
         },
         nextStop: null,
-        currentTrip: tripCarloHop,
+        currentTrip: tripCarloShared,
         nextTrip: null,
         occupancy: {
           seatsReserved: 3,
@@ -769,7 +769,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
 
       expect(json).toContain('Pick up Carlo');
       expect(json).toContain('Booked for someone else');
-      expect(json).toContain('Hop');
+      expect(json).toContain('Shared');
       expect(json).toContain('1 seat');
     });
 

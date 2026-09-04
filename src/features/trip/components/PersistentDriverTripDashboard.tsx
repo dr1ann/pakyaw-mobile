@@ -375,9 +375,9 @@ export function PersistentDriverTripDashboard({
                   {`${activeTrip?.billedSeats || 1} ${(activeTrip?.billedSeats || 1) === 1 ? 'seat' : 'seats'}`}
                 </Text>
               </View>
-              <View style={[styles.modeTag, activeTrip?.mode === 'hop' ? styles.modeTagHop : styles.modeTagShared]}>
-                <Text style={[styles.modeTagText, activeTrip?.mode === 'hop' ? styles.modeTagTextHop : styles.modeTagTextShared]}>
-                  {activeTrip?.mode === 'hop' ? 'Hop' : 'Shared'}
+              <View style={[styles.modeTag, styles.modeTagShared]}>
+                <Text style={[styles.modeTagText, styles.modeTagTextShared]}>
+                  Shared
                 </Text>
               </View>
             </View>
@@ -611,13 +611,13 @@ export function PersistentDriverTripDashboard({
                           )}
                         </View>
                         <Text style={styles.memberSubtext}>
-                          {statusConfig.label} • {member.seats} {member.seats === 1 ? 'seat' : 'seats'} • {member.mode === 'hop' ? 'Hop' : 'Shared'}
+                          {statusConfig.label} • {member.seats} {member.seats === 1 ? 'seat' : 'seats'}
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.memberModeBadge, member.mode === 'hop' ? styles.modeTagHop : styles.modeTagShared]}>
-                      <Text style={[styles.modeTagText, member.mode === 'hop' ? styles.modeTagTextHop : styles.modeTagTextShared]}>
-                        {member.mode === 'hop' ? 'Hop' : 'Shared'}
+                    <View style={[styles.memberModeBadge, styles.modeTagShared]}>
+                      <Text style={[styles.modeTagText, styles.modeTagTextShared]}>
+                        Shared
                       </Text>
                     </View>
                   </View>
@@ -925,18 +925,12 @@ const styles = StyleSheet.create({
   modeTagShared: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
-  modeTagHop: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-  },
   modeTagText: {
     fontSize: 10,
     fontWeight: typography.weight.bold,
   },
   modeTagTextShared: {
     color: '#047857',
-  },
-  modeTagTextHop: {
-    color: '#B45309',
   },
   currentStopTitle: {
     fontSize: typography.size.h3,

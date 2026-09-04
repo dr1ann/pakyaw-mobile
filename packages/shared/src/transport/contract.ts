@@ -5,7 +5,7 @@ export type Timestamp = {
   toMillis?(): number;
 };
 
-export const RIDE_MODES = ['solo', 'shared', 'hop'] as const;
+export const RIDE_MODES = ['solo', 'shared'] as const;
 export type RideMode = (typeof RIDE_MODES)[number];
 
 export function isRideMode(value: unknown): value is RideMode {
