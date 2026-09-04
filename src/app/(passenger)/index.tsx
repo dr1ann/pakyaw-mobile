@@ -24,10 +24,10 @@ import { useRideCameraController } from '@pakyaw/shared/features/maps/hooks/useR
 import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
 import { useLocationStore } from '@/stores/locationStore';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, LayoutAnimation, Modal, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, BackHandler, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
 import MapView from 'react-native-maps';
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LocationLoader } from '@pakyaw/shared/components/ui/LocationLoader';
 import { Button } from '@pakyaw/shared/components/ui/Button';
@@ -470,7 +470,7 @@ export default function RideScreen() {
     setSearchMode(null);
   };
 
-  const handleCancelPinning = () => {
+  const handleCancelPinning = useCallback(() => {
     const isPickup = searchMode === 'pin_pickup';
     setPinSelection(null);
     if (isPickup) {
@@ -478,7 +478,7 @@ export default function RideScreen() {
     } else {
       setSearchMode('destination');
     }
-  };
+  }, [searchMode]);
 
   function handleDismissTerminal() {
     useBookingDraftStore.getState().reset();
@@ -532,6 +532,28 @@ export default function RideScreen() {
       etaSeconds,
     };
   }, [status, driverLocation, decodedRouteCoords, activeRoute, activeTripProgress]);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (searchMode === 'pin_pickup' || searchMode === 'pin_destination') {
+        handleCancelPinning();
+        return true;
+      }
+      if (searchMode === 'pickup' || searchMode === 'destination') {
+        setSearchMode(null);
+        return true;
+      }
+      if (draft.destination && !tripId) {
+        setDestination(null);
+        setRoute(null);
+        return true;
+      }
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [searchMode, draft.destination, tripId, setDestination, setRoute, handleCancelPinning]);
 
   const activePinPlace = pinSelection || (searchMode === 'pin_pickup' ? draft.pickup : draft.destination);
   const isPinOutsideServiceArea = Boolean(activePinPlace?.coords && !isInServiceArea(activePinPlace.coords));
@@ -594,65 +616,54 @@ export default function RideScreen() {
         // Booking Flow sheets
         searchMode === 'pickup' || searchMode === 'destination' ? (
           // Full-screen search overlay
-          <Modal
-            visible
-            animationType="slide"
-            statusBarTranslucent
-            onRequestClose={() => {
-              if (searchMode === 'pickup' || searchMode === 'destination') {
-                setSearchMode(null);
-              }
-            }}
-          >
-            <SafeAreaProvider>
-              <SafeAreaView style={styles.fullscreenSearch}>
-                <SetDestinationSheet
-                  mode={searchMode === 'pickup' ? 'pickup' : 'destination'}
-                  onClose={() => setSearchMode(null)}
-                  onChooseOnMap={(coords) => {
-                    const isPickup = searchMode === 'pickup';
-                    const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
+          <View style={styles.fullscreenSearchOverlay}>
+            <SafeAreaView style={styles.fullscreenSearch} edges={['top', 'left', 'right']}>
+              <SetDestinationSheet
+                mode={searchMode === 'pickup' ? 'pickup' : 'destination'}
+                onClose={() => setSearchMode(null)}
+                onChooseOnMap={(coords) => {
+                  const isPickup = searchMode === 'pickup';
+                  const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
 
-                    setPinSelection({
-                      label: 'Pinned location',
-                      address: 'Ormoc City, Leyte',
-                      coords,
-                    });
-                    setSearchMode(targetMode);
-                    setIsMinimized(false);
+                  setPinSelection({
+                    label: 'Pinned location',
+                    address: 'Ormoc City, Leyte',
+                    coords,
+                  });
+                  setSearchMode(targetMode);
+                  setIsMinimized(false);
 
-                    setIsGeocoding(true);
-                    void (async () => {
-                      try {
-                        const place = await reverseGeocode(coords.lat, coords.lng);
-                        if (place) {
-                          setPinSelection((current: Place | null) => {
-                            if (current && isSameCoordinate(current.coords, coords)) {
-                              return place;
-                            }
-                            return current;
-                          });
-                        }
-                      } catch (err) {
-                        logger.error('[RideScreen] Failed initial pin drop geocoding', err);
-                      } finally {
-                        setIsGeocoding(false);
+                  setIsGeocoding(true);
+                  void (async () => {
+                    try {
+                      const place = await reverseGeocode(coords.lat, coords.lng);
+                      if (place) {
+                        setPinSelection((current: Place | null) => {
+                          if (current && isSameCoordinate(current.coords, coords)) {
+                            return place;
+                          }
+                          return current;
+                        });
                       }
-                    })();
-                  }}
-                  onSelect={(place) => {
-                    if (searchMode === 'pickup') {
-                      setPickup(place);
-                    } else {
-                      setDestination(place);
-                      setIsMinimized(false);
+                    } catch (err) {
+                      logger.error('[RideScreen] Failed initial pin drop geocoding', err);
+                    } finally {
+                      setIsGeocoding(false);
                     }
-                    setSearchMode(null);
-                  }}
-                />
-              </SafeAreaView>
-            </SafeAreaProvider>
-          </Modal>
+                  })();
+                }}
+                onSelect={(place) => {
+                  if (searchMode === 'pickup') {
+                    setPickup(place);
+                  } else {
+                    setDestination(place);
+                    setIsMinimized(false);
+                  }
+                  setSearchMode(null);
+                }}
+              />
+            </SafeAreaView>
+          </View>
         ) : isPinMode ? (
           // Map Pinning Confirmation Card
           <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
@@ -840,6 +851,12 @@ const styles = StyleSheet.create({
   },
   bookingSheetCardMinimized: {
     height: 180,
+  },
+  fullscreenSearchOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 1000,
+    elevation: 1000,
+    backgroundColor: colors.surface.card,
   },
   fullscreenSearch: {
     flex: 1,
