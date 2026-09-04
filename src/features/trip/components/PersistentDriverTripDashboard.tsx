@@ -290,10 +290,10 @@ export function PersistentDriverTripDashboard({
   // Active destination context depending on state
   const isHeadingToDestination = status === 'in_progress';
   const targetLabel = isSharedRideSession
-    ? (currentStop?.kind === 'dropoff'
-        ? (activeTrip?.destination?.label || currentStop?.place?.label || 'Destination')
-        : (activeTrip?.pickup?.label || currentStop?.place?.label || 'Pickup Location'))
+    ? (currentStop?.place?.label || (currentStop?.kind === 'dropoff' ? activeTrip?.destination?.label : activeTrip?.pickup?.label) || 'Location')
     : isHeadingToDestination
+      ? (activeTrip?.destination?.label || 'Destination')
+      : (activeTrip?.pickup?.label || 'Pickup Location');
   const targetPrefix = isSharedRideSession
     ? (currentStop?.kind === 'dropoff'
         ? 'Heading to dropoff:'
@@ -366,7 +366,7 @@ export function PersistentDriverTripDashboard({
           <View style={styles.currentStopHeaderRow}>
             <View style={styles.stopKindBadge}>
               <Text style={styles.stopKindText}>
-                CURRENT STOP • {currentStop.kind.toUpperCase()}
+                {`CURRENT STOP • ${currentStop.kind.toUpperCase()}`}
               </Text>
             </View>
             <View style={styles.modeTagsRow}>
