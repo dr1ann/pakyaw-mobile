@@ -39,6 +39,35 @@ function timestampMillis(value: unknown): number | undefined {
   return typeof milliseconds === 'number' && Number.isFinite(milliseconds) ? milliseconds : undefined;
 }
 
+function offerRoute(value: unknown): IncomingRequest['route'] | null {
+  if (value === null || typeof value !== 'object') return null;
+  const route = value as Record<string, unknown>;
+  if (
+    typeof route.distanceMeters !== 'number' ||
+    !Number.isFinite(route.distanceMeters) ||
+    route.distanceMeters < 0 ||
+    typeof route.durationSeconds !== 'number' ||
+    !Number.isFinite(route.durationSeconds) ||
+    route.durationSeconds < 0
+  ) {
+    return null;
+  }
+  return {
+    distanceMeters: route.distanceMeters,
+    durationSeconds: route.durationSeconds,
+    ...(typeof route.polyline === 'string' ? { polyline: route.polyline } : {}),
+  };
+}
+
+function offerRider(value: unknown): IncomingRequest['rider'] | null {
+  if (value === null || typeof value !== 'object') return null;
+  const rider = value as Record<string, unknown>;
+  if (typeof rider.firstName === 'string' && rider.firstName.trim().length > 0) {
+    return { firstName: rider.firstName.trim() };
+  }
+  return null;
+}
+
 function mapOfferToIncomingRequest(
   snap: QueryDocumentSnapshot<DocumentData>,
 ): IncomingRequest | null {
@@ -82,6 +111,13 @@ function mapOfferToIncomingRequest(
     logger.warn('[matching] dropped malformed offer', { offerId: snap.id });
     return null;
   }
+  const parsedRoute = offerRoute(data.route);
+  const parsedRider = offerRider(data.rider);
+  const bookingFor = data.bookingFor === 'other' || data.bookingFor === 'self' ? data.bookingFor : undefined;
+  const pickupNote = typeof data.pickupNote === 'string' && data.pickupNote.trim().length > 0
+    ? data.pickupNote.trim()
+    : undefined;
+
   return {
     offerId: snap.id,
     tripId,
@@ -95,6 +131,10 @@ function mapOfferToIncomingRequest(
       total: offerFare.total,
       driverEarnings: offerFare.driverEarnings,
     },
+    ...(parsedRoute ? { route: parsedRoute } : {}),
+    ...(bookingFor ? { bookingFor } : {}),
+    ...(parsedRider ? { rider: parsedRider } : {}),
+    ...(pickupNote ? { pickupNote } : {}),
     ...(typeof data.sharedRideId === 'string' ? { sharedRideId: data.sharedRideId } : {}),
     offeredAt,
     expiresAt,

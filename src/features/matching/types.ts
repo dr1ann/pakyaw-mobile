@@ -24,10 +24,13 @@ export type IncomingRequest = {
   readonly route?: {
     readonly distanceMeters: number;
     readonly durationSeconds: number;
-    readonly polyline: string;
+    readonly polyline?: string;
   } | null;
   readonly fare: TripOfferFare;
   readonly sharedRideId?: string;
+  readonly bookingFor?: 'self' | 'other';
+  readonly rider?: { readonly firstName: string } | null;
+  readonly pickupNote?: string | null;
   readonly offeredAt: number;
   readonly expiresAt: number;
 };

@@ -176,6 +176,49 @@ describe('matching.service — server offers', () => {
     });
   });
 
+  it('maps route and third-party booking details when present on the offer', () => {
+    const onOffers = vi.fn();
+    mocks.onSnapshot.mockImplementation((_query, onNext) => {
+      onNext({
+        docs: [{
+          id: 'offer-with-route',
+          data: () => ({
+            tripId: 'trip-route',
+            status: 'pending',
+            mode: 'solo',
+            passengerCount: 1,
+            billedSeats: 1,
+            pickup: { latitude: 11.005, longitude: 124.605, label: 'Robinsons' },
+            destination: { latitude: 11.035, longitude: 124.615, label: 'Airport' },
+            route: { distanceMeters: 4800, durationSeconds: 720, polyline: '_p~iF~ps|U' },
+            fare: { total: 180, driverEarnings: 150 },
+            bookingFor: 'other',
+            rider: { firstName: 'Juan' },
+            pickupNote: 'Waiting near main entrance',
+            offeredAt: { toMillis: () => 1_700_000_000_000 },
+            expiresAt: { toMillis: () => Date.now() + 30_000 },
+          }),
+        }],
+      });
+      return mocks.unsubscribe;
+    });
+
+    subscribeDriverOffers('driver-1', onOffers, vi.fn());
+
+    expect(onOffers.mock.calls[0][0][0]).toMatchObject({
+      offerId: 'offer-with-route',
+      tripId: 'trip-route',
+      route: {
+        distanceMeters: 4800,
+        durationSeconds: 720,
+        polyline: '_p~iF~ps|U',
+      },
+      bookingFor: 'other',
+      rider: { firstName: 'Juan' },
+      pickupNote: 'Waiting near main entrance',
+    });
+  });
+
   it('accepts a specific offer through the server callable', async () => {
     mocks.callable.mockResolvedValue({ data: { result: 'accepted' } });
 

@@ -251,12 +251,21 @@ export default function DriveScreen() {
     lastLatitude !== null && lastLongitude !== null
       ? { latitude: lastLatitude, longitude: lastLongitude }
       : null;
+  const showIncomingCard =
+    (availability === 'online' || (availability === 'on_trip' && sharedRideId != null))
+      && incomingRequests.length > 0;
+  const topRequest = showIncomingCard ? incomingRequests[0] : null;
+
   const pickupLocation = !isTripTerminal && trip?.pickup?.coords
     ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-    : null;
+    : topRequest?.pickup?.coords
+      ? { latitude: topRequest.pickup.coords.lat, longitude: topRequest.pickup.coords.lng }
+      : null;
   const destinationLocation = !isTripTerminal && trip?.destination?.coords
     ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-    : null;
+    : topRequest?.destination?.coords
+      ? { latitude: topRequest.destination.coords.lat, longitude: topRequest.destination.coords.lng }
+      : null;
   const rawNavigationCoordinate = driverLocation ?? ownLocation;
   const currentRoutePolyline = useMemo(
     () => driverRouteData?.steps.flatMap((step) => step.polyline) ?? [],
@@ -360,11 +369,6 @@ export default function DriveScreen() {
     routeFetchedAt: driverRouteData?.fetchedAt ?? null,
     distanceToManeuver: progressStats.distanceToManeuver,
   });
-  const showIncomingCard =
-    (availability === 'online' || (availability === 'on_trip' && sharedRideId != null))
-      && incomingRequests.length > 0;
-  const topRequest = showIncomingCard ? incomingRequests[0] : null;
-
   function handleDismissTerminal() {
     useActiveTripStore.getState().clearTrip();
   }
@@ -387,7 +391,9 @@ export default function DriveScreen() {
         }
         driverRouteVariant={isTripInProgress ? 'trip' : 'pickup'}
         routePolyline={
-          isTripTerminal || isTripInProgress ? null : trip?.route?.polyline ?? null
+          isTripTerminal || isTripInProgress
+            ? null
+            : trip?.route?.polyline ?? topRequest?.route?.polyline ?? null
         }
         driverRoutePolyline={
           isTripTerminal || trip?.status === 'driver_arrived'

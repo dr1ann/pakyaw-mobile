@@ -1,16 +1,23 @@
 /**
- * IncomingRequestCard — Phase 7 driver matching UI.
+ * IncomingRequestCard — Phase 11 Driver Incoming Request.
  *
- * Renders a single nearby trip request with Accept / Decline actions.
+ * Renders a single nearby trip request with authoritative trip details and Accept / Decline actions.
  *
- * Accept  → useAcceptTrip mutation. TripAlreadyTakenError is swallowed by
- *           the hook (no toast, no alert) — the card is silently removed
- *           from the local mirror.
- * Decline → expire this addressed offer through the backend. The backend
- *           schedules an immediate retry only when no other offer is pending.
+ * Distance rules:
+ * - Actual trip distance uses authoritative road distance (request.route.distanceMeters).
+ *   Never falls back to straight-line Haversine as "trip distance".
+ * - Driver proximity to pickup is calculated from driver GPS to pickup and explicitly labeled as "to pickup".
+ *
+ * Privacy rules:
+ * - NO passenger live GPS displayed before acceptance.
+ * - For third-party bookings (bookingFor === 'other'), shows only rider first name and pickup note.
+ *
+ * Acceptance:
+ * - Uses backend-authoritative acceptTripOffer callable.
+ * - Handles already-taken race conditions gracefully without throwing application errors.
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   LayoutAnimation,
@@ -36,65 +43,106 @@ type IncomingRequestCardProps = {
 
 export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const driverUid = useSessionStore((s) => s.uid);
+  const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
+  const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
   const acceptMutation = useAcceptTrip();
   const [isMinimized, setIsMinimized] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(() => request.expiresAt == null
-    ? 15
-    : Math.max(0, Math.ceil((request.expiresAt - Date.now()) / 1000)));
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Notify driver when a request appears
-    Vibration.vibrate([0, 500, 200, 500]);
-    
-    // Set up countdown
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleDecline();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  const calculateRemainingSeconds = useCallback(() => {
+    if (request.expiresAt == null) return 15;
+    return Math.max(0, Math.ceil((request.expiresAt - Date.now()) / 1000));
+  }, [request.expiresAt]);
 
-    return () => clearInterval(interval);
-  }, [request.offerId]); // Reset countdown on a new offer
+  const [timeLeft, setTimeLeft] = useState(calculateRemainingSeconds);
 
-  const isPending = acceptMutation.isPending;
-  const disabled = isPending || driverUid == null;
-  const isShared = request.mode === 'shared';
-  const isHop = request.mode === 'hop';
-
-  const fallbackDistanceMeters = (request.pickup?.coords && request.destination?.coords)
-    ? haversineMeters(
-        { lat: request.pickup.coords.lat, lng: request.pickup.coords.lng },
-        { lat: request.destination.coords.lat, lng: request.destination.coords.lng },
-      )
-    : null;
-  const tripDistanceKm = request.route?.distanceMeters != null
-    ? (request.route.distanceMeters / 1000).toFixed(1)
-    : fallbackDistanceMeters != null
-      ? (fallbackDistanceMeters / 1000).toFixed(1)
-      : null;
-  const tripDurationMin = request.route?.durationSeconds != null
-    ? Math.round(request.route.durationSeconds / 60)
-    : fallbackDistanceMeters != null
-      ? Math.max(1, Math.round((fallbackDistanceMeters / 1000) / 20 * 60))
-      : null;
-  const distanceText = tripDistanceKm !== null ? `${tripDistanceKm} km trip` : '—';
-  const durationText = tripDurationMin !== null ? `~${tripDurationMin} min trip` : '—';
-
-  function handleAccept() {
-    if (driverUid == null) return;
-    acceptMutation.mutate({ tripId: request.tripId, offerId: request.offerId, driverUid });
-  }
-
-  function handleDecline() {
+  const handleDecline = useCallback(() => {
     useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
     if (driverUid !== null) {
       void declineTripOffer(request.tripId, request.offerId, driverUid).catch(() => undefined);
     }
+  }, [driverUid, request.offerId, request.tripId]);
+
+  useEffect(() => {
+    // Notify driver when a request appears
+    Vibration.vibrate([0, 500, 200, 500]);
+
+    const interval = setInterval(() => {
+      const remaining = calculateRemainingSeconds();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        handleDecline();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [calculateRemainingSeconds, handleDecline, request.offerId]);
+
+  const isPending = acceptMutation.isPending;
+  const disabled = isPending || driverUid == null || statusFeedback !== null;
+  const isShared = request.mode === 'shared';
+  const isHop = request.mode === 'hop';
+  const isOther = request.bookingFor === 'other';
+
+  // Authoritative road trip distance (pickup → destination)
+  const tripRoadDistanceKm = request.route?.distanceMeters != null
+    ? (request.route.distanceMeters / 1000).toFixed(1)
+    : null;
+  const tripDistanceText = tripRoadDistanceKm !== null ? `${tripRoadDistanceKm} km trip` : '—';
+
+  // Authoritative trip duration (pickup → destination)
+  const tripDurationMin = request.route?.durationSeconds != null
+    ? Math.max(1, Math.round(request.route.durationSeconds / 60))
+    : null;
+  const tripDurationText = tripDurationMin !== null ? `~${tripDurationMin} min trip` : '—';
+
+  // Driver proximity to pickup (driver GPS → pickup), clearly distinguished
+  const driverToPickupMeters =
+    lastLatitude !== null &&
+    lastLongitude !== null &&
+    request.pickup?.coords
+      ? haversineMeters(
+          { lat: lastLatitude, lng: lastLongitude },
+          { lat: request.pickup.coords.lat, lng: request.pickup.coords.lng },
+        )
+      : null;
+  const driverProximityKm = driverToPickupMeters !== null
+    ? (driverToPickupMeters / 1000).toFixed(1)
+    : null;
+  const driverProximityText = driverProximityKm !== null
+    ? `${driverProximityKm} km to pickup`
+    : null;
+
+  const fareFormatted = `₱${request.fare.total.toFixed(2)}`;
+
+  function handleAccept() {
+    if (driverUid == null || disabled) return;
+    setStatusFeedback(null);
+    acceptMutation.mutate(
+      { tripId: request.tripId, offerId: request.offerId, driverUid },
+      {
+        onSuccess: (result) => {
+          if (result === 'already_taken') {
+            setStatusFeedback('This ride is no longer available.');
+            setTimeout(() => {
+              useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
+            }, 2000);
+          } else if (result === 'invalid') {
+            setStatusFeedback('Request expired or invalid.');
+            setTimeout(() => {
+              useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
+            }, 2000);
+          }
+        },
+        onError: (err) => {
+          setStatusFeedback(err.message || 'Unable to accept request.');
+          setTimeout(() => {
+            useAvailabilityStore.getState().removeIncomingRequest(request.tripId);
+          }, 2500);
+        },
+      }
+    );
   }
 
   function handleToggleMinimize() {
@@ -102,25 +150,43 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     setIsMinimized((m) => !m);
   }
 
+  const modeLabel = isHop ? 'HOP' : isShared ? 'SHARED' : 'PAKYAW';
+  const passengerLabel = `${request.passengerCount} ${request.passengerCount === 1 ? 'passenger' : 'passengers'}`;
+
   return (
     <View style={[styles.card, shadow.float]} testID="incoming-request-card">
+      {/* Header with Mode Badge, Passenger Count, and Minimize Button */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <View style={[styles.badge, isHop ? styles.badgeHop : isShared ? styles.badgeShared : styles.badgePrivate]}>
-            <Text style={[styles.badgeText, isHop ? styles.badgeTextHop : isShared ? styles.badgeTextShared : styles.badgeTextPrivate]}>
-              {isHop ? 'HOP' : isShared ? 'SHARED RIDE' : 'SOLO'}
+          <View
+            style={[
+              styles.badge,
+              isHop ? styles.badgeHop : isShared ? styles.badgeShared : styles.badgePrivate,
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                isHop
+                  ? styles.badgeTextHop
+                  : isShared
+                    ? styles.badgeTextShared
+                    : styles.badgeTextPrivate,
+              ]}
+            >
+              {modeLabel}
             </Text>
           </View>
-          <Text style={styles.seats}>
-            {request.billedSeats} {request.billedSeats === 1 ? 'seat' : 'seats'}
-            {isMinimized && tripDistanceKm && ` · ${tripDistanceKm} km`}
+          <Text style={styles.passengersText}>
+            {passengerLabel}
+            {isMinimized && tripRoadDistanceKm && ` · ${tripRoadDistanceKm} km`}
           </Text>
         </View>
 
         <Pressable
           onPress={handleToggleMinimize}
           style={({ pressed }) => [styles.minimizeButton, pressed && styles.buttonPressed]}
-          accessibilityLabel={isMinimized ? "Expand request" : "Collapse request"}
+          accessibilityLabel={isMinimized ? 'Expand request' : 'Collapse request'}
         >
           <SymbolIcon
             name={isMinimized ? 'chevron.down' : 'chevron.up'}
@@ -132,6 +198,30 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
       {!isMinimized && (
         <>
+          {/* Third-party Booking Notice */}
+          {isOther && (
+            <View style={styles.otherBookingBanner} testID="third-party-booking-banner">
+              <SymbolIcon
+                name="person.2.fill"
+                size={16}
+                tintColor={colors.blue.primary}
+                style={{ marginTop: 2 }}
+              />
+              <View style={styles.otherBookingContent}>
+                <Text style={styles.otherBookingTitle}>Booked for someone else</Text>
+                <Text style={styles.otherBookingRider}>
+                  Rider: {request.rider?.firstName ?? 'Passenger'}
+                </Text>
+                {request.pickupNote ? (
+                  <Text style={styles.otherBookingNote} numberOfLines={2}>
+                    Note: &ldquo;{request.pickupNote}&rdquo;
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          )}
+
+          {/* Pickup Location */}
           <View style={styles.placeRow}>
             <View style={[styles.dot, styles.dotPickup]} />
             <View style={styles.placeText}>
@@ -147,6 +237,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
             </View>
           </View>
 
+          {/* Destination Location */}
           <View style={styles.placeRow}>
             <View style={[styles.dot, styles.dotDestination]} />
             <View style={styles.placeText}>
@@ -162,36 +253,66 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
             </View>
           </View>
 
-          {/* Trip Info Rows */}
+          {/* Trip Info Grid / Breakdown */}
           <View style={styles.infoContainer}>
-            <View style={styles.infoRow}>
+            {driverProximityText !== null && (
+              <View style={styles.infoRow} testID="proximity-row">
+                <Text style={styles.infoLabel}>Distance to pickup</Text>
+                <Text style={styles.infoValue}>{driverProximityText}</Text>
+              </View>
+            )}
+            <View style={styles.infoRow} testID="trip-distance-row">
               <Text style={styles.infoLabel}>Trip distance</Text>
-              <Text style={styles.infoValue}>{distanceText}</Text>
+              <Text style={styles.infoValue}>{tripDistanceText}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Trip duration</Text>
-              <Text style={styles.infoValue}>{durationText}</Text>
+              <Text style={styles.infoLabel}>Estimated duration</Text>
+              <Text style={styles.infoValue}>{tripDurationText}</Text>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Estimated Fare</Text>
-              <Text style={styles.infoValue}>{`₱${request.fare.total.toFixed(2)}`}</Text>
+            <View style={[styles.infoRow, styles.fareRow]}>
+              <Text style={styles.fareLabel}>Authoritative Fare</Text>
+              <Text style={styles.fareValue} testID="authoritative-fare">
+                {fareFormatted}
+              </Text>
             </View>
           </View>
+
+          {/* Shared / Hop Guidance */}
           {(isShared || isHop) && (
             <View style={styles.sharedNotice}>
-              <SymbolIcon name="person.3.fill" size={14} tintColor={colors.blue.primary} style={{ marginTop: 2 }} />
+              <SymbolIcon
+                name="person.3.fill"
+                size={14}
+                tintColor={colors.blue.primary}
+                style={{ marginTop: 2 }}
+              />
               <Text style={styles.sharedNoticeText}>
-                {isHop ? 'This Hop request joins the existing Shared Ride only after you accept it.' : 'This is a shared ride. Other passengers may join along the route.'}
+                {isHop
+                  ? 'Hop request: joins your active Shared Ride upon acceptance.'
+                  : 'Shared ride: other passengers with matching routes may join.'}
               </Text>
             </View>
           )}
         </>
       )}
 
+      {/* Race Condition / Status Feedback Banner */}
+      {statusFeedback !== null && (
+        <View style={styles.feedbackBanner} testID="status-feedback-banner">
+          <SymbolIcon
+            name="exclamationmark.circle.fill"
+            size={16}
+            tintColor={colors.amber.primary}
+          />
+          <Text style={styles.feedbackText}>{statusFeedback}</Text>
+        </View>
+      )}
+
+      {/* Action Buttons */}
       <View style={styles.actionsRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Decline trip"
+          accessibilityLabel="Decline ride request"
           onPress={handleDecline}
           disabled={isPending}
           style={({ pressed }) => [
@@ -207,7 +328,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Accept trip"
+          accessibilityLabel={`Accept ride request for ${fareFormatted}`}
           onPress={handleAccept}
           disabled={disabled}
           style={({ pressed }) => [
@@ -219,7 +340,10 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
           testID="accept-button"
         >
           {isPending ? (
-            <ActivityIndicator color={colors.white} />
+            <View style={styles.acceptLoadingContent}>
+              <ActivityIndicator color={colors.white} size="small" />
+              <Text style={styles.acceptLabel}>Accepting…</Text>
+            </View>
           ) : (
             <View style={styles.acceptButtonContent}>
               <Text style={styles.acceptLabel}>Accept</Text>
@@ -291,10 +415,38 @@ const styles = StyleSheet.create({
   badgeTextPrivate: {
     color: colors.green.primary,
   },
-  seats: {
+  passengersText: {
     fontSize: typography.size.bodySmall,
     color: colors.ink[500],
     fontWeight: typography.weight.medium,
+  },
+  otherBookingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.blue.tint,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    gap: spacing[2],
+  },
+  otherBookingContent: {
+    flex: 1,
+    gap: 2,
+  },
+  otherBookingTitle: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  otherBookingRider: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[700],
+    fontWeight: typography.weight.medium,
+  },
+  otherBookingNote: {
+    fontSize: typography.size.label,
+    color: colors.ink[500],
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   placeRow: {
     flexDirection: 'row',
@@ -333,6 +485,72 @@ const styles = StyleSheet.create({
     color: colors.ink[500],
     marginTop: 2,
   },
+  infoContainer: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    gap: spacing[2],
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fareRow: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border.subtle,
+    paddingTop: spacing[2],
+    marginTop: 2,
+  },
+  infoLabel: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    fontWeight: typography.weight.medium,
+  },
+  infoValue: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[900],
+    fontWeight: typography.weight.bold,
+  },
+  fareLabel: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[700],
+    fontWeight: typography.weight.bold,
+  },
+  fareValue: {
+    fontSize: typography.size.bodyMd,
+    color: colors.green.primary,
+    fontWeight: typography.weight.bold,
+  },
+  sharedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.blue.tint,
+    padding: spacing[3],
+    borderRadius: radius.md,
+    gap: spacing[2],
+  },
+  sharedNoticeText: {
+    flex: 1,
+    fontSize: typography.size.bodySmall,
+    color: colors.blue.primary,
+    fontWeight: typography.weight.medium,
+    lineHeight: 18,
+  },
+  feedbackBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.amber.tint,
+    padding: spacing[3],
+    borderRadius: radius.md,
+    gap: spacing[2],
+  },
+  feedbackText: {
+    flex: 1,
+    fontSize: typography.size.bodySmall,
+    color: colors.amber.primary,
+    fontWeight: typography.weight.semibold,
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: spacing[3],
@@ -361,13 +579,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
   },
+  acceptLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
   acceptLabel: {
     fontSize: typography.size.body,
     fontWeight: typography.weight.bold,
     color: colors.white,
   },
   countdownPill: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.pill,
@@ -382,41 +605,5 @@ const styles = StyleSheet.create({
   },
   actionDisabled: {
     opacity: 0.6,
-  },
-  infoContainer: {
-    backgroundColor: colors.surface.muted,
-    borderRadius: radius.md,
-    padding: spacing[3],
-    gap: spacing[2],
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-    fontWeight: typography.weight.medium,
-  },
-  infoValue: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[900],
-    fontWeight: typography.weight.bold,
-  },
-  sharedNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.blue.tint,
-    padding: spacing[3],
-    borderRadius: radius.md,
-    gap: spacing[2],
-  },
-  sharedNoticeText: {
-    flex: 1,
-    fontSize: typography.size.bodySmall,
-    color: colors.blue.primary,
-    fontWeight: typography.weight.medium,
-    lineHeight: 18,
   },
 });
