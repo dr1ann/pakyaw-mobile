@@ -50,6 +50,7 @@ import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useDriverLocation } from '@/features/trip/hooks/useDriverLocation';
 import type { TripStatus } from '@pakyaw/shared/features/trip/types';
+import type { Place } from '@pakyaw/shared/types/place';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
 import { getDistanceToStepEnd } from '@pakyaw/shared/lib/geoProjection';
 import { logger } from '@pakyaw/shared/lib/logger';
@@ -83,6 +84,7 @@ export default function RideScreen() {
 
   const { uid } = useSession();
   const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | 'pin_pickup' | 'pin_destination' | null>(null);
+  const [pinSelection, setPinSelection] = useState<Place | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [pickupDragKey, setPickupDragKey] = useState(0);
   const [destinationDragKey, setDestinationDragKey] = useState(0);
@@ -245,15 +247,17 @@ export default function RideScreen() {
     driverDistanceFromPickup,
   ]);
 
+  const isPinMode = searchMode === 'pin_pickup' || searchMode === 'pin_destination';
+
   const cameraController = useRideCameraController(mapRef, {
-    pickupLocation: mapData.pickupLocation,
-    destinationLocation: mapData.destinationLocation,
+    pickupLocation: isPinMode ? null : mapData.pickupLocation,
+    destinationLocation: isPinMode ? null : mapData.destinationLocation,
     driverLocation: mapData.driverLocation,
-    ownLocation: deviceLocation,
+    ownLocation: isPinMode ? null : deviceLocation,
     phase,
     bottomPadding: isMinimized ? 160 : 320,
     overviewCoordinates: useMemo(() => {
-      if (phase !== 'active' || !trip) return null;
+      if (isPinMode || phase !== 'active' || !trip) return null;
       const tripStatus = trip.status;
       const isPrePickupOrArrived =
         tripStatus === 'accepted' ||
@@ -275,7 +279,7 @@ export default function RideScreen() {
       }
 
       return null;
-    }, [phase, trip, mapData.driverLocation, mapData.pickupLocation, mapData.destinationLocation]),
+    }, [isPinMode, phase, trip, mapData.driverLocation, mapData.pickupLocation, mapData.destinationLocation]),
   });
 
   // Query route polyline and info when pickup and destination are available
@@ -403,11 +407,13 @@ export default function RideScreen() {
   };
 
   const handleMapRegionChangeComplete = (region: { latitude: number; longitude: number }) => {
-    if (searchMode === 'pin_pickup') {
+    if (searchMode === 'pin_pickup' || searchMode === 'pin_destination') {
+      const newCoords = { lat: region.latitude, lng: region.longitude };
       // Immediate coordinate update with truthful generic label while moving
-      setPickup({
-        coords: { lat: region.latitude, lng: region.longitude },
+      setPinSelection({
+        coords: newCoords,
         label: 'Pinned location',
+        address: 'Ormoc City, Leyte',
       });
       setIsGeocoding(true);
 
@@ -420,42 +426,15 @@ export default function RideScreen() {
           try {
             const place = await reverseGeocode(region.latitude, region.longitude);
             if (place) {
-              const currentPickup = useBookingDraftStore.getState().draft.pickup;
-              if (isSameCoordinate(currentPickup?.coords, region)) {
-                setPickup(place);
-              }
+              setPinSelection((current: Place | null) => {
+                if (current && isSameCoordinate(current.coords, newCoords)) {
+                  return place;
+                }
+                return current;
+              });
             }
           } catch (err) {
-            logger.error('[RideScreen] Failed to reverse-geocode map center pickup', err);
-          } finally {
-            setIsGeocoding(false);
-          }
-        })();
-      }, 400);
-    } else if (searchMode === 'pin_destination') {
-      // Immediate coordinate update with truthful generic label while moving
-      setDestination({
-        coords: { lat: region.latitude, lng: region.longitude },
-        label: 'Pinned location',
-      });
-      setIsGeocoding(true);
-
-      if (geocodeDebounceTimer.current) {
-        clearTimeout(geocodeDebounceTimer.current);
-      }
-
-      geocodeDebounceTimer.current = setTimeout(() => {
-        void (async () => {
-          try {
-            const place = await reverseGeocode(region.latitude, region.longitude);
-            if (place) {
-              const currentDest = useBookingDraftStore.getState().draft.destination;
-              if (isSameCoordinate(currentDest?.coords, region)) {
-                setDestination(place);
-              }
-            }
-          } catch (err) {
-            logger.error('[RideScreen] Failed to reverse-geocode map center destination', err);
+            logger.error('[RideScreen] Failed to reverse-geocode map center coordinate', err);
           } finally {
             setIsGeocoding(false);
           }
@@ -465,17 +444,15 @@ export default function RideScreen() {
   };
 
   const handleConfirmPinning = () => {
-    if (isGeocoding) return;
-
     const isPickup = searchMode === 'pin_pickup';
-    const currentPlace = isPickup ? draft.pickup : draft.destination;
+    const placeToSave = pinSelection || (isPickup ? draft.pickup : draft.destination);
 
-    if (!currentPlace || !currentPlace.coords) {
+    if (!placeToSave || !placeToSave.coords) {
       Alert.alert('Invalid Location', 'Please select a valid point on the map.');
       return;
     }
 
-    if (!isInServiceArea(currentPlace.coords)) {
+    if (!isInServiceArea(placeToSave.coords)) {
       Alert.alert(
         'Service Area',
         'Pakyaw currently serves locations within Ormoc City. Please move the pin within Ormoc.'
@@ -483,11 +460,19 @@ export default function RideScreen() {
       return;
     }
 
+    if (isPickup) {
+      setPickup(placeToSave);
+    } else {
+      setDestination(placeToSave);
+      setIsMinimized(false);
+    }
+    setPinSelection(null);
     setSearchMode(null);
   };
 
   const handleCancelPinning = () => {
     const isPickup = searchMode === 'pin_pickup';
+    setPinSelection(null);
     if (isPickup) {
       setSearchMode('pickup');
     } else {
@@ -548,8 +533,7 @@ export default function RideScreen() {
     };
   }, [status, driverLocation, decodedRouteCoords, activeRoute, activeTripProgress]);
 
-  const isPinMode = searchMode === 'pin_pickup' || searchMode === 'pin_destination';
-  const activePinPlace = searchMode === 'pin_pickup' ? draft.pickup : draft.destination;
+  const activePinPlace = pinSelection || (searchMode === 'pin_pickup' ? draft.pickup : draft.destination);
   const isPinOutsideServiceArea = Boolean(activePinPlace?.coords && !isInServiceArea(activePinPlace.coords));
 
   return (
@@ -559,15 +543,15 @@ export default function RideScreen() {
         mapRef={mapRef}
         ownLocation={deviceLocation}
         driverLocation={mapData.driverLocation}
-        pickupLocation={searchMode === 'pin_pickup' ? null : mapData.pickupLocation}
-        destinationLocation={searchMode === 'pin_destination' ? null : mapData.destinationLocation}
-        showDestination={true}
-        onPickupDragEnd={phase === 'booking' ? handlePickupDragEnd : undefined}
-        onDestinationDragEnd={phase === 'booking' ? handleDestinationDragEnd : undefined}
+        pickupLocation={isPinMode ? null : mapData.pickupLocation}
+        destinationLocation={isPinMode ? null : mapData.destinationLocation}
+        showDestination={!isPinMode}
+        onPickupDragEnd={phase === 'booking' && !isPinMode ? handlePickupDragEnd : undefined}
+        onDestinationDragEnd={phase === 'booking' && !isPinMode ? handleDestinationDragEnd : undefined}
         onRegionChangeComplete={handleMapRegionChangeComplete}
         pickupKey={pickupDragKey}
         destinationKey={destinationDragKey}
-        routePolyline={mapData.routePolyline}
+        routePolyline={isPinMode ? null : mapData.routePolyline}
         driverRoutePolyline={mapData.driverRoutePolyline}
         showDriverRoute={mapData.showDriverRoute}
         driverRouteVariant={mapData.driverRouteVariant}
@@ -594,9 +578,7 @@ export default function RideScreen() {
         <View style={styles.centerPinContainer} pointerEvents="none">
           <View style={styles.centerPinBubble}>
             <Text style={styles.centerPinBubbleText} numberOfLines={1}>
-              {searchMode === 'pin_pickup'
-                ? draft.pickup?.label || 'Set Pickup'
-                : draft.destination?.label || 'Set Destination'}
+              {activePinPlace?.label || (searchMode === 'pin_pickup' ? 'Set Pickup' : 'Set Destination')}
             </Text>
           </View>
           <SymbolIcon
@@ -616,7 +598,11 @@ export default function RideScreen() {
             visible
             animationType="slide"
             statusBarTranslucent
-            onRequestClose={() => setSearchMode(null)}
+            onRequestClose={() => {
+              if (searchMode === 'pickup' || searchMode === 'destination') {
+                setSearchMode(null);
+              }
+            }}
           >
             <SafeAreaProvider>
               <SafeAreaView style={styles.fullscreenSearch}>
@@ -627,19 +613,11 @@ export default function RideScreen() {
                     const isPickup = searchMode === 'pickup';
                     const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
 
-                    if (isPickup) {
-                      setPickup({
-                        label: 'Pinned location',
-                        address: 'Ormoc City, Leyte',
-                        coords,
-                      });
-                    } else {
-                      setDestination({
-                        label: 'Pinned location',
-                        address: 'Ormoc City, Leyte',
-                        coords,
-                      });
-                    }
+                    setPinSelection({
+                      label: 'Pinned location',
+                      address: 'Ormoc City, Leyte',
+                      coords,
+                    });
                     setSearchMode(targetMode);
                     setIsMinimized(false);
 
@@ -648,17 +626,12 @@ export default function RideScreen() {
                       try {
                         const place = await reverseGeocode(coords.lat, coords.lng);
                         if (place) {
-                          if (isPickup) {
-                            const current = useBookingDraftStore.getState().draft.pickup;
-                            if (isSameCoordinate(current?.coords, coords)) {
-                              setPickup(place);
+                          setPinSelection((current: Place | null) => {
+                            if (current && isSameCoordinate(current.coords, coords)) {
+                              return place;
                             }
-                          } else {
-                            const current = useBookingDraftStore.getState().draft.destination;
-                            if (isSameCoordinate(current?.coords, coords)) {
-                              setDestination(place);
-                            }
-                          }
+                            return current;
+                          });
                         }
                       } catch (err) {
                         logger.error('[RideScreen] Failed initial pin drop geocoding', err);
@@ -697,11 +670,15 @@ export default function RideScreen() {
 
               <View style={styles.pinAddressBox}>
                 <Text style={styles.pinAddressLabel} numberOfLines={1}>
-                  {activePinPlace?.label || 'Pin Drop Location'}
+                  {activePinPlace?.label || 'Pinned location'}
                 </Text>
                 {activePinPlace?.address ? (
                   <Text style={styles.pinAddressSub} numberOfLines={2}>
                     {activePinPlace.address}
+                  </Text>
+                ) : isGeocoding ? (
+                  <Text style={styles.pinAddressSub} numberOfLines={1}>
+                    Resolving location…
                   </Text>
                 ) : null}
               </View>
@@ -726,7 +703,7 @@ export default function RideScreen() {
                   label="Confirm"
                   onPress={handleConfirmPinning}
                   loading={isGeocoding}
-                  disabled={isGeocoding || isPinOutsideServiceArea}
+                  disabled={!activePinPlace?.coords || isPinOutsideServiceArea}
                   style={styles.confirmPinButton}
                 />
               </View>
