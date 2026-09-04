@@ -39,26 +39,56 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-vi.mock('react-native', () => ({
-  StyleSheet: {
-    create: (styles: Record<string, unknown>) => styles,
-    hairlineWidth: 1,
-    flatten: (styles: unknown) => styles,
-  },
-  Platform: {
-    OS: 'android',
-    select: (options: Record<string, unknown>) => options.android ?? options.default,
-  },
-  Dimensions: {
-    get: () => ({ width: 375, height: 812, scale: 2, fontScale: 1 }),
-  },
-  Pressable: 'Pressable',
-  View: 'View',
-  Text: 'Text',
-  TextInput: 'TextInput',
-  ScrollView: 'ScrollView',
-  ActivityIndicator: 'ActivityIndicator',
-}));
+vi.mock('react-native', () => {
+  class MockAnimatedValue {
+    val: number;
+    constructor(v: number) {
+      this.val = v;
+    }
+    setValue(v: number) {
+      this.val = v;
+    }
+    interpolate() {
+      return this;
+    }
+  }
+
+  return {
+    StyleSheet: {
+      create: (styles: Record<string, unknown>) => styles,
+      hairlineWidth: 1,
+      flatten: (styles: unknown) => styles,
+    },
+    Platform: {
+      OS: 'android',
+      select: (options: Record<string, unknown>) => options.android ?? options.default,
+    },
+    Dimensions: {
+      get: () => ({ width: 375, height: 812, scale: 2, fontScale: 1 }),
+    },
+    Animated: {
+      Value: MockAnimatedValue,
+      timing: () => ({ start: (cb?: any) => cb?.({ finished: true }) }),
+      parallel: () => ({ start: (cb?: any) => cb?.({ finished: true }) }),
+      sequence: () => ({ start: (cb?: any) => cb?.({ finished: true }) }),
+      spring: () => ({ start: (cb?: any) => cb?.({ finished: true }) }),
+    },
+    Easing: {
+      out: (e: any) => e,
+      ease: (t: any) => t,
+      back: () => (t: any) => t,
+      bezier: () => (t: any) => t,
+    },
+    Pressable: 'Pressable',
+    View: 'View',
+    Text: 'Text',
+    TextInput: 'TextInput',
+    ScrollView: 'ScrollView',
+    ActivityIndicator: 'ActivityIndicator',
+    Modal: 'Modal',
+    Image: 'Image',
+  };
+});
 
 vi.mock('expo-constants', () => ({
   default: {

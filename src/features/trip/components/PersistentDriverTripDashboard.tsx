@@ -9,11 +9,12 @@ import {
   Dimensions,
   Animated,
   Easing,
+  Modal,
 } from 'react-native';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
-import type { TripDoc, SharedRideDoc, TripStatus } from '@pakyaw/shared/features/trip/types';
+import type { TripDoc, SharedRideDoc, TripStatus, CancelReason } from '@pakyaw/shared/features/trip/types';
 import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { doc, firestore, onSnapshot } from '@/services/firebase/firebase';
@@ -30,6 +31,15 @@ type PersistentDriverTripDashboardProps = {
   readonly etaSeconds?: number | null;
   readonly onDismissTerminal?: () => void;
 };
+
+export const CANONICAL_DRIVER_CANCEL_REASONS: { code: CancelReason; label: string }[] = [
+  { code: 'unable_to_locate_passenger', label: 'Unable to locate passenger' },
+  { code: 'passenger_changed_mind', label: 'Passenger changed mind / requested cancel' },
+  { code: 'vehicle_issue', label: 'Vehicle or mechanical issue' },
+  { code: 'safety_concern', label: 'Safety or security concern' },
+  { code: 'driver_unavailable', label: 'Driver emergency / unavailable' },
+  { code: 'other', label: 'Other operational reason' },
+];
 
 const formatName = (data: any) => {
   if (!data) return undefined;
@@ -50,6 +60,10 @@ export function PersistentDriverTripDashboard({
   const [activePassengerIndex, setActivePassengerIndex] = useState(0);
 
   const [passengerDoc, setPassengerDoc] = useState<{ name?: string } | null>(null);
+  const [showEndTripModal, setShowEndTripModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedCancelReason, setSelectedCancelReason] = useState<CancelReason>('unable_to_locate_passenger');
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
@@ -127,8 +141,7 @@ export function PersistentDriverTripDashboard({
     ]).start();
   }, [status, buttonPulseAnim]);
 
-  // Driver identity is the backend-generated Trip snapshot. The dashboard
-  // never reads the Driver's private profile or invents vehicle values.
+  // Driver identity is the backend-generated Trip snapshot.
   const driverPublic = trip?.driverPublic ?? null;
   const driverName = driverPublic?.displayName ?? 'Driver identity unavailable';
   const vehicleDetails = driverPublic?.vehicle.description ?? driverPublic?.vehicle.type ?? null;
@@ -157,30 +170,18 @@ export function PersistentDriverTripDashboard({
       ? (trip?.sharedRideSummary?.maxSeats ?? 0)
       : Math.max(trip?.passengerCount || 0, trip?.billedSeats || 0, 6);
 
-  // Canonical SharedRide capacity is server-derived. Solo keeps its
-  // historical single-trip presentation projection.
   const totalOccupied = sharedRide
     ? sharedRide.seatsBooked
     : isSharedTrip
       ? (trip?.sharedRideSummary?.seatsOccupied ?? 0)
       : passengers.reduce((sum, p) => sum + (p.seatsCovered || 1), 0);
 
-  // Calculate earnings summary directly from Firestore trip fare and breakdown
+  // Authoritative fare presentation from trip contract
   const totalCollectedFare = sharedRide
     ? (trip?.fareBreakdown?.total ?? trip?.fare ?? 0)
     : isSharedTrip
       ? (trip?.fareBreakdown?.total ?? trip?.fare ?? 0)
-      : passengers.reduce((sum, p) => sum + (p.fare ?? trip?.fare ?? 0), 0);
-  const platformFee = sharedRide
-    ? (trip?.fareBreakdown?.techFee ?? 0)
-    : isSharedTrip
-      ? (trip?.fareBreakdown?.techFee ?? 0)
-      : (trip?.fareBreakdown?.techFee ?? trip?.techFee ?? 0);
-  const driverTakeHome = sharedRide
-    ? (trip?.fareBreakdown?.driverEarnings ?? 0)
-    : isSharedTrip
-      ? (trip?.fareBreakdown?.driverEarnings ?? 0)
-      : (trip?.fareBreakdown?.driverEarnings ?? Math.max(0, totalCollectedFare - platformFee));
+      : (trip?.fareBreakdown?.total ?? trip?.fare ?? passengers.reduce((sum, p) => sum + (p.fare ?? 0), 0));
 
   // Generate circular seat slots
   const seats = Array.from({ length: maxSeats }).map((_, index) => {
@@ -196,6 +197,7 @@ export function PersistentDriverTripDashboard({
   // Dynamic Navigation & Status Button Actions
   function handlePrimaryAction() {
     if (!trip) return;
+    setActionErrorMessage(null);
 
     if (status === 'accepted') {
       useActiveTripStore.getState().setOptimisticNavEngaged(true);
@@ -203,46 +205,103 @@ export function PersistentDriverTripDashboard({
       transition(
         { tripId: trip.id, status: 'driver_arriving' },
         {
-          onError: () => {
+          onError: (err) => {
             useActiveTripStore.getState().setOptimisticNavEngaged(false);
+            setActionErrorMessage(
+              err instanceof Error ? err.message : 'Unable to start navigation. Please check your connection.'
+            );
           },
         }
       );
     } else if (status === 'driver_arriving') {
-      transition({ tripId: trip.id, status: 'driver_arrived' });
+      transition(
+        { tripId: trip.id, status: 'driver_arrived' },
+        {
+          onError: (err) => {
+            setActionErrorMessage(
+              err instanceof Error ? err.message : 'Unable to confirm arrival. Please try again.'
+            );
+          },
+        }
+      );
     } else if (status === 'driver_arrived') {
-      transition({ tripId: trip.id, status: 'in_progress' });
+      transition(
+        { tripId: trip.id, status: 'in_progress' },
+        {
+          onError: (err) => {
+            setActionErrorMessage(
+              err instanceof Error ? err.message : 'Unable to start trip. Please try again.'
+            );
+          },
+        }
+      );
     } else if (status === 'in_progress') {
-      transition({ tripId: trip.id, status: 'completed' });
+      // Prompt confirmation before completing active trip
+      setShowEndTripModal(true);
     } else if (status === 'completed' || status === 'cancelled') {
       if (onDismissTerminal) onDismissTerminal();
     }
   }
 
-  function handleDriverCancel() {
+  function handleConfirmEndTrip() {
     if (!trip) return;
-    cancelTrip({
-      tripId: trip.id,
-      by: 'driver',
-      reason: 'Driver cancelled trip for testing',
-    });
+    setActionErrorMessage(null);
+    transition(
+      { tripId: trip.id, status: 'completed' },
+      {
+        onSuccess: () => {
+          setShowEndTripModal(false);
+        },
+        onError: (err) => {
+          setShowEndTripModal(false);
+          setActionErrorMessage(
+            err instanceof Error ? err.message : 'Unable to complete trip. Please check your connection and retry.'
+          );
+        },
+      }
+    );
+  }
+
+  function handleConfirmCancel() {
+    if (!trip) return;
+    setActionErrorMessage(null);
+    cancelTrip(
+      {
+        tripId: trip.id,
+        by: 'driver',
+        reason: selectedCancelReason,
+      },
+      {
+        onSuccess: () => {
+          setShowCancelModal(false);
+        },
+        onError: (err) => {
+          setShowCancelModal(false);
+          setActionErrorMessage(
+            err instanceof Error ? err.message : 'Unable to cancel trip. Please check your connection.'
+          );
+        },
+      }
+    );
   }
 
   // Dynamic Button Configuration
   const getActionConfig = (status: TripStatus) => {
     switch (status) {
       case 'accepted':
-        return { label: 'Start Navigation', tone: 'primary' as const };
+        return { label: 'Start Navigation', tone: 'default' as const };
       case 'driver_arriving':
-        return { label: 'Arrived at Pickup', tone: 'primary' as const };
+        return { label: 'Arrived at Pickup', tone: 'default' as const };
       case 'driver_arrived':
-        return { label: 'Start Trip with Passenger', tone: 'primary' as const };
+        return { label: 'Start Trip', tone: 'default' as const };
       case 'in_progress':
-        return { label: 'Complete Trip', tone: 'primary' as const };
+        return { label: 'End Trip', tone: 'default' as const };
       case 'completed':
-        return { label: 'Done • Back to Map', tone: 'primary' as const };
+        return { label: 'Done • Back to Map', tone: 'default' as const };
+      case 'cancelled':
+        return { label: 'Done • Back to Map', tone: 'default' as const };
       default:
-        return { label: 'Continue', tone: 'primary' as const };
+        return { label: 'Continue', tone: 'default' as const };
     }
   };
 
@@ -252,15 +311,17 @@ export function PersistentDriverTripDashboard({
   const getStatusBadge = (status: TripStatus) => {
     switch (status) {
       case 'accepted':
-        return { label: 'BOOKING ACCEPTED', tone: colors.green.primary, bg: colors.green.tint };
+        return { label: 'TRIP ACCEPTED', tone: colors.green.primary, bg: colors.green.tint };
       case 'driver_arriving':
-        return { label: 'NAVIGATING TO PICKUP', tone: colors.blue.primary, bg: colors.blue.tint };
+        return { label: 'HEADING TO PICKUP', tone: colors.blue.primary, bg: colors.blue.tint };
       case 'driver_arrived':
         return { label: 'ARRIVED AT PICKUP', tone: colors.amber.primary, bg: colors.amber.tint };
       case 'in_progress':
-        return { label: 'RIDE IN PROGRESS', tone: colors.blue.primary, bg: colors.blue.tint };
+        return { label: 'TRIP IN PROGRESS', tone: colors.blue.primary, bg: colors.blue.tint };
       case 'completed':
         return { label: 'TRIP COMPLETED', tone: colors.green.primary, bg: colors.green.tint };
+      case 'cancelled':
+        return { label: 'TRIP CANCELLED', tone: colors.danger, bg: 'rgba(235, 87, 87, 0.12)' };
       default:
         return { label: 'ON TRIP', tone: colors.blue.primary, bg: colors.blue.tint };
     }
@@ -271,6 +332,16 @@ export function PersistentDriverTripDashboard({
   // Dynamic ETA & Distance String
   const etaMinutes = etaSeconds != null ? Math.max(1, Math.round(etaSeconds / 60)) : null;
   const distanceKm = remainingDistanceMeters != null ? (remainingDistanceMeters / 1000).toFixed(1) : null;
+
+  // Active destination context depending on state
+  const isHeadingToDestination = status === 'in_progress';
+  const targetLabel = isHeadingToDestination
+    ? (trip?.destination?.label || 'Destination')
+    : (trip?.pickup?.label || 'Pickup Location');
+  const targetPrefix = isHeadingToDestination ? 'Heading to destination:' : 'Heading to pickup:';
+
+  // Can the Driver cancel at this stage?
+  const canDriverCancel = status === 'accepted' || status === 'driver_arriving' || status === 'driver_arrived';
 
   return (
     <Animated.View
@@ -284,9 +355,17 @@ export function PersistentDriverTripDashboard({
         },
       ]}
       testID="persistent-driver-dashboard"
+      accessibilityRole="summary"
+      accessibilityLabel={`Trip status: ${badge.label}`}
     >
       {/* Top Handle & Header Bar */}
-      <Pressable onPress={() => setIsExpanded(!isExpanded)} style={styles.handleContainer} testID="driver-dashboard-handle">
+      <Pressable
+        onPress={() => setIsExpanded(!isExpanded)}
+        style={styles.handleContainer}
+        testID="driver-dashboard-handle"
+        accessibilityRole="button"
+        accessibilityLabel={isExpanded ? 'Collapse trip details' : 'Expand trip details'}
+      >
         <View style={styles.handleBar} />
         <View style={styles.headerRow}>
           <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
@@ -313,13 +392,21 @@ export function PersistentDriverTripDashboard({
         </View>
       </Pressable>
 
+      {/* Target Location Banner */}
+      <View style={styles.targetBanner}>
+        <Text style={styles.targetPrefix}>{targetPrefix}</Text>
+        <Text style={styles.targetLocation} numberOfLines={1}>
+          {targetLabel}
+        </Text>
+      </View>
+
       {/* Driver & Vehicle Profile Header (Always Visible) */}
       <View style={styles.driverProfileRow}>
         <View style={styles.avatarContainer}>
           <View style={styles.avatarFallback}>
             <SymbolIcon name="person.fill" size={24} tintColor={colors.white} />
           </View>
-          {driverPublic?.verification.verified === true ? (
+          {driverPublic?.verification?.verified === true ? (
             <View style={styles.verifiedCheck}>
               <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
             </View>
@@ -343,7 +430,7 @@ export function PersistentDriverTripDashboard({
       </View>
 
       {/* Passenger Pickup Presence Card (Live GPS for self-booking or Third-Party Details for other) */}
-      {status !== 'completed' && status !== 'cancelled' && (
+      {status !== 'completed' && status !== 'cancelled' && status !== 'in_progress' && (
         <PassengerPickupPresenceCard
           trip={trip}
           formattedDistanceToPickup={formattedDistanceToPickup}
@@ -352,11 +439,57 @@ export function PersistentDriverTripDashboard({
         />
       )}
 
-      {/* Primary Transition Action Control & Driver Cancel (Testing) */}
+      {/* Cancellation Banner if Cancelled */}
+      {status === 'cancelled' && (
+        <View style={styles.cancelledNoticeBox} testID="cancelled-trip-notice">
+          <Text style={styles.cancelledNoticeTitle}>TRIP WAS CANCELLED</Text>
+          <Text style={styles.cancelledNoticeText}>
+            {`Cancelled by: ${trip?.cancelledBy || 'Passenger'}`}
+          </Text>
+          {trip?.cancelReason ? (
+            <Text style={styles.cancelledNoticeReason}>
+              {`Reason: ${trip.cancelReason}`}
+            </Text>
+          ) : null}
+        </View>
+      )}
+
+      {/* Completed Banner if Completed */}
+      {status === 'completed' && (
+        <View style={styles.completedNoticeBox} testID="completed-trip-notice">
+          <Text style={styles.completedNoticeTitle}>RIDE COMPLETED SUCCESSFULLY</Text>
+          <Text style={styles.completedNoticeText}>
+            {`Destination reached: ${trip?.destination?.label || 'Dropoff point'}`}
+          </Text>
+          <Text style={styles.completedNoticeFare}>
+            {`Fare: ₱${totalCollectedFare.toFixed(2)}`}
+          </Text>
+        </View>
+      )}
+
+      {/* Network / Action Error Feedback */}
+      {actionErrorMessage && (
+        <View style={styles.errorBox} testID="trip-action-error">
+          <SymbolIcon name="exclamationmark.triangle.fill" size={16} tintColor={colors.danger} />
+          <Text style={styles.errorText} numberOfLines={2}>
+            {actionErrorMessage}
+          </Text>
+          <Pressable
+            onPress={() => setActionErrorMessage(null)}
+            style={styles.errorDismissBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss error"
+          >
+            <SymbolIcon name="xmark" size={14} tintColor={colors.ink[500]} />
+          </Pressable>
+        </View>
+      )}
+
+      {/* Primary Transition Action Control & Driver Cancel */}
       <View style={styles.actionsRow}>
         <Animated.View style={{ flex: 1, transform: [{ scale: buttonPulseAnim }] }}>
           <Button
-            label={actionConfig.label}
+            label={isTransitioning ? (status === 'driver_arrived' ? 'Starting...' : isHeadingToDestination ? 'Completing...' : 'Updating...') : actionConfig.label}
             onPress={handlePrimaryAction}
             loading={isTransitioning}
             disabled={isTransitioning || isCancelling}
@@ -365,10 +498,10 @@ export function PersistentDriverTripDashboard({
           />
         </Animated.View>
 
-        {status !== 'completed' && status !== 'cancelled' && (
+        {canDriverCancel && (
           <Button
             label="Cancel Ride"
-            onPress={handleDriverCancel}
+            onPress={() => setShowCancelModal(true)}
             loading={isCancelling}
             disabled={isCancelling || isTransitioning}
             tone="destructive"
@@ -383,56 +516,55 @@ export function PersistentDriverTripDashboard({
       {/* Expanded Content Section */}
       {isExpanded && (
         <ScrollView style={styles.expandedScroll} showsVerticalScrollIndicator={false}>
-          {/* Passenger Seat Occupancy Grid */}
-          <View style={styles.seatsSection}>
-            <View style={styles.seatsHeader}>
-              <Text style={styles.seatsTitle}>PASSENGER SEAT SLOTS ({totalOccupied}/{maxSeats})</Text>
-              <Text style={styles.seatsSubtext}>
-                {trip?.mode === 'hop' ? 'Hop On Mode' : trip?.mode === 'shared' ? 'Shared Ride' : 'Private Pakyaw'}
-              </Text>
-            </View>
+          {/* Passenger Seat Occupancy Grid (Shared context if available) */}
+          {isSharedTrip && (
+            <View style={styles.seatsSection}>
+              <View style={styles.seatsHeader}>
+                <Text style={styles.seatsTitle}>PASSENGER SEAT SLOTS ({totalOccupied}/{maxSeats})</Text>
+                <Text style={styles.seatsSubtext}>
+                  {trip?.mode === 'hop' ? 'Hop On Mode' : 'Shared Ride'}
+                </Text>
+              </View>
 
-            <View style={styles.slotsRow}>
-              {seats.map((seat) => (
-                <View
-                  key={seat.index}
-                  style={[
-                    styles.seatSlot,
-                    seat.isOccupied ? styles.seatOccupied : styles.seatEmpty,
-                  ]}
-                >
-                  {seat.passenger?.passengerPhotoUrl ? (
-                    <Image
-                      source={{ uri: seat.passenger.passengerPhotoUrl }}
-                      style={styles.passengerAvatar}
-                    />
-                  ) : seat.isOccupied ? (
-                    <View style={styles.occupiedAvatarIcon}>
-                      <SymbolIcon name="person.fill" size={14} tintColor={colors.blue.primary} />
-                    </View>
-                  ) : (
-                    <Text style={styles.emptySeatNumber}>{seat.index + 1}</Text>
-                  )}
-                </View>
-              ))}
+              <View style={styles.slotsRow}>
+                {seats.map((seat) => (
+                  <View
+                    key={seat.index}
+                    style={[
+                      styles.seatSlot,
+                      seat.isOccupied ? styles.seatOccupied : styles.seatEmpty,
+                    ]}
+                  >
+                    {seat.passenger?.passengerPhotoUrl ? (
+                      <Image
+                        source={{ uri: seat.passenger.passengerPhotoUrl }}
+                        style={styles.passengerAvatar}
+                      />
+                    ) : seat.isOccupied ? (
+                      <View style={styles.occupiedAvatarIcon}>
+                        <SymbolIcon name="person.fill" size={14} tintColor={colors.blue.primary} />
+                      </View>
+                    ) : (
+                      <Text style={styles.emptySeatNumber}>{seat.index + 1}</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* Fare Summary & Earnings Breakdown Card */}
+          {/* Fare Summary Card */}
           <View style={[styles.summaryCard, shadow.card]}>
-            <Text style={styles.summaryTitle}>TRIP FARES & NET EARNINGS</Text>
+            <Text style={styles.summaryTitle}>TRIP FARE & DETAILS</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Collected Fares:</Text>
+              <Text style={styles.summaryLabel}>Total Booked Fare:</Text>
               <Text style={styles.summaryValue}>₱{totalCollectedFare.toFixed(2)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Platform/Tech Service Fee:</Text>
-              <Text style={styles.summaryValueDeduct}>-₱{platformFee.toFixed(2)}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabelBold}>Driver Net Earnings:</Text>
-              <Text style={styles.summaryValueHighlight}>₱{driverTakeHome.toFixed(2)}</Text>
+              <Text style={styles.summaryLabel}>Ride Mode:</Text>
+              <Text style={styles.summaryValue}>
+                {trip?.mode === 'hop' ? 'Hop On' : trip?.mode === 'shared' ? 'Shared' : 'Solo Pakyaw'}
+              </Text>
             </View>
           </View>
 
@@ -458,8 +590,6 @@ export function PersistentDriverTripDashboard({
           >
             {passengers.map((p, index) => {
               const pFare = p.fare ?? (p.tripId === trip?.id ? trip?.fare : undefined);
-              const pFee = p.tripId === trip?.id ? (trip?.fareBreakdown?.techFee ?? 0) : 0;
-              const pNet = pFare === undefined ? undefined : Math.max(0, pFare - pFee);
 
               return (
                 <View key={p.tripId || index} style={[styles.passengerCard, shadow.card]}>
@@ -489,7 +619,7 @@ export function PersistentDriverTripDashboard({
                       ]}
                     >
                       <Text style={styles.statusBadgeTextSmall}>
-                        {p.status === 'active' ? 'Onboard' : 'Dropped Off'}
+                        {p.status === 'active' ? 'Active' : 'Completed'}
                       </Text>
                     </View>
                   </View>
@@ -519,16 +649,14 @@ export function PersistentDriverTripDashboard({
                   </View>
 
                   {/* Fare Breakdown */}
-                  <View style={styles.fareBreakdownBox}>
-                    <View style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel}>Fare Amount:</Text>
-                      <Text style={styles.breakdownVal}>{pFare === undefined ? 'Fare pending' : `₱${pFare.toFixed(2)}`}</Text>
+                  {pFare !== undefined && (
+                    <View style={styles.fareBreakdownBox}>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Fare Amount:</Text>
+                        <Text style={styles.breakdownVal}>₱{pFare.toFixed(2)}</Text>
+                      </View>
                     </View>
-                    <View style={styles.breakdownRowBold}>
-                      <Text style={styles.breakdownLabelBold}>Net Earnings:</Text>
-                      <Text style={styles.breakdownValBold}>{pNet === undefined ? 'Earnings pending' : `₱${pNet.toFixed(2)}`}</Text>
-                    </View>
-                  </View>
+                  )}
                 </View>
               );
             })}
@@ -550,6 +678,121 @@ export function PersistentDriverTripDashboard({
           )}
         </ScrollView>
       )}
+
+      {/* End Trip Confirmation Modal */}
+      <Modal
+        visible={showEndTripModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEndTripModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, shadow.float]}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <SymbolIcon name="checkmark.circle.fill" size={28} tintColor={colors.green.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Complete This Trip?</Text>
+            </View>
+            <Text style={styles.modalMessage}>
+              {"Confirm that you have arrived at the passenger's destination:"}
+            </Text>
+            <View style={styles.modalDestBox}>
+              <SymbolIcon name="mappin.and.ellipse" size={16} tintColor={colors.amber.primary} />
+              <Text style={styles.modalDestText} numberOfLines={2}>
+                {trip?.destination?.label || 'Passenger Destination'}
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <Button
+                label={isTransitioning ? 'Completing...' : 'Yes, Complete Trip'}
+                onPress={handleConfirmEndTrip}
+                loading={isTransitioning}
+                disabled={isTransitioning}
+                style={styles.modalPrimaryBtn}
+                testID="confirm-end-trip-btn"
+              />
+              <Button
+                label="Keep Driving"
+                onPress={() => setShowEndTripModal(false)}
+                disabled={isTransitioning}
+                variant="secondary"
+                style={styles.modalSecondaryBtn}
+                testID="cancel-end-trip-dialog-btn"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Driver Cancel Ride Modal */}
+      <Modal
+        visible={showCancelModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCancelModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, shadow.float]}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconBox, { backgroundColor: 'rgba(235, 87, 87, 0.12)' }]}>
+                <SymbolIcon name="exclamationmark.triangle.fill" size={26} tintColor={colors.danger} />
+              </View>
+              <Text style={styles.modalTitle}>Cancel This Trip?</Text>
+            </View>
+            <Text style={styles.modalMessage}>
+              Cancelling will notify the passenger and release the booking. Please select a reason:
+            </Text>
+
+            <View style={styles.reasonsList}>
+              {CANONICAL_DRIVER_CANCEL_REASONS.map((item) => {
+                const isSelected = selectedCancelReason === item.code;
+                return (
+                  <Pressable
+                    key={item.code}
+                    onPress={() => setSelectedCancelReason(item.code)}
+                    style={[
+                      styles.reasonOption,
+                      isSelected && styles.reasonOptionSelected,
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    testID={`cancel-reason-${item.code}`}
+                  >
+                    <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                      {isSelected && <View style={styles.radioDot} />}
+                    </View>
+                    <Text style={[styles.reasonLabel, isSelected && styles.reasonLabelSelected]}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Button
+                label={isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+                onPress={handleConfirmCancel}
+                loading={isCancelling}
+                disabled={isCancelling}
+                tone="destructive"
+                style={styles.modalPrimaryBtn}
+                testID="confirm-cancel-trip-btn"
+              />
+              <Button
+                label="Go Back"
+                onPress={() => setShowCancelModal(false)}
+                disabled={isCancelling}
+                variant="secondary"
+                style={styles.modalSecondaryBtn}
+                testID="dismiss-cancel-trip-dialog-btn"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Animated.View>
   );
 }
@@ -566,6 +809,27 @@ const styles = StyleSheet.create({
   },
   containerExpanded: {
     maxHeight: 640,
+  },
+  targetBanner: {
+    backgroundColor: colors.surface.muted,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radius.md,
+    marginTop: spacing[1],
+    marginBottom: spacing[1],
+  },
+  targetPrefix: {
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[500],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  targetLocation: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    marginTop: 2,
   },
   pickupNoteBox: {
     backgroundColor: '#FFF8EC',
@@ -651,7 +915,7 @@ const styles = StyleSheet.create({
     padding: spacing[3],
     borderRadius: radius.md,
     gap: spacing[3],
-    marginTop: spacing[2],
+    marginTop: spacing[1],
   },
   avatarContainer: {
     position: 'relative',
@@ -711,13 +975,88 @@ const styles = StyleSheet.create({
     marginVertical: spacing[3],
   },
   primaryActionButton: {
+    minHeight: 52,
     width: '100%',
   },
   cancelRideButton: {
+    minHeight: 52,
     paddingHorizontal: spacing[3],
   },
-  expandedScroll: {
+  cancelledNoticeBox: {
+    backgroundColor: 'rgba(235, 87, 87, 0.08)',
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(235, 87, 87, 0.25)',
+  },
+  cancelledNoticeTitle: {
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
+    color: colors.danger,
+    letterSpacing: 0.6,
+  },
+  cancelledNoticeText: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[900],
+    marginTop: 2,
+  },
+  cancelledNoticeReason: {
+    fontSize: 11,
+    color: colors.ink[500],
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  completedNoticeBox: {
+    backgroundColor: colors.green.tint,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(39, 174, 96, 0.25)',
+  },
+  completedNoticeTitle: {
+    fontSize: 10,
+    fontWeight: typography.weight.bold,
+    color: colors.green.primary,
+    letterSpacing: 0.6,
+  },
+  completedNoticeText: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[900],
+    marginTop: 2,
+  },
+  completedNoticeFare: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.green.primary,
+    marginTop: 2,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(235, 87, 87, 0.08)',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radius.sm,
+    gap: spacing[2],
     marginTop: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(235, 87, 87, 0.20)',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: typography.size.label,
+    color: colors.danger,
+    fontWeight: typography.weight.medium,
+  },
+  errorDismissBtn: {
+    padding: 4,
+  },
+  expandedScroll: {
+    marginTop: spacing[1],
   },
   seatsSection: {
     backgroundColor: colors.surface.muted,
@@ -805,26 +1144,6 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     fontWeight: typography.weight.semibold,
     color: colors.ink[900],
-  },
-  summaryValueDeduct: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
-    color: colors.danger,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.subtle,
-    marginVertical: spacing[2],
-  },
-  summaryLabelBold: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
-    color: colors.ink[900],
-  },
-  summaryValueHighlight: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.green.primary,
   },
   passengerHeaderRow: {
     flexDirection: 'row',
@@ -951,21 +1270,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.semibold,
     color: colors.ink[900],
   },
-  breakdownRowBold: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  breakdownLabelBold: {
-    fontSize: 11,
-    fontWeight: typography.weight.bold,
-    color: colors.ink[900],
-  },
-  breakdownValBold: {
-    fontSize: 12,
-    fontWeight: typography.weight.bold,
-    color: colors.green.primary,
-  },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -982,5 +1286,118 @@ const styles = StyleSheet.create({
   dotIndicatorActive: {
     width: 16,
     backgroundColor: colors.blue.primary,
+  },
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing[4],
+  },
+  modalCard: {
+    backgroundColor: colors.surface.card,
+    borderRadius: radius.lg,
+    padding: spacing[5],
+    width: '100%',
+    maxWidth: 380,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: spacing[3],
+    gap: spacing[2],
+  },
+  modalIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.green.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: typography.size.h3,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    textAlign: 'center',
+    marginBottom: spacing[3],
+    lineHeight: 18,
+  },
+  modalDestBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface.muted,
+    padding: spacing[3],
+    borderRadius: radius.md,
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  modalDestText: {
+    flex: 1,
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[900],
+  },
+  reasonsList: {
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing[3],
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.muted,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    gap: spacing[3],
+  },
+  reasonOptionSelected: {
+    borderColor: colors.blue.primary,
+    backgroundColor: colors.blue.tint,
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: colors.blue.primary,
+  },
+  radioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.blue.primary,
+  },
+  reasonLabel: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[700],
+    fontWeight: typography.weight.medium,
+    flex: 1,
+  },
+  reasonLabelSelected: {
+    color: colors.blue.primary,
+    fontWeight: typography.weight.bold,
+  },
+  modalActions: {
+    gap: spacing[2],
+  },
+  modalPrimaryBtn: {
+    minHeight: 52,
+    width: '100%',
+  },
+  modalSecondaryBtn: {
+    minHeight: 48,
+    width: '100%',
   },
 });
