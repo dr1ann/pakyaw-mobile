@@ -10,9 +10,15 @@ vi.mock('expo-constants', () => ({
   },
 }));
 
-import { reverseGeocode } from './placesService';
+import {
+  reverseGeocode,
+  resolvePickupDisplayLabel,
+  isValidPrimaryPickupLabel,
+  type GoogleGeocodingResult,
+} from './placesService';
+import { lookupOrmocBarangay } from '@pakyaw/shared/constants/ormocBarangays';
 
-describe('placesService — reverseGeocode()', () => {
+describe('placesService — Label Quality & Primary Filter', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -21,111 +27,204 @@ describe('placesService — reverseGeocode()', () => {
     vi.restoreAllMocks();
   });
 
-  it('successfully strips plus codes and extracts human-readable street labels', async () => {
-    const mockGeocodeResponse = {
-      status: 'OK',
-      results: [
-        {
-          formatted_address: '2J35+XWQ, San Pedro St, Ormoc City, Leyte, Philippines',
-          types: ['establishment', 'point_of_interest'],
-          address_components: [
-            { long_name: '2J35+XWQ', short_name: '2J35+XWQ', types: ['plus_code'] },
-            { long_name: 'San Pedro Street', short_name: 'San Pedro St', types: ['route'] },
-            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
-            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2', 'political'] },
-            { long_name: 'Philippines', short_name: 'PH', types: ['country', 'political'] },
-          ],
-        },
-      ],
-    };
+  describe('isValidPrimaryPickupLabel()', () => {
+    it('rejects broad region, province, country, and plus codes', () => {
+      expect(isValidPrimaryPickupLabel('Eastern Visayas')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Region VIII')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Region 8')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Leyte')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Philippines')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Ormoc City')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Ormoc')).toBe(false);
+      expect(isValidPrimaryPickupLabel('2J35+XWQ')).toBe(false);
+      expect(isValidPrimaryPickupLabel('6500')).toBe(false);
+      expect(isValidPrimaryPickupLabel('Unnamed Road')).toBe(false);
+      expect(isValidPrimaryPickupLabel('')).toBe(false);
+      expect(isValidPrimaryPickupLabel(null)).toBe(false);
+    });
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockGeocodeResponse,
-    } as unknown as Response);
-
-    const result = await reverseGeocode(11.0049, 124.6098);
-    expect(result).not.toBeNull();
-    expect(result?.label).toBe('San Pedro Street');
-    expect(result?.address).toBe('San Pedro St, Ormoc City, Leyte, Philippines');
+    it('accepts specific POIs, establishments, streets, and barangays', () => {
+      expect(isValidPrimaryPickupLabel('Camp Downes Elementary School')).toBe(true);
+      expect(isValidPrimaryPickupLabel('Camp Downes')).toBe(true);
+      expect(isValidPrimaryPickupLabel('Linao')).toBe(true);
+      expect(isValidPrimaryPickupLabel('Real St')).toBe(true);
+      expect(isValidPrimaryPickupLabel('Robinsons Place Ormoc')).toBe(true);
+      expect(isValidPrimaryPickupLabel('San Pedro Street')).toBe(true);
+    });
   });
 
-  it('combines route and barangay/sublocality when both are present', async () => {
-    const mockGeocodeResponse = {
-      status: 'OK',
-      results: [
+  describe('resolvePickupDisplayLabel()', () => {
+    it('prefers POI / establishment over generic components', () => {
+      const results: GoogleGeocodingResult[] = [
+        {
+          formatted_address: 'Camp Downes Elementary School, Camp Downes, Ormoc City, Leyte, Philippines',
+          types: ['point_of_interest', 'establishment'],
+          address_components: [
+            { long_name: 'Camp Downes Elementary School', short_name: 'Camp Downes ES', types: ['point_of_interest', 'establishment'] },
+            { long_name: 'Camp Downes', short_name: 'Camp Downes', types: ['administrative_area_level_5'] },
+            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2'] },
+            { long_name: 'Eastern Visayas', short_name: 'Eastern Visayas', types: ['administrative_area_level_1'] },
+          ],
+        },
+      ];
+
+      const resolved = resolvePickupDisplayLabel(results);
+      expect(resolved.primary).toBe('Camp Downes Elementary School');
+      expect(resolved.secondary).toContain('Camp Downes, Ormoc City');
+    });
+
+    it('uses street + barangay when available', () => {
+      const results: GoogleGeocodingResult[] = [
         {
           formatted_address: 'Real St, Linao, Ormoc City, Leyte, Philippines',
           types: ['street_address'],
           address_components: [
             { long_name: 'Real Street', short_name: 'Real St', types: ['route'] },
-            { long_name: 'Linao', short_name: 'Linao', types: ['sublocality', 'political'] },
-            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
+            { long_name: 'Linao', short_name: 'Linao', types: ['sublocality'] },
+            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2'] },
           ],
         },
-      ],
-    };
+      ];
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockGeocodeResponse,
-    } as unknown as Response);
+      const resolved = resolvePickupDisplayLabel(results);
+      expect(resolved.primary).toBe('Real St, Linao');
+      expect(resolved.secondary).toBe('Ormoc City, Leyte');
+    });
 
-    const result = await reverseGeocode(11.0345, 124.6012);
-    expect(result).not.toBeNull();
-    expect(result?.label).toBe('Real St, Linao');
-  });
-
-  it('extracts barangay when route is missing', async () => {
-    const mockGeocodeResponse = {
-      status: 'OK',
-      results: [
+    it('uses barangay when route is missing', () => {
+      const results: GoogleGeocodingResult[] = [
         {
           formatted_address: 'Camp Downes, Ormoc City, Leyte, Philippines',
           types: ['sublocality', 'political'],
           address_components: [
             { long_name: 'Camp Downes', short_name: 'Camp Downes', types: ['administrative_area_level_5', 'political'] },
             { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
+            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2', 'political'] },
           ],
         },
-      ],
-    };
+      ];
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockGeocodeResponse,
-    } as unknown as Response);
+      const resolved = resolvePickupDisplayLabel(results);
+      expect(resolved.primary).toBe('Camp Downes');
+      expect(resolved.secondary).toBe('Ormoc City, Leyte');
+    });
 
-    const result = await reverseGeocode(10.9959, 124.6183);
-    expect(result).not.toBeNull();
-    expect(result?.label).toBe('Camp Downes');
+    it('NEVER promotes Eastern Visayas, Leyte, or Philippines to primary label', () => {
+      const results: GoogleGeocodingResult[] = [
+        {
+          formatted_address: 'Eastern Visayas, Philippines',
+          types: ['administrative_area_level_1', 'political'],
+          address_components: [
+            { long_name: 'Eastern Visayas', short_name: 'Eastern Visayas', types: ['administrative_area_level_1'] },
+            { long_name: 'Philippines', short_name: 'PH', types: ['country'] },
+          ],
+        },
+      ];
+
+      const resolved = resolvePickupDisplayLabel(results);
+      expect(resolved.primary).toBe('Pinned location');
+      expect(resolved.primary).not.toBe('Eastern Visayas');
+      expect(resolved.primary).not.toBe('Philippines');
+    });
+
+    it('NEVER promotes Leyte or pure locality to primary label', () => {
+      const results: GoogleGeocodingResult[] = [
+        {
+          formatted_address: 'Ormoc City, Leyte, Philippines',
+          types: ['locality', 'political'],
+          address_components: [
+            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2'] },
+            { long_name: 'Philippines', short_name: 'PH', types: ['country'] },
+          ],
+        },
+      ];
+
+      const resolved = resolvePickupDisplayLabel(results);
+      expect(resolved.primary).toBe('Pinned location');
+      expect(resolved.primary).not.toBe('Leyte');
+      expect(resolved.primary).not.toBe('Ormoc City');
+      expect(resolved.secondary).toBe('Ormoc City, Leyte');
+    });
   });
 
-  it('falls back safely to "Pinned location, Ormoc City" if result has only generic city without confident barangay', async () => {
-    const mockGeocodeResponse = {
-      status: 'OK',
-      results: [
-        {
-          formatted_address: '2J35+XWQ Ormoc City, Leyte, Philippines',
-          types: ['plus_code'],
-          address_components: [
-            { long_name: '2J35+XWQ', short_name: '2J35+XWQ', types: ['plus_code'] },
-            { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality', 'political'] },
-            { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2', 'political'] },
-            { long_name: 'Philippines', short_name: 'PH', types: ['country', 'political'] },
-          ],
-        },
-      ],
-    };
+  describe('lookupOrmocBarangay() local dataset', () => {
+    it('accurately resolves Camp Downes coordinates', () => {
+      expect(lookupOrmocBarangay(10.9959, 124.6183)).toBe('Camp Downes');
+    });
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockGeocodeResponse,
-    } as unknown as Response);
+    it('accurately resolves Linao coordinates', () => {
+      expect(lookupOrmocBarangay(11.0345, 124.6012)).toBe('Linao');
+    });
 
-    const result = await reverseGeocode(11.0049, 124.6098);
-    expect(result).not.toBeNull();
-    expect(result?.label).toBe('Pinned location, Ormoc City');
-    expect(result?.address).toBe('Ormoc City, Leyte, Philippines');
+    it('accurately resolves Cogon coordinates', () => {
+      expect(lookupOrmocBarangay(11.0254, 124.6050)).toBe('Cogon');
+    });
+
+    it('accurately resolves San Pedro coordinates', () => {
+      expect(lookupOrmocBarangay(11.0049, 124.6098)).toBe('San Pedro');
+    });
+  });
+
+  describe('reverseGeocode() end-to-end', () => {
+    it('resolves Camp Downes from local enrichment when Google only provides broad city result', async () => {
+      const mockGeocodeResponse = {
+        status: 'OK',
+        results: [
+          {
+            formatted_address: '2J35+XWQ Ormoc City, Leyte, Philippines',
+            types: ['plus_code'],
+            address_components: [
+              { long_name: '2J35+XWQ', short_name: '2J35+XWQ', types: ['plus_code'] },
+              { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+              { long_name: 'Leyte', short_name: 'Leyte', types: ['administrative_area_level_2'] },
+              { long_name: 'Eastern Visayas', short_name: 'Eastern Visayas', types: ['administrative_area_level_1'] },
+              { long_name: 'Philippines', short_name: 'PH', types: ['country'] },
+            ],
+          },
+        ],
+      };
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockGeocodeResponse,
+      } as unknown as Response);
+
+      const result = await reverseGeocode(10.9959, 124.6183);
+      expect(result).not.toBeNull();
+      // Enriched by local barangay lookup for Camp Downes coordinates
+      expect(result?.label).toBe('Camp Downes');
+      expect(result?.label).not.toBe('Eastern Visayas');
+      expect(result?.label).not.toBe('Leyte');
+      expect(result?.address).toBe('Ormoc City, Leyte');
+    });
+
+    it('resolves specific POI if Google returns it', async () => {
+      const mockGeocodeResponse = {
+        status: 'OK',
+        results: [
+          {
+            formatted_address: 'Camp Downes Elementary School, Camp Downes, Ormoc City, Leyte, Philippines',
+            types: ['point_of_interest', 'establishment'],
+            address_components: [
+              { long_name: 'Camp Downes Elementary School', short_name: 'Camp Downes ES', types: ['point_of_interest'] },
+              { long_name: 'Camp Downes', short_name: 'Camp Downes', types: ['administrative_area_level_5'] },
+              { long_name: 'Ormoc City', short_name: 'Ormoc City', types: ['locality'] },
+            ],
+          },
+        ],
+      };
+
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockGeocodeResponse,
+      } as unknown as Response);
+
+      const result = await reverseGeocode(10.9959, 124.6183);
+      expect(result).not.toBeNull();
+      expect(result?.label).toBe('Camp Downes Elementary School');
+    });
   });
 });

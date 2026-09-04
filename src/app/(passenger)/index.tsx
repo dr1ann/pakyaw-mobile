@@ -58,6 +58,19 @@ import { isInServiceArea } from '@/lib/serviceArea';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
+function isSameCoordinate(
+  a: { readonly lat?: number; readonly latitude?: number; readonly lng?: number; readonly longitude?: number } | null | undefined,
+  b: { readonly lat?: number; readonly latitude?: number; readonly lng?: number; readonly longitude?: number } | null | undefined
+): boolean {
+  if (!a || !b) return false;
+  const latA = a.lat ?? a.latitude;
+  const lngA = a.lng ?? a.longitude;
+  const latB = b.lat ?? b.latitude;
+  const lngB = b.lng ?? b.longitude;
+  if (latA === undefined || lngA === undefined || latB === undefined || lngB === undefined) return false;
+  return Math.abs(latA - latB) < 1e-6 && Math.abs(lngA - lngB) < 1e-6;
+}
+
 export default function RideScreen() {
   const insets = useSafeAreaInsets();
   const trip = useActiveTripStore((s) => s.trip);
@@ -308,10 +321,7 @@ export default function RideScreen() {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
         if (place) {
           const currentPickup = useBookingDraftStore.getState().draft.pickup;
-          if (
-            currentPickup?.coords?.lat === coords.latitude &&
-            currentPickup?.coords?.lng === coords.longitude
-          ) {
+          if (isSameCoordinate(currentPickup?.coords, coords)) {
             setPickup(place);
           }
         }
@@ -344,10 +354,7 @@ export default function RideScreen() {
         const place = await reverseGeocode(coords.latitude, coords.longitude);
         if (place) {
           const currentDest = useBookingDraftStore.getState().draft.destination;
-          if (
-            currentDest?.coords?.lat === coords.latitude &&
-            currentDest?.coords?.lng === coords.longitude
-          ) {
+          if (isSameCoordinate(currentDest?.coords, coords)) {
             setDestination(place);
           }
         }
@@ -374,10 +381,7 @@ export default function RideScreen() {
           const place = await reverseGeocode(region.latitude, region.longitude);
           if (place) {
             const currentPickup = useBookingDraftStore.getState().draft.pickup;
-            if (
-              currentPickup?.coords?.lat === region.latitude &&
-              currentPickup?.coords?.lng === region.longitude
-            ) {
+            if (isSameCoordinate(currentPickup?.coords, region)) {
               setPickup(place);
             }
           }
@@ -398,10 +402,7 @@ export default function RideScreen() {
           const place = await reverseGeocode(region.latitude, region.longitude);
           if (place) {
             const currentDest = useBookingDraftStore.getState().draft.destination;
-            if (
-              currentDest?.coords?.lat === region.latitude &&
-              currentDest?.coords?.lng === region.longitude
-            ) {
+            if (isSameCoordinate(currentDest?.coords, region)) {
               setDestination(place);
             }
           }
@@ -579,14 +580,14 @@ export default function RideScreen() {
 
                     if (isPickup) {
                       setPickup({
-                        label: 'Pin Drop Location',
-                        address: 'Drag pin to exact location',
+                        label: 'Pinned location',
+                        address: 'Ormoc City, Leyte',
                         coords,
                       });
                     } else {
                       setDestination({
-                        label: 'Pin Drop Location',
-                        address: 'Drag pin to exact location',
+                        label: 'Pinned location',
+                        address: 'Ormoc City, Leyte',
                         coords,
                       });
                     }
@@ -598,8 +599,17 @@ export default function RideScreen() {
                       try {
                         const place = await reverseGeocode(coords.lat, coords.lng);
                         if (place) {
-                          if (isPickup) setPickup(place);
-                          else setDestination(place);
+                          if (isPickup) {
+                            const current = useBookingDraftStore.getState().draft.pickup;
+                            if (isSameCoordinate(current?.coords, coords)) {
+                              setPickup(place);
+                            }
+                          } else {
+                            const current = useBookingDraftStore.getState().draft.destination;
+                            if (isSameCoordinate(current?.coords, coords)) {
+                              setDestination(place);
+                            }
+                          }
                         }
                       } catch (err) {
                         logger.error('[RideScreen] Failed initial pin drop geocoding', err);

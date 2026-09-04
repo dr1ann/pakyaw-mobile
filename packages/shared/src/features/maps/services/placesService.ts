@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { env } from '@/services/env';
+import { lookupOrmocBarangay } from '@pakyaw/shared/constants/ormocBarangays';
 import { ORMOC_SERVICE_AREA } from '@pakyaw/shared/constants/serviceArea';
 import { logger } from '@pakyaw/shared/lib/logger';
 import type { Place } from '@pakyaw/shared/types/place';
@@ -101,16 +102,274 @@ export async function getPlaceDetails(placeId: string): Promise<Place | null> {
   }
 }
 
-interface GoogleAddressComponent {
+export interface GoogleAddressComponent {
   readonly long_name: string;
   readonly short_name: string;
   readonly types: readonly string[];
 }
 
-interface GoogleGeocodingResult {
+export interface GoogleGeocodingResult {
   readonly formatted_address: string;
   readonly address_components: readonly GoogleAddressComponent[];
   readonly types: readonly string[];
+}
+
+export interface ResolvedPickupDisplayLabel {
+  readonly primary: string;
+  readonly secondary?: string;
+  readonly fullAddress: string;
+}
+
+const FORBIDDEN_PRIMARY_EXACT = new Set([
+  'eastern visayas',
+  'region viii',
+  'region 8',
+  'leyte',
+  'southern leyte',
+  'philippines',
+  'ph',
+  'ormoc city',
+  'ormoc',
+  'unnamed road',
+]);
+
+/**
+ * Checks if a string candidate is valid as a primary pickup label.
+ * Primary labels must represent a specific usable place, never a broad region, province, country, or plus code.
+ */
+export function isValidPrimaryPickupLabel(text: string | undefined | null): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  // Plus codes
+  if (trimmed.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i)) return false;
+  // Postal codes / numbers only
+  if (trimmed.match(/^\d{4,5}$/)) return false;
+  // Forbidden broad entities
+  if (FORBIDDEN_PRIMARY_EXACT.has(trimmed.toLowerCase())) return false;
+  return true;
+}
+
+/**
+ * Centralized resolver for reverse-geocoding results into a clean primary and secondary pickup label.
+ * Preferred specificity:
+ * 1. establishment / point_of_interest
+ * 2. premise
+ * 3. street_address
+ * 4. street_number + route
+ * 5. route + sublocality / barangay
+ * 6. neighborhood / sublocality / barangay
+ * 7. route
+ * 8. Safe fallback ("Pinned location")
+ */
+export function resolvePickupDisplayLabel(
+  results: readonly GoogleGeocodingResult[]
+): ResolvedPickupDisplayLabel {
+  if (!results || results.length === 0) {
+    return {
+      primary: 'Pinned location',
+      secondary: 'Ormoc City, Leyte',
+      fullAddress: 'Ormoc City, Leyte, Philippines',
+    };
+  }
+
+  // Preprocess results to remove plus codes from formatted_address and address_components
+  const cleanedResults: readonly GoogleGeocodingResult[] = results.map((r) => {
+    let formattedAddress = r.formatted_address || '';
+    let addressComponents = r.address_components || [];
+
+    addressComponents = addressComponents.filter((c) => {
+      const types = c.types || [];
+      return (
+        !types.includes('plus_code') &&
+        !c.long_name.includes('+') &&
+        !c.short_name.includes('+')
+      );
+    });
+
+    formattedAddress = formattedAddress
+      .replace(/^[A-Z0-9]{4,}\+[A-Z0-9]+(,\s*|\s+)?/i, '')
+      .trim();
+
+    return {
+      ...r,
+      formatted_address: formattedAddress,
+      address_components: addressComponents,
+    };
+  });
+
+  // Extract locality & province for secondary context
+  let localityName = '';
+  let provinceName = '';
+
+  for (const r of cleanedResults) {
+    for (const c of r.address_components || []) {
+      const types = c.types || [];
+      if (!localityName && types.includes('locality')) {
+        localityName = c.long_name;
+      }
+      if (
+        !provinceName &&
+        (types.includes('administrative_area_level_2') ||
+          types.includes('administrative_area_level_1'))
+      ) {
+        if (
+          c.long_name !== 'Philippines' &&
+          !c.long_name.startsWith('Region') &&
+          c.long_name !== 'Eastern Visayas'
+        ) {
+          provinceName = c.long_name;
+        }
+      }
+    }
+  }
+
+  const defaultSecondary = localityName
+    ? provinceName && provinceName !== localityName
+      ? `${localityName}, ${provinceName}`
+      : `${localityName}, Leyte`
+    : 'Ormoc City, Leyte';
+
+  let primary: string | null = null;
+  let secondary: string | undefined = undefined;
+
+  // 1. POI / Establishment / Premise
+  const poiResult = cleanedResults.find((r) => {
+    const types = r.types || [];
+    return (
+      types.some((t) => ['point_of_interest', 'establishment', 'premise'].includes(t)) &&
+      !types.includes('plus_code') &&
+      Boolean(r.formatted_address)
+    );
+  });
+
+  if (poiResult) {
+    const firstSegment = poiResult.formatted_address.split(',')[0]?.trim();
+    if (isValidPrimaryPickupLabel(firstSegment)) {
+      primary = firstSegment;
+      const remaining = poiResult.formatted_address
+        .substring(firstSegment.length)
+        .replace(/^,\s*/, '')
+        .trim();
+      secondary = remaining || defaultSecondary;
+    } else {
+      const poiComp = poiResult.address_components?.find((c) =>
+        c.types.some((t) => ['point_of_interest', 'establishment', 'premise'].includes(t))
+      );
+      if (poiComp && isValidPrimaryPickupLabel(poiComp.long_name)) {
+        primary = poiComp.long_name;
+        secondary = poiResult.formatted_address || defaultSecondary;
+      }
+    }
+  }
+
+  // 2. Route + Sublocality / Barangay (e.g. "Real St, Linao")
+  if (!primary) {
+    let foundRoute: GoogleAddressComponent | undefined;
+    let foundSublocality: GoogleAddressComponent | undefined;
+
+    for (const r of cleanedResults) {
+      for (const c of r.address_components || []) {
+        const types = c.types || [];
+        if (!foundRoute && types.includes('route') && isValidPrimaryPickupLabel(c.long_name)) {
+          foundRoute = c;
+        }
+        if (
+          !foundSublocality &&
+          (types.includes('sublocality') ||
+            types.includes('sublocality_level_1') ||
+            types.includes('sublocality_level_2') ||
+            types.includes('neighborhood') ||
+            types.includes('administrative_area_level_5')) &&
+          isValidPrimaryPickupLabel(c.long_name)
+        ) {
+          foundSublocality = c;
+        }
+      }
+    }
+
+    if (foundRoute && foundSublocality) {
+      primary = `${foundRoute.short_name || foundRoute.long_name}, ${
+        foundSublocality.short_name || foundSublocality.long_name
+      }`;
+      secondary = defaultSecondary;
+    }
+  }
+
+  // 3. Street Address (e.g. "123 Real St")
+  if (!primary) {
+    const streetAddressResult = cleanedResults.find((r) =>
+      (r.types || []).includes('street_address') && Boolean(r.formatted_address)
+    );
+    if (streetAddressResult) {
+      const firstSegment = streetAddressResult.formatted_address.split(',')[0]?.trim();
+      if (isValidPrimaryPickupLabel(firstSegment)) {
+        primary = firstSegment;
+        const remaining = streetAddressResult.formatted_address
+          .substring(firstSegment.length)
+          .replace(/^,\s*/, '')
+          .trim();
+        secondary = remaining || defaultSecondary;
+      }
+    }
+  }
+
+  // 4. Sublocality / Barangay only (e.g. "Camp Downes")
+  if (!primary) {
+    let foundSublocality: GoogleAddressComponent | undefined;
+    for (const r of cleanedResults) {
+      for (const c of r.address_components || []) {
+        const types = c.types || [];
+        if (
+          !foundSublocality &&
+          (types.includes('sublocality') ||
+            types.includes('sublocality_level_1') ||
+            types.includes('sublocality_level_2') ||
+            types.includes('neighborhood') ||
+            types.includes('administrative_area_level_5')) &&
+          isValidPrimaryPickupLabel(c.long_name)
+        ) {
+          foundSublocality = c;
+        }
+      }
+    }
+    if (foundSublocality) {
+      primary = foundSublocality.long_name;
+      secondary = defaultSecondary;
+    }
+  }
+
+  // 5. Route only (e.g. "Camp Downes Road")
+  if (!primary) {
+    let foundRoute: GoogleAddressComponent | undefined;
+    for (const r of cleanedResults) {
+      for (const c of r.address_components || []) {
+        const types = c.types || [];
+        if (!foundRoute && types.includes('route') && isValidPrimaryPickupLabel(c.long_name)) {
+          foundRoute = c;
+        }
+      }
+    }
+    if (foundRoute) {
+      primary = foundRoute.long_name;
+      secondary = defaultSecondary;
+    }
+  }
+
+  // 6. Safe fallback: Pinned location
+  if (!primary) {
+    primary = 'Pinned location';
+    secondary = defaultSecondary;
+  }
+
+  const firstCleanedAddress = cleanedResults.find((r) => Boolean(r.formatted_address))?.formatted_address;
+  const fullAddress = firstCleanedAddress || (secondary ? `${primary}, ${secondary}` : primary);
+
+  return {
+    primary,
+    secondary,
+    fullAddress,
+  };
 }
 
 /**
@@ -129,120 +388,49 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Place | 
     const data = await response.json();
     if (data.status && data.status !== 'OK') {
       logger.error('[placesService] Geocoding API error', { status: data.status });
-      return null;
+      const localBarangay = lookupOrmocBarangay(lat, lng);
+      return {
+        label: localBarangay || 'Pinned location',
+        address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+        coords: { lat, lng },
+      };
     }
 
     const results = (data.results || []) as readonly GoogleGeocodingResult[];
     if (results.length === 0) {
-      return null;
+      const localBarangay = lookupOrmocBarangay(lat, lng);
+      return {
+        label: localBarangay || 'Pinned location',
+        address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+        coords: { lat, lng },
+      };
     }
 
-    // Preprocess results to remove plus codes from the start of formatted_address and remove plus_code components
-    const cleanedResults: readonly GoogleGeocodingResult[] = results.map((r) => {
-      let formattedAddress = r.formatted_address || '';
-      let addressComponents = r.address_components || [];
+    const resolved = resolvePickupDisplayLabel(results);
+    let finalLabel = resolved.primary;
+    let finalAddress = resolved.secondary || resolved.fullAddress;
 
-      // 1. Remove plus_code from address_components
-      addressComponents = addressComponents.filter((c) => {
-        const types = c.types || [];
-        return !types.includes('plus_code') && !c.long_name.includes('+') && !c.short_name.includes('+');
-      });
-
-      // 2. Remove leading plus code plus any optional trailing comma/space
-      formattedAddress = formattedAddress.replace(/^[A-Z0-9]{4,}\+[A-Z0-9]+(,\s*|\s+)?/i, '').trim();
-
-      return {
-        ...r,
-        formatted_address: formattedAddress,
-        address_components: addressComponents,
-      };
-    });
-
-    // Find the first result that is not a plus code and has a valid formatted address
-    const topResult = cleanedResults.find((r) => {
-      const types = r.types || [];
-      if (types.includes('plus_code')) return false;
-      if (!r.formatted_address) return false;
-      return true;
-    }) || cleanedResults[0];
-    
-    // Find the most specific named feature or street number/name
-    const poiResult = cleanedResults.find((r) => {
-      const types = r.types || [];
-      return (
-        (types.includes('point_of_interest') ||
-          types.includes('establishment') ||
-          types.includes('premise')) &&
-        !types.includes('plus_code') &&
-        !!r.formatted_address
-      );
-    });
-
-    const targetResult = poiResult || topResult;
-    const addressComponents = (targetResult.address_components || []) as readonly GoogleAddressComponent[];
-    let label = 'Pinned location';
-
-    const routeComponent = addressComponents.find((c) => c.types.includes('route'));
-    const sublocalityComponent = addressComponents.find((c) =>
-      c.types.includes('sublocality') ||
-      c.types.includes('sublocality_level_1') ||
-      c.types.includes('neighborhood') ||
-      c.types.includes('administrative_area_level_5') // Usually Barangay in PH
-    );
-
-    if (routeComponent && sublocalityComponent) {
-      label = `${routeComponent.short_name}, ${sublocalityComponent.short_name}`;
-    } else if (sublocalityComponent) {
-      label = sublocalityComponent.long_name;
-    } else if (routeComponent) {
-      label = routeComponent.long_name;
-    } else {
-      const nonPlusCode = addressComponents.find(
-        (c) =>
-          !c.types.includes('plus_code') &&
-          !c.long_name.includes('+') &&
-          c.long_name !== 'Ormoc City' &&
-          c.long_name !== 'Ormoc' &&
-          c.long_name !== 'Leyte' &&
-          c.long_name !== 'Philippines'
-      );
-      if (nonPlusCode) {
-        label = nonPlusCode.long_name;
-      } else if (targetResult.formatted_address) {
-        const firstSegment = targetResult.formatted_address.split(',')[0]?.trim();
-        if (
-          firstSegment &&
-          !firstSegment.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i) &&
-          firstSegment !== 'Ormoc City' &&
-          firstSegment !== 'Ormoc'
-        ) {
-          label = firstSegment;
-        } else {
-          label = 'Pinned location, Ormoc City';
-        }
-      } else {
-        label = 'Pinned location, Ormoc City';
+    // If primary is generic "Pinned location", enrich with local Ormoc barangay lookup if available
+    if (finalLabel === 'Pinned location') {
+      const localBarangay = lookupOrmocBarangay(lat, lng);
+      if (localBarangay) {
+        finalLabel = localBarangay;
+        finalAddress = 'Ormoc City, Leyte';
       }
     }
 
-    // Fallback if we accidentally grabbed a Plus Code
-    if (label.match(/^[A-Z0-9]{4,}\+[A-Z0-9]+/i)) {
-      const fallbackComponent = addressComponents.find((c) =>
-        c.types.includes('administrative_area_level_5') ||
-        c.types.includes('sublocality') ||
-        c.types.includes('neighborhood') ||
-        c.types.includes('locality')
-      );
-      label = fallbackComponent ? fallbackComponent.long_name : 'Pinned location, Ormoc City';
-    }
-
     return {
-      label,
-      address: targetResult.formatted_address || '',
+      label: finalLabel,
+      address: finalAddress,
       coords: { lat, lng },
     };
   } catch (err) {
     logger.error('[placesService] reverseGeocode failed', { err });
-    return null;
+    const localBarangay = lookupOrmocBarangay(lat, lng);
+    return {
+      label: localBarangay || 'Pinned location',
+      address: localBarangay ? `${localBarangay}, Ormoc City` : 'Ormoc City, Leyte',
+      coords: { lat, lng },
+    };
   }
 }
