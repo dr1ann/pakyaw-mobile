@@ -117,6 +117,28 @@ describe('bookingDraftStore', () => {
     expect(useBookingDraftStore.getState().draft.route).toEqual(route);
   });
 
+  it('allows setting bookingFor, riderFirstName, and pickupNote', () => {
+    const store = useBookingDraftStore.getState();
+    expect(store.draft.bookingFor).toBe('self');
+    expect(store.draft.riderFirstName).toBe('');
+    expect(store.draft.pickupNote).toBe('');
+
+    store.setBookingFor('other');
+    store.setRiderFirstName('Anna');
+    store.setPickupNote('Waiting by the pharmacy');
+
+    const state = useBookingDraftStore.getState().draft;
+    expect(state.bookingFor).toBe('other');
+    expect(state.riderFirstName).toBe('Anna');
+    expect(state.pickupNote).toBe('Waiting by the pharmacy');
+
+    // Switching ride mode preserves bookingFor choice and rider data
+    store.setRideMode('shared');
+    expect(useBookingDraftStore.getState().draft.bookingFor).toBe('other');
+    expect(useBookingDraftStore.getState().draft.riderFirstName).toBe('Anna');
+    expect(useBookingDraftStore.getState().draft.pickupNote).toBe('Waiting by the pharmacy');
+  });
+
   it('resets to initial state', () => {
     const store = useBookingDraftStore.getState();
 
@@ -124,6 +146,9 @@ describe('bookingDraftStore', () => {
     store.setDestination({ label: 'B', coords: { lat: 2, lng: 2 } });
     store.setPassengerCount(5);
     store.setRoute({ distanceMeters: 10, durationSeconds: 2, polyline: 'p' });
+    store.setBookingFor('other');
+    store.setRiderFirstName('Anna');
+    store.setPickupNote('Waiting near Gate 2');
 
     store.reset();
 
@@ -132,6 +157,9 @@ describe('bookingDraftStore', () => {
     expect(state.destination).toBeNull();
     expect(state.passengerCount).toBe(1);
     expect(state.route).toBeNull();
+    expect(state.bookingFor).toBe('self');
+    expect(state.riderFirstName).toBe('');
+    expect(state.pickupNote).toBe('');
   });
 });
 

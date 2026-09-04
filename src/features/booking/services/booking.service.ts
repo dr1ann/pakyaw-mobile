@@ -77,6 +77,9 @@ export async function createTrip(
     route: input.route,
     displayedFare: input.displayedFare,
     serviceAreaId: 'ormoc',
+    bookingFor: input.bookingFor,
+    rider: input.rider,
+    pickupNote: input.pickupNote,
   });
 
   if (validated.pickup.coords == null || validated.destination.coords == null) {
@@ -102,6 +105,9 @@ export async function createTrip(
       route: validated.route,
       passengerCount: validated.passengerCount,
       displayedFare: validated.displayedFare ?? null,
+      bookingFor: validated.bookingFor,
+      rider: validated.rider,
+      pickupNote: validated.pickupNote,
     });
     if (result.data.status !== 'requested' || !result.data.tripId) {
       throw new BookingWriteError(new Error('Trip request returned an invalid result.'));

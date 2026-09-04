@@ -10,6 +10,20 @@ import { logger } from '@pakyaw/shared/lib/logger';
 
 const PRE_PICKUP_STATUSES = new Set(['accepted', 'driver_arriving', 'driver_arrived']);
 
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export function usePassengerLocationPublisher() {
   const uid = useSessionStore((s) => s.uid);
   const segments = useSegments() as string[];
@@ -20,6 +34,8 @@ export function usePassengerLocationPublisher() {
 
   const subscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const activeTripIdRef = useRef<string | null>(null);
+  const lastPublishedAtRef = useRef<number>(0);
+  const lastPublishedLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   const isRideActive = !segments.includes('activity') && !segments.includes('account');
@@ -28,7 +44,8 @@ export function usePassengerLocationPublisher() {
 
   const tripId = trip?.id ?? null;
   const tripStatus = trip?.status ?? null;
-  const isTripPrePickup = !!trip && !!tripId && !!tripStatus && PRE_PICKUP_STATUSES.has(tripStatus) && trip.passengerId === uid;
+  const isBookingForSelf = !trip?.bookingFor || trip.bookingFor === 'self';
+  const isTripPrePickup = !!trip && !!tripId && !!tripStatus && PRE_PICKUP_STATUSES.has(tripStatus) && trip.passengerId === uid && isBookingForSelf;
 
   // Track active trip id for cleanup
   useEffect(() => {
@@ -37,6 +54,8 @@ export function usePassengerLocationPublisher() {
       activeTripIdRef.current = tripId;
     } else {
       activeTripIdRef.current = null;
+      lastPublishedAtRef.current = 0;
+      lastPublishedLocationRef.current = null;
       if (previousTripId) {
         logger.info('[PassengerLocationPublisher] Pre-pickup ended, deleting temporary live location', { tripId: previousTripId });
         void deleteDoc(doc(firestore, 'passengerLocations', previousTripId)).catch((err) => {
@@ -122,16 +141,42 @@ export function usePassengerLocationPublisher() {
               timestamp: loc.timestamp,
             });
 
-            // Publish temporary live location only during active pre-pickup states
+            // Publish temporary live location only during active pre-pickup states for self-bookings
             const currentTrip = useActiveTripStore.getState().trip;
             const currentUid = useSessionStore.getState().uid;
+            const isSelf = !currentTrip?.bookingFor || currentTrip.bookingFor === 'self';
             if (
               currentTrip &&
               currentTrip.id &&
               currentTrip.status &&
               PRE_PICKUP_STATUSES.has(currentTrip.status) &&
-              currentTrip.passengerId === currentUid
+              currentTrip.passengerId === currentUid &&
+              isSelf
             ) {
+              const now = Date.now();
+              const timeSinceLastPublish = now - lastPublishedAtRef.current;
+
+              // Enforce strict minimum time throttle: never write more frequently than every 3000ms
+              if (timeSinceLastPublish < 3000) {
+                return;
+              }
+
+              // Movement filter: write if first publish, moved >= 3m, or heartbeat (15s)
+              const lastLoc = lastPublishedLocationRef.current;
+              const hasMovedMeaningfully =
+                !lastLoc ||
+                distanceMeters(lastLoc.latitude, lastLoc.longitude, loc.coords.latitude, loc.coords.longitude) >= 3;
+
+              if (!hasMovedMeaningfully && timeSinceLastPublish < 15000) {
+                return;
+              }
+
+              lastPublishedAtRef.current = now;
+              lastPublishedLocationRef.current = {
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+              };
+
               void setDoc(doc(firestore, 'passengerLocations', currentTrip.id), {
                 passengerId: currentUid,
                 tripId: currentTrip.id,

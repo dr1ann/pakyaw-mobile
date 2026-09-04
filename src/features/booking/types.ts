@@ -33,4 +33,7 @@ export type CreateBookingInput = {
   readonly passengerCount: number;
   readonly route: RouteSnapshot;
   readonly displayedFare?: number | null;
+  readonly bookingFor?: 'self' | 'other';
+  readonly rider?: { firstName: string } | null;
+  readonly pickupNote?: string | null;
 };

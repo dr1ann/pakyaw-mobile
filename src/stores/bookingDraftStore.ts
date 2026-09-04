@@ -31,6 +31,9 @@ export type BookingDraft = {
   readonly destination: Place | null;
   readonly passengerCount: number;
   readonly route: AcceptedRoute | null;
+  readonly bookingFor: 'self' | 'other';
+  readonly riderFirstName: string;
+  readonly pickupNote: string;
 };
 
 export type BookingDraftState = {
@@ -40,6 +43,9 @@ export type BookingDraftState = {
   setDestination: (destination: Place | null) => void;
   setPassengerCount: (count: number) => void;
   setRoute: (route: AcceptedRoute | null) => void;
+  setBookingFor: (bookingFor: 'self' | 'other') => void;
+  setRiderFirstName: (name: string) => void;
+  setPickupNote: (note: string) => void;
   reset: () => void;
 };
 
@@ -49,6 +55,9 @@ const emptyDraft: BookingDraft = {
   destination: null,
   passengerCount: MIN_SEATS,
   route: null,
+  bookingFor: 'self',
+  riderFirstName: '',
+  pickupNote: '',
 };
 
 export const useBookingDraftStore = create<BookingDraftState>((set) => ({
@@ -82,6 +91,18 @@ export const useBookingDraftStore = create<BookingDraftState>((set) => ({
   setRoute: (route) =>
     set((state) => ({
       draft: { ...state.draft, route },
+    })),
+  setBookingFor: (bookingFor) =>
+    set((state) => ({
+      draft: { ...state.draft, bookingFor },
+    })),
+  setRiderFirstName: (riderFirstName) =>
+    set((state) => ({
+      draft: { ...state.draft, riderFirstName },
+    })),
+  setPickupNote: (pickupNote) =>
+    set((state) => ({
+      draft: { ...state.draft, pickupNote },
     })),
   reset: () => set({ draft: emptyDraft }),
 }));

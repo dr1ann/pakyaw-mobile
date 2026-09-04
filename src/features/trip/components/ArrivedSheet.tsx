@@ -36,9 +36,15 @@ export function ArrivedSheet() {
         Head to your pickup location. Your driver is waiting for you.
       </Text>
       <View style={styles.privacyNoticeCard}>
-        <SymbolIcon name="location.fill" size={14} tintColor={colors.blue.primary} />
+        <SymbolIcon
+          name={trip?.bookingFor === 'other' ? 'person.2.fill' : 'location.fill'}
+          size={14}
+          tintColor={colors.blue.primary}
+        />
         <Text style={styles.privacyNoticeText}>
-          Your live location is shared with your assigned Driver until pickup to help them find you.
+          {trip?.bookingFor === 'other'
+            ? "Because this ride is for someone else, your location won't be shared with the Driver."
+            : 'Your live location is temporarily shared with your assigned Driver until pickup to help them find you.'}
         </Text>
       </View>
       <Button

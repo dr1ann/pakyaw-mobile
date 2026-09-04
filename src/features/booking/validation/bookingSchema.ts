@@ -49,6 +49,14 @@ export const createTripSchema = z
     }),
     displayedFare: z.number().finite().nonnegative().nullable().optional(),
     serviceAreaId: z.literal('ormoc'),
+    bookingFor: z.enum(['self', 'other']).optional(),
+    rider: z
+      .object({
+        firstName: z.string().trim().min(1, 'Rider first name is required.'),
+      })
+      .nullable()
+      .optional(),
+    pickupNote: z.string().trim().max(140, 'Pickup note must not exceed 140 characters.').nullable().optional(),
   })
   .strict();
 

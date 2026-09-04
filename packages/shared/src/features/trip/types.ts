@@ -11,8 +11,8 @@
 export type Timestamp = {
   readonly seconds: number;
   readonly nanoseconds: number;
-  toDate?: () => Date;
-  toMillis?: () => number;
+  toDate?(): Date;
+  toMillis?(): number;
 };
 
 import type { Place } from '@pakyaw/shared/types/place';
@@ -91,9 +91,14 @@ export type TripDoc = {
     readonly updatedAt: Timestamp | null;
   } | null;
   readonly serviceAreaId?: 'ormoc' | null;
+
+  // Third-party booking fields (Pickup Integrity phase)
+  readonly bookingFor?: 'self' | 'other' | null;
+  readonly rider?: { readonly firstName: string } | null;
+  readonly pickupNote?: string | null;
 };
 
-/** Legacy read-only presentation projection; authoritative data uses members. */
+/** Read-only Driver presentation projection of canonical sharedRides data. */
 export type SharedRideStatus = 'forming' | 'active' | 'completed' | 'cancelled';
 
 export type SharedRidePassenger = {

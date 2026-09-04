@@ -53,6 +53,38 @@ describe('bookingSchema validation', () => {
       };
       expect(createTripSchema.safeParse(tooFar).success).toBe(false);
     });
+
+    it('validates bookingFor, rider, and pickupNote', () => {
+      // Valid self booking
+      const selfBooking = { ...validTrip, bookingFor: 'self' };
+      expect(createTripSchema.safeParse(selfBooking).success).toBe(true);
+
+      // Valid other booking with rider and pickup note
+      const otherBooking = {
+        ...validTrip,
+        bookingFor: 'other',
+        rider: { firstName: 'Anna' },
+        pickupNote: 'Waiting near the gate',
+      };
+      expect(createTripSchema.safeParse(otherBooking).success).toBe(true);
+
+      // Invalid other booking with empty rider name
+      const emptyRider = {
+        ...validTrip,
+        bookingFor: 'other',
+        rider: { firstName: '  ' },
+      };
+      expect(createTripSchema.safeParse(emptyRider).success).toBe(false);
+
+      // Invalid pickup note exceeding 140 chars
+      const longNote = {
+        ...validTrip,
+        bookingFor: 'other',
+        rider: { firstName: 'Anna' },
+        pickupNote: 'a'.repeat(141),
+      };
+      expect(createTripSchema.safeParse(longNote).success).toBe(false);
+    });
   });
 
   describe('routeResponseSchema', () => {

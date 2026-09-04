@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator, Alert, TextInput } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
@@ -61,6 +61,9 @@ export function BookingSheet({
   const setDestination = useBookingDraftStore((s) => s.setDestination);
   const setRoute = useBookingDraftStore((s) => s.setRoute);
   const setRideMode = useBookingDraftStore((s) => s.setRideMode);
+  const setBookingFor = useBookingDraftStore((s) => s.setBookingFor);
+  const setRiderFirstName = useBookingDraftStore((s) => s.setRiderFirstName);
+  const setPickupNote = useBookingDraftStore((s) => s.setPickupNote);
 
   const [showInfoModal, setShowInfoModal] = useState(false);
 
@@ -99,6 +102,11 @@ export function BookingSheet({
       return;
     }
 
+    if (draft.bookingFor === 'other' && !draft.riderFirstName.trim()) {
+      Alert.alert('Rider Name Required', "Please enter the rider's first name.");
+      return;
+    }
+
     const payload: CreateBookingInput = {
       mode: toRideMode(draft.rideMode),
       pickup: draft.pickup!,
@@ -110,45 +118,53 @@ export function BookingSheet({
         polyline: draft.route.polyline,
       },
       displayedFare: quote?.fare.total ?? null,
+      bookingFor: draft.bookingFor,
+      ...(draft.bookingFor === 'other' && draft.riderFirstName.trim()
+        ? { rider: { firstName: draft.riderFirstName.trim() } }
+        : {}),
+      ...(draft.pickupNote.trim() ? { pickupNote: draft.pickupNote.trim() } : {}),
     };
 
-    const deviceLocation = useLocationStore.getState().location;
-    let pickupDistanceMeters: number | null = null;
-    if (deviceLocation && draft.pickup.coords) {
-      pickupDistanceMeters = haversineMeters(
-        { lat: deviceLocation.latitude, lng: deviceLocation.longitude },
-        draft.pickup.coords
-      );
-    }
+    // Pre-booking distance mismatch warning applies only for self-bookings
+    if (draft.bookingFor === 'self') {
+      const deviceLocation = useLocationStore.getState().location;
+      let pickupDistanceMeters: number | null = null;
+      if (deviceLocation && draft.pickup.coords) {
+        pickupDistanceMeters = haversineMeters(
+          { lat: deviceLocation.latitude, lng: deviceLocation.longitude },
+          draft.pickup.coords
+        );
+      }
 
-    if (pickupDistanceMeters != null && pickupDistanceMeters >= PICKUP_DISTANCE_WARNING_THRESHOLD_METERS) {
-      const formattedDistance = pickupDistanceMeters >= 1000
-        ? `${(pickupDistanceMeters / 1000).toFixed(1)} km`
-        : `${Math.round(pickupDistanceMeters)} m`;
+      if (pickupDistanceMeters != null && pickupDistanceMeters >= PICKUP_DISTANCE_WARNING_THRESHOLD_METERS) {
+        const formattedDistance = pickupDistanceMeters >= 1000
+          ? `${(pickupDistanceMeters / 1000).toFixed(1)} km`
+          : `${Math.round(pickupDistanceMeters)} m`;
 
-      Alert.alert(
-        'Confirm Pickup Location',
-        `This pickup is ${formattedDistance} from your current location. Is this where you want the Driver to meet you?`,
-        [
-          {
-            text: 'Change Pickup',
-            style: 'cancel',
-            onPress: () => {
-              if (onSearchPickup) {
-                onSearchPickup();
-              }
+        Alert.alert(
+          'Confirm Pickup Location',
+          `This pickup is ${formattedDistance} from your current location. Is this where you want the Driver to meet you?`,
+          [
+            {
+              text: 'Change Pickup',
+              style: 'cancel',
+              onPress: () => {
+                if (onSearchPickup) {
+                  onSearchPickup();
+                }
+              },
             },
-          },
-          {
-            text: 'Continue',
-            onPress: () => {
-              logger.info('[BookingSheet] Submitting trip booking request after distance confirmation', payload);
-              mutate(payload);
+            {
+              text: 'Continue',
+              onPress: () => {
+                logger.info('[BookingSheet] Submitting trip booking request after distance confirmation', payload);
+                mutate(payload);
+              },
             },
-          },
-        ]
-      );
-      return;
+          ]
+        );
+        return;
+      }
     }
 
     logger.info('[BookingSheet] Submitting trip booking request', payload);
@@ -363,6 +379,88 @@ export function BookingSheet({
             </View>
           </View>
         )}
+
+        {/* Booking Ownership Section ("Who is this ride for?") */}
+        <View style={styles.formGroup}>
+          <Text style={styles.rowTitle}>Who is this ride for?</Text>
+          <View style={styles.ownershipRow}>
+            <Pressable
+              style={[
+                styles.ownershipOption,
+                draft.bookingFor === 'self' && styles.ownershipOptionSelected,
+              ]}
+              onPress={() => setBookingFor('self')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: draft.bookingFor === 'self' }}
+              testID="booking-for-self-btn"
+            >
+              <View style={[styles.radioCircle, draft.bookingFor === 'self' && styles.radioCircleSelected]}>
+                {draft.bookingFor === 'self' && <View style={styles.radioDot} />}
+              </View>
+              <Text style={[styles.ownershipLabel, draft.bookingFor === 'self' && styles.ownershipLabelSelected]}>
+                Me
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.ownershipOption,
+                draft.bookingFor === 'other' && styles.ownershipOptionSelected,
+              ]}
+              onPress={() => setBookingFor('other')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: draft.bookingFor === 'other' }}
+              testID="booking-for-other-btn"
+            >
+              <View style={[styles.radioCircle, draft.bookingFor === 'other' && styles.radioCircleSelected]}>
+                {draft.bookingFor === 'other' && <View style={styles.radioDot} />}
+              </View>
+              <Text style={[styles.ownershipLabel, draft.bookingFor === 'other' && styles.ownershipLabelSelected]}>
+                Someone else
+              </Text>
+            </Pressable>
+          </View>
+
+          {draft.bookingFor === 'other' && (
+            <View style={styles.otherRiderContainer}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  {"Rider's first name"} <Text style={styles.requiredStar}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Anna"
+                  placeholderTextColor={colors.ink[400]}
+                  value={draft.riderFirstName}
+                  onChangeText={setRiderFirstName}
+                  maxLength={100}
+                  autoCapitalize="words"
+                  testID="rider-first-name-input"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <View style={styles.inputLabelRow}>
+                  <Text style={styles.inputLabel}>Pickup note (optional)</Text>
+                  <Text style={styles.charCountText}>{draft.pickupNote.length}/140</Text>
+                </View>
+                <TextInput
+                  style={[styles.textInput, styles.noteInput]}
+                  placeholder="e.g. Waiting near the pharmacy entrance"
+                  placeholderTextColor={colors.ink[400]}
+                  value={draft.pickupNote}
+                  onChangeText={setPickupNote}
+                  maxLength={140}
+                  multiline
+                  testID="pickup-note-input"
+                />
+                <Text style={styles.inputHelpText}>
+                  Help the Driver know where to meet the rider.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* Fare Quote Breakdown */}
         <View style={styles.detailsContainer}>
@@ -764,5 +862,103 @@ const styles = StyleSheet.create({
   confirmButton: {
     height: 48,
     borderRadius: radius.md,
+  },
+  ownershipRow: {
+    flexDirection: 'row',
+    gap: spacing[3],
+    marginTop: spacing[2],
+  },
+  ownershipOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    backgroundColor: colors.surface.card,
+    borderWidth: 1.5,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.md,
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[3],
+  },
+  ownershipOptionSelected: {
+    borderColor: colors.blue.primary,
+    backgroundColor: colors.blue.tint,
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.ink[400],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: colors.blue.primary,
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.blue.primary,
+  },
+  ownershipLabel: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.medium,
+    color: colors.ink[700],
+  },
+  ownershipLabelSelected: {
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+  },
+  otherRiderContainer: {
+    marginTop: spacing[3],
+    gap: spacing[3],
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  inputGroup: {
+    gap: spacing[1],
+  },
+  inputLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputLabel: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.semibold,
+    color: colors.ink[700],
+  },
+  requiredStar: {
+    color: colors.danger,
+    fontWeight: typography.weight.bold,
+  },
+  charCountText: {
+    fontSize: 10,
+    fontWeight: typography.weight.medium,
+    color: colors.ink[400],
+  },
+  textInput: {
+    backgroundColor: colors.surface.card,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[900],
+  },
+  noteInput: {
+    minHeight: 52,
+    textAlignVertical: 'top',
+  },
+  inputHelpText: {
+    fontSize: 11,
+    color: colors.ink[500],
+    marginTop: 2,
   },
 });
