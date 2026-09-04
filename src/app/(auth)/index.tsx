@@ -1,57 +1,64 @@
 /**
  * (auth)/index.tsx
  *
- * Welcome screen — account type choice.
- * Passengers → sign-up or sign-in.
+ * Welcome screen — Entry choice for Pakyaw passengers.
+ * Clear hierarchy: Create account (primary) vs Sign in (secondary).
  */
 
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Link, Redirect } from 'expo-router';
 
-import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 
 export default function WelcomeScreen() {
   const onboardingSeen = useSessionStore((s) => s.onboardingSeen);
+
   if (!onboardingSeen) {
     return <Redirect href="/onboarding" />;
   }
+
   return (
     <View style={styles.container}>
-      {/* Logo / brand mark area */}
+      {/* Brand Hero */}
       <View style={styles.hero}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>🛺</Text>
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoIcon}>🛺</Text>
         </View>
-        <Text style={styles.appName}>
-          Welcome to{' '}
-          <Text style={{ color: colors.blue.primary }}>Pakyaw</Text>
+
+        <Text variant="hero" align="center" style={styles.appName}>
+          Pakyaw
         </Text>
-        <Text style={styles.tagline}>
-          Your reliable ride, on demand — around Ormoc City.
+
+        <Text variant="h3" align="center" color={colors.ink[700]} style={styles.tagline}>
+          Your ride around Ormoc
+        </Text>
+
+        <Text variant="body" align="center" color={colors.ink[500]} style={styles.description}>
+          Your mobile number is all you need to get started.
         </Text>
       </View>
 
       {/* Actions */}
       <View style={styles.actions}>
         <Link href="/sign-up" asChild>
-          <Pressable
-            style={styles.btnPrimary}
-            accessibilityRole="button"
+          <Button
+            label="Create account"
+            variant="primary"
+            size="lg"
             testID="welcome-sign-up"
-          >
-            <Text style={styles.btnPrimaryLabel}>Create account</Text>
-          </Pressable>
+          />
         </Link>
 
         <Link href="/sign-in" asChild>
-          <Pressable
-            style={styles.btnSecondary}
-            accessibilityRole="button"
+          <Button
+            label="Sign in"
+            variant="secondary"
+            size="lg"
             testID="welcome-sign-in"
-          >
-            <Text style={styles.btnSecondaryLabel}>I already have an account</Text>
-          </Pressable>
+          />
         </Link>
       </View>
     </View>
@@ -63,65 +70,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface.bgPassenger,
     paddingHorizontal: spacing[6],
-    paddingTop: spacing[20],
-    paddingBottom: spacing[12],
+    paddingTop: spacing[15],
+    paddingBottom: spacing[10],
     justifyContent: 'space-between',
   },
   hero: {
     alignItems: 'center',
-    gap: spacing[4],
+    marginTop: spacing[8],
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
+  logoBadge: {
+    width: 96,
+    height: 96,
     borderRadius: radius.pill,
     backgroundColor: colors.blue.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing[2],
+    marginBottom: spacing[5],
   },
-  logoEmoji: {
+  logoIcon: {
     fontSize: 48,
   },
   appName: {
-    fontSize: typography.size.h1,
-    fontFamily: typography.family.extraBold,
-    color: colors.ink[900],
-    textAlign: 'center',
+    color: colors.blue.primary,
+    marginBottom: spacing[2],
   },
   tagline: {
-    fontSize: typography.size.body,
-    fontFamily: typography.family.regular,
-    color: colors.ink[500],
-    textAlign: 'center',
-    lineHeight: typography.lineHeight.body,
+    marginBottom: spacing[3],
+  },
+  description: {
     maxWidth: 280,
+    lineHeight: typography.lineHeight.body,
   },
   actions: {
     gap: spacing[3],
-  },
-  btnPrimary: {
-    backgroundColor: colors.blue.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-  },
-  btnPrimaryLabel: {
-    fontSize: typography.size.bodyMd,
-    fontFamily: typography.family.bold,
-    color: colors.white,
-  },
-  btnSecondary: {
-    backgroundColor: colors.surface.card,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.blue.primary,
-  },
-  btnSecondaryLabel: {
-    fontSize: typography.size.bodyMd,
-    fontFamily: typography.family.semibold,
-    color: colors.blue.primary,
   },
 });

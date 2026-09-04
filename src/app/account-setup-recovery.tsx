@@ -1,10 +1,17 @@
+/**
+ * account-setup-recovery.tsx
+ *
+ * Fallback screen for users who have a verified Firebase Auth phone session
+ * but no corresponding users/{uid} document in Firestore.
+ */
+
 import { useState } from 'react';
 import {
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -20,6 +27,8 @@ import {
   storePassengerSessionResolution,
 } from '@/features/auth/services/passenger-session.service';
 import { usePassengerSessionStore } from '@/features/auth/stores/passenger-session.store';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 
 export default function AccountSetupRecoveryScreen() {
   const router = useRouter();
@@ -38,14 +47,14 @@ export default function AccountSetupRecoveryScreen() {
     setErrorMessage(null);
 
     const trimmedFirstName = firstName.trim();
-    if (trimmedFirstName.length < 2) {
-      setErrorMessage('Please enter your first name (at least 2 characters).');
+    if (trimmedFirstName.length === 0) {
+      setErrorMessage('Please enter your first name.');
       return;
     }
 
     const trimmedLastName = lastName.trim();
-    if (trimmedLastName.length < 2) {
-      setErrorMessage('Please enter your last name (at least 2 characters).');
+    if (trimmedLastName.length === 0) {
+      setErrorMessage('Please enter your last name.');
       return;
     }
 
@@ -55,7 +64,7 @@ export default function AccountSetupRecoveryScreen() {
     }
 
     if (!currentUser || !phoneNumber) {
-      setErrorMessage('No authenticated session found. Please sign in again.');
+      setErrorMessage('No active phone session found. Please sign in again.');
       return;
     }
 
@@ -86,129 +95,135 @@ export default function AccountSetupRecoveryScreen() {
     router.replace('/(auth)');
   };
 
+  const isFormValid =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    termsAccepted &&
+    privacyAccepted;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <View style={styles.iconCircle}>
-          <Text style={styles.iconEmoji}>📋</Text>
-        </View>
-        <Text style={styles.title}>Complete your profile</Text>
-        <Text style={styles.subtitle}>
-          Your mobile number is verified. Complete your profile details to start riding.
-        </Text>
-      </View>
-
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Verified mobile</Text>
-        <TextInput
-          style={[styles.input, styles.inputDisabled]}
-          value={phoneNumber}
-          editable={false}
-        />
-
-        <Text style={styles.label}>First name</Text>
-        <TextInput
-          style={styles.input}
-          value={firstName}
-          onChangeText={setFirstName}
-          placeholder="e.g. Juan"
-          placeholderTextColor={colors.ink[400]}
-          autoCapitalize="words"
-          autoCorrect={false}
-          autoComplete="given-name"
-          editable={!busy}
-          testID="recovery-firstname-input"
-        />
-
-        <Text style={styles.label}>Last name</Text>
-        <TextInput
-          style={styles.input}
-          value={lastName}
-          onChangeText={setLastName}
-          placeholder="e.g. Dela Cruz"
-          placeholderTextColor={colors.ink[400]}
-          autoCapitalize="words"
-          autoCorrect={false}
-          autoComplete="family-name"
-          editable={!busy}
-          testID="recovery-lastname-input"
-        />
-
-        <View style={styles.checkboxContainer}>
-          <Pressable
-            onPress={() => setTermsAccepted((v) => !v)}
-            style={styles.checkboxRow}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: termsAccepted }}
-            testID="recovery-terms-checkbox"
-          >
-            <View style={[styles.checkboxBox, termsAccepted && styles.checkboxBoxChecked]}>
-              {termsAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
-            </View>
-            <Text style={styles.checkboxLabel}>I accept the Terms of Service</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setPrivacyAccepted((v) => !v)}
-            style={styles.checkboxRow}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: privacyAccepted }}
-            testID="recovery-privacy-checkbox"
-          >
-            <View style={[styles.checkboxBox, privacyAccepted && styles.checkboxBoxChecked]}>
-              {privacyAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
-            </View>
-            <Text style={styles.checkboxLabel}>I accept the Privacy Policy</Text>
-          </Pressable>
-        </View>
-
-        {errorMessage ? (
-          <View style={styles.errorBox} accessibilityRole="alert">
-            <Text style={styles.errorText}>{errorMessage}</Text>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <View style={styles.iconBadge}>
+            <Text style={styles.iconEmoji}>📋</Text>
           </View>
-        ) : null}
+          <Text variant="h1" align="center" style={styles.title}>
+            Complete your profile
+          </Text>
+          <Text variant="body" align="center" color={colors.ink[500]} style={styles.subtitle}>
+            Your mobile number is verified. Finish your profile details to start riding.
+          </Text>
+        </View>
 
-        <Pressable
-          disabled={
-            busy ||
-            !termsAccepted ||
-            !privacyAccepted ||
-            firstName.trim().length < 2 ||
-            lastName.trim().length < 2
-          }
-          style={[
-            styles.btnPrimary,
-            (busy ||
-              !termsAccepted ||
-              !privacyAccepted ||
-              firstName.trim().length < 2 ||
-              lastName.trim().length < 2) &&
-              styles.btnDisabled,
-          ]}
-          onPress={handleCompleteSetup}
-          accessibilityRole="button"
-          testID="complete-setup-btn"
-        >
-          {busy ? (
-            <ActivityIndicator color={colors.white} size="small" />
-          ) : (
-            <Text style={styles.btnPrimaryText}>Finish setup</Text>
-          )}
-        </Pressable>
+        <View style={styles.formGroup}>
+          <View style={styles.fieldContainer}>
+            <Text variant="label" style={styles.label}>Verified mobile</Text>
+            <TextInput
+              style={[styles.input, styles.inputDisabled]}
+              value={phoneNumber}
+              editable={false}
+            />
+          </View>
 
-        <Pressable
-          style={styles.btnSecondary}
-          onPress={handleSignOut}
-          disabled={busy}
-          accessibilityRole="button"
-        >
-          <Text style={styles.btnSecondaryText}>Sign out & switch number</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+          <View style={styles.fieldContainer}>
+            <Text variant="label" style={styles.label}>First name</Text>
+            <TextInput
+              style={styles.input}
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="e.g. Juan"
+              placeholderTextColor={colors.ink[400]}
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoComplete="given-name"
+              editable={!busy}
+              testID="recovery-firstname-input"
+            />
+          </View>
+
+          <View style={styles.fieldContainer}>
+            <Text variant="label" style={styles.label}>Last name</Text>
+            <TextInput
+              style={styles.input}
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="e.g. Dela Cruz"
+              placeholderTextColor={colors.ink[400]}
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoComplete="family-name"
+              editable={!busy}
+              testID="recovery-lastname-input"
+            />
+          </View>
+
+          <View style={styles.checkboxContainer}>
+            <Pressable
+              onPress={() => setTermsAccepted((v) => !v)}
+              style={styles.checkboxRow}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: termsAccepted }}
+              testID="recovery-terms-checkbox"
+            >
+              <View style={[styles.checkboxBox, termsAccepted && styles.checkboxBoxChecked]}>
+                {termsAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
+              </View>
+              <Text variant="bodySmall" color={colors.ink[700]}>
+                I accept the Terms of Service
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setPrivacyAccepted((v) => !v)}
+              style={styles.checkboxRow}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: privacyAccepted }}
+              testID="recovery-privacy-checkbox"
+            >
+              <View style={[styles.checkboxBox, privacyAccepted && styles.checkboxBoxChecked]}>
+                {privacyAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
+              </View>
+              <Text variant="bodySmall" color={colors.ink[700]}>
+                I accept the Privacy Policy
+              </Text>
+            </Pressable>
+          </View>
+
+          {errorMessage ? (
+            <View style={styles.errorBox} accessibilityRole="alert">
+              <Text variant="bodySmall" color={colors.danger} style={styles.errorText}>
+                {errorMessage}
+              </Text>
+            </View>
+          ) : null}
+
+          <Button
+            label={busy ? 'Completing setup...' : 'Finish setup'}
+            variant="primary"
+            size="lg"
+            disabled={busy || !isFormValid}
+            loading={busy}
+            onPress={handleCompleteSetup}
+            testID="complete-setup-btn"
+          />
+
+          <Button
+            label="Sign out & switch number"
+            variant="ghost"
+            size="md"
+            disabled={busy}
+            onPress={handleSignOut}
+          />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -224,10 +239,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing[6],
   },
-  iconCircle: {
+  iconBadge: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: radius.pill,
     backgroundColor: colors.blue.tint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -237,29 +252,23 @@ const styles = StyleSheet.create({
     fontSize: 36,
   },
   title: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
-    textAlign: 'center',
     marginBottom: spacing[2],
   },
   subtitle: {
-    fontSize: typography.size.body,
-    color: colors.ink[500],
-    textAlign: 'center',
+    maxWidth: 290,
     lineHeight: typography.lineHeight.body,
-    maxWidth: 300,
   },
   formGroup: {
-    gap: spacing[3],
+    gap: spacing[4],
+  },
+  fieldContainer: {
+    gap: spacing[1],
   },
   label: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
     color: colors.ink[700],
     textTransform: 'uppercase',
     letterSpacing: typography.letterSpacing.label,
-    marginTop: spacing[2],
   },
   input: {
     backgroundColor: colors.surface.card,
@@ -269,19 +278,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3] + 2,
     fontSize: typography.size.bodyMd,
+    fontFamily: typography.family.medium,
     color: colors.ink[900],
+    minHeight: 48,
   },
   inputDisabled: {
     backgroundColor: colors.surface.muted,
     color: colors.ink[500],
   },
   checkboxContainer: {
-    marginTop: spacing[2],
-    gap: spacing[3],
+    marginTop: spacing[1],
+    gap: spacing[2],
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 44,
     gap: spacing[3],
   },
   checkboxBox: {
@@ -303,47 +315,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  checkboxLabel: {
-    fontSize: typography.size.body,
-    color: colors.ink[700],
-  },
   errorBox: {
     backgroundColor: '#FDEDEC',
     borderWidth: 1,
     borderColor: '#FADBD8',
     borderRadius: radius.sm,
     padding: spacing[3],
-    marginTop: spacing[2],
+    marginTop: spacing[1],
   },
   errorText: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
     lineHeight: 18,
-  },
-  btnPrimary: {
-    backgroundColor: colors.blue.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing[4],
-  },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  btnPrimaryText: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.white,
-  },
-  btnSecondary: {
-    paddingVertical: spacing[3],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnSecondaryText: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[500],
   },
 });

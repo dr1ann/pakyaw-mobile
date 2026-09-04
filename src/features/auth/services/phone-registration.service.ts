@@ -105,12 +105,17 @@ export async function createVerifiedPassengerProfile(input: {
   const trimmedFirstName = input.firstName.trim();
   const trimmedLastName = input.lastName.trim();
 
-  if (trimmedFirstName.length < 2) {
-    throw new Error('Enter your first name (at least 2 characters).');
+  if (trimmedFirstName.length === 0) {
+    throw new Error('Enter your first name.');
   }
 
-  if (trimmedLastName.length < 2) {
-    throw new Error('Enter your last name (at least 2 characters).');
+  if (trimmedLastName.length === 0) {
+    throw new Error('Enter your last name.');
+  }
+
+  const composedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
+  if (composedName.length < 2) {
+    throw new Error('Please enter a valid full name.');
   }
 
   if (!input.termsAccepted || !input.privacyAccepted) {
@@ -128,8 +133,6 @@ export async function createVerifiedPassengerProfile(input: {
     }
     throw new Error('This account already exists with a different role.');
   }
-
-  const composedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
 
   await setDoc(userRef, {
     uid: user.uid,

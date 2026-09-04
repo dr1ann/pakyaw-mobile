@@ -1,7 +1,8 @@
 /**
  * (auth)/onboarding.tsx
  *
- * Passenger Onboarding Intro — Maximum 3 concise, mobile-first intro screens.
+ * Passenger Onboarding Intro — 3 concise, mobile-first intro slides.
+ * Communicates local Ormoc mobility, ride options, and passwordless ease.
  */
 
 import { useRef, useState } from 'react';
@@ -10,13 +11,14 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -25,19 +27,19 @@ const INTRO_SLIDES = [
     id: '1',
     emoji: '🛺',
     title: 'Ride around Ormoc',
-    body: 'Find a Pakyaw ride when you need one.',
+    body: 'Book local tricycle and taxi rides on demand, right from your phone.',
   },
   {
     id: '2',
     emoji: '🧭',
     title: 'Choose how you ride',
-    body: 'Book Pakyaw, Shared, or Hop when available.',
+    body: 'Pick the right option for your trip: Pakyaw, Shared, or Hop when available.',
   },
   {
     id: '3',
     emoji: '✨',
     title: 'Ready when you are',
-    body: 'Set up your account and start booking.',
+    body: 'Sign up in seconds with just your mobile number. No passwords required.',
   },
 ];
 
@@ -66,17 +68,22 @@ export default function PassengerOnboardingScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Top Bar with Skip action */}
       <View style={styles.topBar}>
         <Pressable
           onPress={finish}
           style={styles.skipBtn}
           accessibilityRole="button"
-          accessibilityLabel="Skip intro"
+          accessibilityLabel="Skip introduction"
+          hitSlop={8}
         >
-          <Text style={styles.skipText}>Skip</Text>
+          <Text variant="body" weight="semibold" color={colors.ink[500]}>
+            Skip
+          </Text>
         </Pressable>
       </View>
 
+      {/* Slide Carousel */}
       <FlatList
         ref={listRef}
         data={INTRO_SLIDES}
@@ -93,32 +100,37 @@ export default function PassengerOnboardingScreen() {
             <View style={styles.iconCircle}>
               <Text style={styles.iconEmoji}>{item.emoji}</Text>
             </View>
-            <Text style={styles.slideTitle}>{item.title}</Text>
-            <Text style={styles.slideBody}>{item.body}</Text>
+            <Text variant="h1" align="center" style={styles.slideTitle}>
+              {item.title}
+            </Text>
+            <Text variant="body" align="center" color={colors.ink[500]} style={styles.slideBody}>
+              {item.body}
+            </Text>
           </View>
         )}
       />
 
-      {/* Pagination indicators */}
-      <View style={styles.dotsRow}>
+      {/* Pagination Indicator */}
+      <View style={styles.dotsRow} accessibilityRole="tablist">
         {INTRO_SLIDES.map((_, i) => (
           <View
             key={i}
             style={[styles.dot, i === activeIndex ? styles.dotActive : null]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: i === activeIndex }}
           />
         ))}
       </View>
 
-      {/* CTA Footer */}
+      {/* Footer CTA */}
       <View style={styles.footer}>
-        <Pressable
+        <Button
+          label={isLast ? 'Get started' : 'Continue'}
+          variant="primary"
+          size="lg"
           onPress={next}
-          style={styles.btnPrimary}
-          accessibilityRole="button"
           testID="onboarding-continue"
-        >
-          <Text style={styles.btnPrimaryText}>{isLast ? 'Get started' : 'Continue'}</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -135,13 +147,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   skipBtn: {
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[3],
-  },
-  skipText: {
-    fontSize: typography.size.body,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[500],
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing[2],
   },
   slide: {
     width: SCREEN_WIDTH,
@@ -149,12 +157,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing[8],
-    paddingBottom: spacing[10],
+    paddingBottom: spacing[8],
   },
   iconCircle: {
     width: 120,
     height: 120,
-    borderRadius: 60,
+    borderRadius: radius.pill,
     backgroundColor: colors.blue.tint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -164,31 +172,24 @@ const styles = StyleSheet.create({
     fontSize: 54,
   },
   slideTitle: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
-    textAlign: 'center',
     marginBottom: spacing[3],
-    lineHeight: typography.lineHeight.h1,
   },
   slideBody: {
-    fontSize: typography.size.bodyMd,
-    color: colors.ink[500],
-    textAlign: 'center',
+    maxWidth: 290,
     lineHeight: typography.lineHeight.body,
-    maxWidth: 280,
   },
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing[2],
-    paddingBottom: spacing[5],
+    paddingBottom: spacing[6],
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radius.pill,
     backgroundColor: colors.ink[400],
   },
   dotActive: {
@@ -198,17 +199,5 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing[6],
     paddingBottom: spacing[10],
-  },
-  btnPrimary: {
-    backgroundColor: colors.blue.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPrimaryText: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.white,
   },
 });

@@ -1,14 +1,23 @@
-import { useEffect, useState } from 'react';
+/**
+ * PhoneRegistrationForm.tsx
+ *
+ * Passenger Account Creation Flow:
+ * 1. Name + Mobile Number Entry
+ * 2. 6-digit SMS OTP Verification
+ * 3. Ready to Ride Transition
+ */
+
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
@@ -18,6 +27,8 @@ import {
 } from '@/features/auth/services/phone-registration.service';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import { resolvePassengerSession, storePassengerSessionResolution } from '@/features/auth/services/passenger-session.service';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 import type { ConfirmationResult } from '@/services/firebase/firebase';
 
 function maskMobile(mobile: string): string {
@@ -49,6 +60,11 @@ export function PhoneRegistrationForm() {
   // Success State
   const [onboardingSuccess, setOnboardingSuccess] = useState(false);
 
+  // Refs for keyboard progression
+  const lastNameRef = useRef<TextInput>(null);
+  const mobileRef = useRef<TextInput>(null);
+  const otpInputRef = useRef<TextInput>(null);
+
   // Resend cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -63,20 +79,20 @@ export function PhoneRegistrationForm() {
     setErrorMessage(null);
 
     const trimmedFirstName = firstName.trim();
-    if (trimmedFirstName.length < 2) {
-      setErrorMessage('Please enter your first name (at least 2 characters).');
+    if (trimmedFirstName.length === 0) {
+      setErrorMessage('Please enter your first name.');
       return;
     }
 
     const trimmedLastName = lastName.trim();
-    if (trimmedLastName.length < 2) {
-      setErrorMessage('Please enter your last name (at least 2 characters).');
+    if (trimmedLastName.length === 0) {
+      setErrorMessage('Please enter your last name.');
       return;
     }
 
     const normalized = normalizePhilippineMobile(mobile);
     if (!normalized) {
-      setErrorMessage('Please enter a valid Philippine mobile number (e.g., 09171234567).');
+      setErrorMessage('Please enter a valid Philippine mobile number (e.g., 0917 123 4567).');
       return;
     }
 
@@ -86,7 +102,7 @@ export function PhoneRegistrationForm() {
     }
 
     setBusy(true);
-    setLoadingText('Sending code');
+    setLoadingText('Sending code...');
 
     try {
       const confirmResult = await startPassengerPhoneVerification(mobile);
@@ -97,7 +113,7 @@ export function PhoneRegistrationForm() {
       setLoadingText(null);
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('network') || msg.includes('offline')) {
-        setErrorMessage('Network error. Check your connection and try again.');
+        setErrorMessage('Network error. Check your internet connection and try again.');
       } else if (msg.includes('too-many') || msg.includes('quota')) {
         setErrorMessage('Too many attempts. Please wait a few minutes before trying again.');
       } else {
@@ -123,7 +139,7 @@ export function PhoneRegistrationForm() {
     }
 
     setBusy(true);
-    setLoadingText('Verifying your mobile');
+    setLoadingText('Verifying mobile...');
     setErrorMessage(null);
 
     try {
@@ -146,15 +162,15 @@ export function PhoneRegistrationForm() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('invalid-verification-code') || msg.includes('invalid-code')) {
-        setErrorMessage('Invalid code. Please check the SMS and try again.');
+        setErrorMessage('That code didn’t work. Check the SMS and try again.');
       } else if (msg.includes('session-expired') || msg.includes('code-expired')) {
-        setErrorMessage('Code expired. Please request a new code.');
+        setErrorMessage('This code has expired. Please request a new one.');
       } else if (msg.includes('network') || msg.includes('offline')) {
         setErrorMessage('Network error. Check your connection and try again.');
       } else if (msg.includes('too-many')) {
         setErrorMessage('Too many attempts. Please wait a few minutes before trying again.');
       } else {
-        setErrorMessage(msg || 'Verification failed. Please try again.');
+        setErrorMessage(msg || 'Verification could not be completed. Please try again.');
       }
     } finally {
       useSessionStore.setState({ signingIn: false });
@@ -175,210 +191,241 @@ export function PhoneRegistrationForm() {
           <View style={styles.successBadge}>
             <Text style={styles.successEmoji}>🎉</Text>
           </View>
-          <Text style={styles.successTitle}>You’re ready to ride</Text>
-          <Text style={styles.successSubtitle}>Your Pakyaw account is ready.</Text>
+          <Text variant="h1" align="center" style={styles.successTitle}>
+            You’re ready to ride
+          </Text>
+          <Text variant="bodyMd" align="center" color={colors.ink[500]} style={styles.successSubtitle}>
+            Your Pakyaw account is ready.
+          </Text>
         </View>
 
-        <Pressable
-          style={styles.btnPrimary}
+        <Button
+          label="Start booking"
+          variant="primary"
+          size="lg"
           onPress={handleStartBooking}
-          accessibilityRole="button"
           testID="start-booking-btn"
-        >
-          <Text style={styles.btnPrimaryText}>Start booking</Text>
-        </Pressable>
+        />
       </View>
     );
   }
 
+  const isFormValid =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    mobile.trim().length >= 10 &&
+    termsAccepted &&
+    privacyAccepted;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          {confirmation ? 'Verify mobile number' : 'Create your account'}
-        </Text>
-        <Text style={styles.subtitle}>
-          {confirmation
-            ? `Enter the 6-digit code sent to ${maskMobile(mobile)}`
-            : 'Enter your details to get started with Pakyaw.'}
-        </Text>
-      </View>
-
-      {!confirmation ? (
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>First name</Text>
-          <TextInput
-            style={styles.input}
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="e.g. Juan"
-            placeholderTextColor={colors.ink[400]}
-            autoCapitalize="words"
-            autoCorrect={false}
-            autoComplete="given-name"
-            editable={!busy}
-            testID="registration-firstname-input"
-          />
-
-          <Text style={styles.label}>Last name</Text>
-          <TextInput
-            style={styles.input}
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="e.g. Dela Cruz"
-            placeholderTextColor={colors.ink[400]}
-            autoCapitalize="words"
-            autoCorrect={false}
-            autoComplete="family-name"
-            editable={!busy}
-            testID="registration-lastname-input"
-          />
-
-          <Text style={styles.label}>Mobile number</Text>
-          <TextInput
-            style={styles.input}
-            value={mobile}
-            onChangeText={setMobile}
-            placeholder="09171234567"
-            placeholderTextColor={colors.ink[400]}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            editable={!busy}
-            testID="passenger-mobile-input"
-          />
-
-          <View style={styles.checkboxContainer}>
-            <Pressable
-              onPress={() => setTermsAccepted((v) => !v)}
-              style={styles.checkboxRow}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: termsAccepted }}
-              testID="terms-checkbox"
-            >
-              <View style={[styles.checkboxBox, termsAccepted && styles.checkboxBoxChecked]}>
-                {termsAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
-              </View>
-              <Text style={styles.checkboxLabel}>I accept the Terms of Service</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setPrivacyAccepted((v) => !v)}
-              style={styles.checkboxRow}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: privacyAccepted }}
-              testID="privacy-checkbox"
-            >
-              <View style={[styles.checkboxBox, privacyAccepted && styles.checkboxBoxChecked]}>
-                {privacyAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
-              </View>
-              <Text style={styles.checkboxLabel}>I accept the Privacy Policy</Text>
-            </Pressable>
-          </View>
-
-          {errorMessage ? (
-            <View style={styles.errorBox} accessibilityRole="alert">
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            </View>
-          ) : null}
-
-          <Pressable
-            disabled={
-              busy ||
-              !termsAccepted ||
-              !privacyAccepted ||
-              firstName.trim().length < 2 ||
-              lastName.trim().length < 2 ||
-              mobile.trim().length < 10
-            }
-            style={[
-              styles.btnPrimary,
-              (busy ||
-                !termsAccepted ||
-                !privacyAccepted ||
-                firstName.trim().length < 2 ||
-                lastName.trim().length < 2 ||
-                mobile.trim().length < 10) &&
-                styles.btnDisabled,
-            ]}
-            onPress={sendCode}
-            accessibilityRole="button"
-            testID="send-code-btn"
-          >
-            {busy ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.white} size="small" />
-                <Text style={styles.btnPrimaryText}>{loadingText ?? 'Sending code'}</Text>
-              </View>
-            ) : (
-              <Text style={styles.btnPrimaryText}>Continue</Text>
-            )}
-          </Pressable>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Text variant="h1" style={styles.title}>
+            {confirmation ? 'Verify your mobile number' : 'Create your account'}
+          </Text>
+          <Text variant="body" color={colors.ink[500]} style={styles.subtitle}>
+            {confirmation
+              ? `We sent a 6-digit code to ${maskMobile(mobile)}`
+              : 'Your mobile number is all you need to get started.'}
+          </Text>
         </View>
-      ) : (
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>6-digit code</Text>
-          <TextInput
-            style={[styles.input, styles.otpInput]}
-            value={code}
-            onChangeText={setCode}
-            placeholder="123456"
-            placeholderTextColor={colors.ink[400]}
-            keyboardType="number-pad"
-            maxLength={6}
-            editable={!busy}
-            autoFocus
-            testID="otp-input"
-          />
 
-          <View style={styles.resendRow}>
-            {cooldown > 0 ? (
-              <Text style={styles.cooldownText}>Resend code in {cooldown}s</Text>
-            ) : (
-              <Pressable onPress={handleResend} disabled={busy} testID="resend-btn">
-                <Text style={styles.resendLink}>Resend code</Text>
+        {!confirmation ? (
+          <View style={styles.formGroup}>
+            {/* First Name */}
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>First name</Text>
+              <TextInput
+                style={styles.input}
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="e.g. Juan"
+                placeholderTextColor={colors.ink[400]}
+                autoCapitalize="words"
+                autoCorrect={false}
+                autoComplete="given-name"
+                returnKeyType="next"
+                onSubmitEditing={() => lastNameRef.current?.focus()}
+                editable={!busy}
+                testID="registration-firstname-input"
+              />
+            </View>
+
+            {/* Last Name */}
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>Last name</Text>
+              <TextInput
+                ref={lastNameRef}
+                style={styles.input}
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="e.g. Dela Cruz"
+                placeholderTextColor={colors.ink[400]}
+                autoCapitalize="words"
+                autoCorrect={false}
+                autoComplete="family-name"
+                returnKeyType="next"
+                onSubmitEditing={() => mobileRef.current?.focus()}
+                editable={!busy}
+                testID="registration-lastname-input"
+              />
+            </View>
+
+            {/* Mobile Number */}
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>Mobile number</Text>
+              <TextInput
+                ref={mobileRef}
+                style={styles.input}
+                value={mobile}
+                onChangeText={setMobile}
+                placeholder="09XX XXX XXXX"
+                placeholderTextColor={colors.ink[400]}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                returnKeyType="done"
+                editable={!busy}
+                testID="passenger-mobile-input"
+              />
+            </View>
+
+            {/* Terms & Privacy */}
+            <View style={styles.checkboxContainer}>
+              <Pressable
+                onPress={() => setTermsAccepted((v) => !v)}
+                style={styles.checkboxRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: termsAccepted }}
+                testID="terms-checkbox"
+              >
+                <View style={[styles.checkboxBox, termsAccepted && styles.checkboxBoxChecked]}>
+                  {termsAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
+                </View>
+                <Text variant="bodySmall" color={colors.ink[700]} style={styles.checkboxLabel}>
+                  I accept the Terms of Service
+                </Text>
               </Pressable>
-            )}
 
-            <Pressable
-              onPress={() => {
-                setConfirmation(null);
-                setCode('');
-                setErrorMessage(null);
-              }}
-              disabled={busy}
-            >
-              <Text style={styles.changeNumberLink}>Change number</Text>
-            </Pressable>
-          </View>
-
-          {errorMessage ? (
-            <View style={styles.errorBox} accessibilityRole="alert">
-              <Text style={styles.errorText}>{errorMessage}</Text>
+              <Pressable
+                onPress={() => setPrivacyAccepted((v) => !v)}
+                style={styles.checkboxRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: privacyAccepted }}
+                testID="privacy-checkbox"
+              >
+                <View style={[styles.checkboxBox, privacyAccepted && styles.checkboxBoxChecked]}>
+                  {privacyAccepted ? <Text style={styles.checkboxCheckmark}>✓</Text> : null}
+                </View>
+                <Text variant="bodySmall" color={colors.ink[700]} style={styles.checkboxLabel}>
+                  I accept the Privacy Policy
+                </Text>
+              </Pressable>
             </View>
-          ) : null}
 
-          <Pressable
-            disabled={busy || code.trim().length < 6}
-            style={[styles.btnPrimary, (busy || code.trim().length < 6) && styles.btnDisabled]}
-            onPress={verifyAndCreate}
-            accessibilityRole="button"
-            testID="verify-otp-btn"
-          >
-            {busy ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.white} size="small" />
-                <Text style={styles.btnPrimaryText}>{loadingText ?? 'Verifying your mobile'}</Text>
+            {errorMessage ? (
+              <View style={styles.errorBox} accessibilityRole="alert">
+                <Text variant="bodySmall" color={colors.danger} style={styles.errorText}>
+                  {errorMessage}
+                </Text>
               </View>
-            ) : (
-              <Text style={styles.btnPrimaryText}>Verify & finish</Text>
-            )}
-          </Pressable>
-        </View>
-      )}
-    </ScrollView>
+            ) : null}
+
+            <Button
+              label={busy ? (loadingText ?? 'Sending code...') : 'Continue'}
+              variant="primary"
+              size="lg"
+              disabled={busy || !isFormValid}
+              loading={busy}
+              onPress={sendCode}
+              testID="send-code-btn"
+            />
+
+            <View style={styles.linkRow}>
+              <Text variant="bodySmall" color={colors.ink[500]}>
+                {'Already have an account? '}
+              </Text>
+              <Link href="/sign-in" style={styles.link} testID="registration-signin-link">
+                Sign in
+              </Link>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.formGroup}>
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>6-digit code</Text>
+              <TextInput
+                ref={otpInputRef}
+                style={[styles.input, styles.otpInput]}
+                value={code}
+                onChangeText={setCode}
+                placeholder="123456"
+                placeholderTextColor={colors.ink[400]}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                maxLength={6}
+                editable={!busy}
+                autoFocus
+                testID="otp-input"
+              />
+            </View>
+
+            <View style={styles.resendRow}>
+              {cooldown > 0 ? (
+                <Text variant="bodySmall" color={colors.ink[400]}>
+                  Resend code in {cooldown}s
+                </Text>
+              ) : (
+                <Pressable onPress={handleResend} disabled={busy} testID="resend-btn" hitSlop={8}>
+                  <Text variant="bodySmall" weight="bold" color={colors.blue.primary}>
+                    Resend code
+                  </Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                onPress={() => {
+                  setConfirmation(null);
+                  setCode('');
+                  setErrorMessage(null);
+                }}
+                disabled={busy}
+                hitSlop={8}
+                testID="change-number-btn"
+              >
+                <Text variant="bodySmall" color={colors.ink[500]}>
+                  Change number
+                </Text>
+              </Pressable>
+            </View>
+
+            {errorMessage ? (
+              <View style={styles.errorBox} accessibilityRole="alert">
+                <Text variant="bodySmall" color={colors.danger} style={styles.errorText}>
+                  {errorMessage}
+                </Text>
+              </View>
+            ) : null}
+
+            <Button
+              label={busy ? (loadingText ?? 'Verifying...') : 'Verify and continue'}
+              variant="primary"
+              size="lg"
+              disabled={busy || code.trim().length < 6}
+              loading={busy}
+              onPress={verifyAndCreate}
+              testID="verify-otp-btn"
+            />
+          </View>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -394,26 +441,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   title: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
     marginBottom: spacing[2],
   },
   subtitle: {
-    fontSize: typography.size.body,
-    color: colors.ink[500],
     lineHeight: typography.lineHeight.body,
   },
   formGroup: {
-    gap: spacing[3],
+    gap: spacing[4],
+  },
+  fieldContainer: {
+    gap: spacing[1],
   },
   label: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
     color: colors.ink[700],
     textTransform: 'uppercase',
     letterSpacing: typography.letterSpacing.label,
-    marginTop: spacing[2],
   },
   input: {
     backgroundColor: colors.surface.card,
@@ -423,21 +466,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3] + 2,
     fontSize: typography.size.bodyMd,
+    fontFamily: typography.family.medium,
     color: colors.ink[900],
+    minHeight: 48,
   },
   otpInput: {
     letterSpacing: 8,
     fontSize: 24,
     textAlign: 'center',
-    fontWeight: typography.weight.bold,
+    fontFamily: typography.family.bold,
   },
   checkboxContainer: {
-    marginTop: spacing[2],
-    gap: spacing[3],
+    marginTop: spacing[1],
+    gap: spacing[2],
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 44,
     gap: spacing[3],
   },
   checkboxBox: {
@@ -460,8 +506,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   checkboxLabel: {
-    fontSize: typography.size.body,
-    color: colors.ink[700],
+    flex: 1,
   },
   resendRow: {
     flexDirection: 'row',
@@ -469,52 +514,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing[2],
   },
-  cooldownText: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[400],
-  },
-  resendLink: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
-    color: colors.blue.primary,
-  },
-  changeNumberLink: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-  },
   errorBox: {
     backgroundColor: '#FDEDEC',
     borderWidth: 1,
     borderColor: '#FADBD8',
     borderRadius: radius.sm,
     padding: spacing[3],
-    marginTop: spacing[2],
+    marginTop: spacing[1],
   },
   errorText: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
     lineHeight: 18,
   },
-  btnPrimary: {
-    backgroundColor: colors.blue.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing[4],
-  },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  btnPrimaryText: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.white,
-  },
-  loadingRow: {
+  linkRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing[2],
+    marginTop: spacing[3],
+  },
+  link: {
+    fontSize: typography.size.bodySmall,
+    fontFamily: typography.family.bold,
+    color: colors.blue.primary,
   },
   successContainer: {
     flex: 1,
@@ -542,15 +562,10 @@ const styles = StyleSheet.create({
     fontSize: 48,
   },
   successTitle: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
-    textAlign: 'center',
     marginBottom: spacing[2],
   },
   successSubtitle: {
-    fontSize: typography.size.bodyMd,
-    color: colors.ink[500],
-    textAlign: 'center',
+    maxWidth: 260,
   },
 });

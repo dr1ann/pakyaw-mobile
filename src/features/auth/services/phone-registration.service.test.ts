@@ -129,28 +129,28 @@ describe('phone-registration.service', () => {
       ).rejects.toThrow('Verify this mobile number before creating an account.');
     });
 
-    it('throws when first name is shorter than 2 characters', async () => {
+    it('throws when first name is empty', async () => {
       await expect(
         createVerifiedPassengerProfile({
-          firstName: 'M',
+          firstName: '  ',
           lastName: 'Santos',
           mobile: '09171234567',
           termsAccepted: true,
           privacyAccepted: true,
         }),
-      ).rejects.toThrow('Enter your first name (at least 2 characters).');
+      ).rejects.toThrow('Enter your first name.');
     });
 
-    it('throws when last name is shorter than 2 characters', async () => {
+    it('throws when last name is empty', async () => {
       await expect(
         createVerifiedPassengerProfile({
           firstName: 'Maria',
-          lastName: 'S',
+          lastName: '  ',
           mobile: '09171234567',
           termsAccepted: true,
           privacyAccepted: true,
         }),
-      ).rejects.toThrow('Enter your last name (at least 2 characters).');
+      ).rejects.toThrow('Enter your last name.');
     });
 
     it('throws when Terms or Privacy are not accepted', async () => {

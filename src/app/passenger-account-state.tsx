@@ -1,9 +1,18 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+/**
+ * passenger-account-state.tsx
+ *
+ * Screen displayed when a passenger's account is suspended or blocked.
+ * Prevents entry into the main booking experience while providing clear guidance.
+ */
+
+import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { auth, signOut } from '@/services/firebase/firebase';
 import { usePassengerSessionStore } from '@/features/auth/stores/passenger-session.store';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 
 export default function PassengerAccountStateScreen() {
   const router = useRouter();
@@ -23,11 +32,11 @@ export default function PassengerAccountStateScreen() {
           <Text style={styles.emoji}>{isBlocked ? '🚫' : '⏸️'}</Text>
         </View>
 
-        <Text style={styles.title}>
+        <Text variant="h1" align="center" style={styles.title}>
           {isBlocked ? 'Account Blocked' : 'Account Suspended'}
         </Text>
 
-        <Text style={styles.message}>
+        <Text variant="body" align="center" color={colors.ink[500]} style={styles.message}>
           {isBlocked
             ? 'Your Pakyaw account has been permanently blocked due to violations of our community guidelines. You cannot create new bookings.'
             : 'Your Pakyaw account is temporarily suspended. Please contact customer support to resolve this issue and restore your account.'}
@@ -35,14 +44,14 @@ export default function PassengerAccountStateScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Pressable
-          style={styles.btnPrimary}
+        <Button
+          label="Sign out"
+          variant="primary"
+          tone={isBlocked ? 'destructive' : 'default'}
+          size="lg"
           onPress={handleSignOut}
-          accessibilityRole="button"
           testID="account-state-sign-out-btn"
-        >
-          <Text style={styles.btnPrimaryText}>Sign out</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -65,45 +74,27 @@ const styles = StyleSheet.create({
   badge: {
     width: 90,
     height: 90,
-    borderRadius: 45,
+    borderRadius: radius.pill,
     backgroundColor: colors.amber.tint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing[6],
   },
   badgeBlocked: {
-    backgroundColor: '#FADBD8',
+    backgroundColor: colors.dangerSubtle,
   },
   emoji: {
     fontSize: 44,
   },
   title: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
-    textAlign: 'center',
     marginBottom: spacing[3],
   },
   message: {
-    fontSize: typography.size.body,
-    color: colors.ink[500],
-    textAlign: 'center',
-    lineHeight: typography.lineHeight.body,
     maxWidth: 300,
+    lineHeight: typography.lineHeight.body,
   },
   footer: {
     gap: spacing[3],
-  },
-  btnPrimary: {
-    backgroundColor: colors.ink[900],
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnPrimaryText: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.white,
   },
 });

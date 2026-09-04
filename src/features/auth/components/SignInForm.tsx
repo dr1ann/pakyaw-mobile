@@ -6,15 +6,13 @@
  * Does not create a new profile from this screen.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -28,6 +26,8 @@ import {
 } from '@/features/auth/services/phone-registration.service';
 import { storePassengerSessionResolution } from '@/features/auth/services/passenger-session.service';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { Button } from '@pakyaw/shared/components/ui/Button';
+import { Text } from '@pakyaw/shared/components/ui/Text';
 import type { ConfirmationResult } from '@/services/firebase/firebase';
 
 function maskMobile(mobile: string): string {
@@ -53,6 +53,8 @@ export function SignInForm() {
   const [accountNotFound, setAccountNotFound] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
+  const otpInputRef = useRef<TextInput>(null);
+
   // Resend cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -69,12 +71,12 @@ export function SignInForm() {
 
     const normalized = normalizePhilippineMobile(mobile);
     if (!normalized) {
-      setErrorMessage('Please enter a valid Philippine mobile number (e.g., 09171234567).');
+      setErrorMessage('Please enter a valid Philippine mobile number (e.g., 0917 123 4567).');
       return;
     }
 
     setBusy(true);
-    setLoadingText('Sending code');
+    setLoadingText('Sending code...');
 
     try {
       const confirmResult = await startPassengerPhoneVerification(mobile);
@@ -85,7 +87,7 @@ export function SignInForm() {
       setLoadingText(null);
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('network') || msg.includes('offline')) {
-        setErrorMessage('Network error. Check your connection and try again.');
+        setErrorMessage('Network error. Check your internet connection and try again.');
       } else if (msg.includes('too-many') || msg.includes('quota')) {
         setErrorMessage('Too many attempts. Please wait a few minutes before trying again.');
       } else {
@@ -111,7 +113,7 @@ export function SignInForm() {
     }
 
     setBusy(true);
-    setLoadingText('Signing in');
+    setLoadingText('Signing in...');
     setErrorMessage(null);
     setAccountNotFound(false);
 
@@ -129,22 +131,22 @@ export function SignInForm() {
         setAccountNotFound(true);
         setErrorMessage('No Pakyaw passenger account was found for this number.');
       } else if (resolution.status === 'invalid_role') {
-        setErrorMessage('This account is registered with a different role. Please use the driver sign-in screen.');
+        setErrorMessage('This account is registered as a driver. Please use the driver app to sign in.');
       } else {
         setErrorMessage('Unable to sign in. Please try again.');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('invalid-verification-code') || msg.includes('invalid-code')) {
-        setErrorMessage('Invalid code. Please check the SMS and try again.');
+        setErrorMessage('That code didn’t work. Check the SMS and try again.');
       } else if (msg.includes('session-expired') || msg.includes('code-expired')) {
-        setErrorMessage('Code expired. Please request a new code.');
+        setErrorMessage('This code has expired. Please request a new one.');
       } else if (msg.includes('network') || msg.includes('offline')) {
         setErrorMessage('Network error. Check your connection and try again.');
       } else if (msg.includes('too-many')) {
         setErrorMessage('Too many attempts. Please wait a few minutes before trying again.');
       } else {
-        setErrorMessage(msg || 'Verification failed. Please try again.');
+        setErrorMessage(msg || 'Sign in could not be completed. Please try again.');
       }
     } finally {
       useSessionStore.setState({ signingIn: false });
@@ -163,86 +165,90 @@ export function SignInForm() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title}>
-            {confirmation ? 'Enter verification code' : 'Welcome back'}
+          <Text variant="h1" style={styles.title}>
+            {confirmation ? 'Verify your number' : 'Welcome back'}
           </Text>
-          <Text style={styles.subtitle}>
+          <Text variant="body" color={colors.ink[500]} style={styles.subtitle}>
             {confirmation
-              ? `We sent a 6-digit code to\n${maskMobile(mobile)}`
-              : 'Sign in to your Pakyaw account.'}
+              ? `We sent a 6-digit code to ${maskMobile(mobile)}`
+              : 'Sign in with your registered mobile number.'}
           </Text>
         </View>
 
         {!confirmation ? (
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Mobile number</Text>
-            <TextInput
-              style={styles.input}
-              value={mobile}
-              onChangeText={setMobile}
-              placeholder="09XX XXX XXXX"
-              placeholderTextColor={colors.ink[400]}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              editable={!busy}
-              testID="signin-mobile-input"
-            />
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>Mobile number</Text>
+              <TextInput
+                style={styles.input}
+                value={mobile}
+                onChangeText={setMobile}
+                placeholder="09XX XXX XXXX"
+                placeholderTextColor={colors.ink[400]}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                editable={!busy}
+                testID="signin-mobile-input"
+              />
+            </View>
 
             {errorMessage ? (
               <View style={styles.errorBox} accessibilityRole="alert">
-                <Text style={styles.errorText}>{errorMessage}</Text>
+                <Text variant="bodySmall" color={colors.danger} style={styles.errorText}>
+                  {errorMessage}
+                </Text>
               </View>
             ) : null}
 
-            <Pressable
+            <Button
+              label={busy ? (loadingText ?? 'Sending code...') : 'Continue'}
+              variant="primary"
+              size="lg"
               disabled={busy || mobile.trim().length < 10}
-              style={[
-                styles.btnPrimary,
-                (busy || mobile.trim().length < 10) && styles.btnDisabled,
-              ]}
+              loading={busy}
               onPress={sendCode}
-              accessibilityRole="button"
               testID="signin-continue-btn"
-            >
-              {busy ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator color={colors.white} size="small" />
-                  <Text style={styles.btnPrimaryText}>{loadingText ?? 'Sending code'}</Text>
-                </View>
-              ) : (
-                <Text style={styles.btnPrimaryText}>Continue</Text>
-              )}
-            </Pressable>
+            />
 
             <View style={styles.linkRow}>
-              <Text style={styles.linkText}>{"Don't have an account? "}</Text>
+              <Text variant="bodySmall" color={colors.ink[500]}>
+                {"Don't have an account? "}
+              </Text>
               <Link href="/sign-up" style={styles.link} testID="signin-signup-link">
-                Sign up
+                Create an account
               </Link>
             </View>
           </View>
         ) : (
           <View style={styles.formGroup}>
-            <Text style={styles.label}>6-digit code</Text>
-            <TextInput
-              style={[styles.input, styles.otpInput]}
-              value={code}
-              onChangeText={setCode}
-              placeholder="_ _ _ _ _ _"
-              placeholderTextColor={colors.ink[400]}
-              keyboardType="number-pad"
-              maxLength={6}
-              editable={!busy}
-              autoFocus
-              testID="signin-otp-input"
-            />
+            <View style={styles.fieldContainer}>
+              <Text variant="label" style={styles.label}>6-digit code</Text>
+              <TextInput
+                ref={otpInputRef}
+                style={[styles.input, styles.otpInput]}
+                value={code}
+                onChangeText={setCode}
+                placeholder="123456"
+                placeholderTextColor={colors.ink[400]}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                maxLength={6}
+                editable={!busy}
+                autoFocus
+                testID="signin-otp-input"
+              />
+            </View>
 
             <View style={styles.resendRow}>
               {cooldown > 0 ? (
-                <Text style={styles.cooldownText}>Resend code in {cooldown}s</Text>
+                <Text variant="bodySmall" color={colors.ink[400]}>
+                  Resend code in {cooldown}s
+                </Text>
               ) : (
-                <Pressable onPress={handleResend} disabled={busy} testID="signin-resend-btn">
-                  <Text style={styles.resendLink}>Resend code</Text>
+                <Pressable onPress={handleResend} disabled={busy} testID="signin-resend-btn" hitSlop={8}>
+                  <Text variant="bodySmall" weight="bold" color={colors.blue.primary}>
+                    Resend code
+                  </Text>
                 </Pressable>
               )}
 
@@ -254,15 +260,20 @@ export function SignInForm() {
                   setAccountNotFound(false);
                 }}
                 disabled={busy}
+                hitSlop={8}
                 testID="signin-change-number-btn"
               >
-                <Text style={styles.changeNumberLink}>Change number</Text>
+                <Text variant="bodySmall" color={colors.ink[500]}>
+                  Change number
+                </Text>
               </Pressable>
             </View>
 
             {errorMessage ? (
               <View style={styles.errorBox} accessibilityRole="alert">
-                <Text style={styles.errorText}>{errorMessage}</Text>
+                <Text variant="bodySmall" color={colors.danger} style={styles.errorText}>
+                  {errorMessage}
+                </Text>
                 {accountNotFound ? (
                   <Link href="/sign-up" style={styles.createAccountLink} testID="not-found-signup-link">
                     Create an account
@@ -271,22 +282,15 @@ export function SignInForm() {
               </View>
             ) : null}
 
-            <Pressable
+            <Button
+              label={busy ? (loadingText ?? 'Signing in...') : 'Verify and sign in'}
+              variant="primary"
+              size="lg"
               disabled={busy || code.trim().length < 6}
-              style={[styles.btnPrimary, (busy || code.trim().length < 6) && styles.btnDisabled]}
+              loading={busy}
               onPress={verifyAndSignIn}
-              accessibilityRole="button"
               testID="signin-submit-btn"
-            >
-              {busy ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator color={colors.white} size="small" />
-                  <Text style={styles.btnPrimaryText}>{loadingText ?? 'Signing in'}</Text>
-                </View>
-              ) : (
-                <Text style={styles.btnPrimaryText}>Verify and sign in</Text>
-              )}
-            </Pressable>
+            />
           </View>
         )}
       </ScrollView>
@@ -306,26 +310,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   title: {
-    fontSize: typography.size.h1,
-    fontWeight: typography.weight.bold,
     color: colors.ink[900],
     marginBottom: spacing[2],
   },
   subtitle: {
-    fontSize: typography.size.body,
-    color: colors.ink[500],
     lineHeight: typography.lineHeight.body,
   },
   formGroup: {
-    gap: spacing[3],
+    gap: spacing[4],
+  },
+  fieldContainer: {
+    gap: spacing[1],
   },
   label: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
     color: colors.ink[700],
     textTransform: 'uppercase',
     letterSpacing: typography.letterSpacing.label,
-    marginTop: spacing[2],
   },
   input: {
     backgroundColor: colors.surface.card,
@@ -335,13 +335,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3] + 2,
     fontSize: typography.size.bodyMd,
+    fontFamily: typography.family.medium,
     color: colors.ink[900],
+    minHeight: 48,
   },
   otpInput: {
     letterSpacing: 8,
     fontSize: 24,
     textAlign: 'center',
-    fontWeight: typography.weight.bold,
+    fontFamily: typography.family.bold,
   },
   resendRow: {
     flexDirection: 'row',
@@ -349,73 +351,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing[2],
   },
-  cooldownText: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[400],
-  },
-  resendLink: {
-    fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
-    color: colors.blue.primary,
-  },
-  changeNumberLink: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
-  },
   errorBox: {
     backgroundColor: '#FDEDEC',
     borderWidth: 1,
     borderColor: '#FADBD8',
     borderRadius: radius.sm,
     padding: spacing[3],
-    marginTop: spacing[2],
+    marginTop: spacing[1],
   },
   errorText: {
-    color: colors.danger,
-    fontSize: typography.size.bodySmall,
     lineHeight: 18,
   },
   createAccountLink: {
     marginTop: spacing[2],
     color: colors.blue.primary,
     fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.bold,
+    fontFamily: typography.family.bold,
     textDecorationLine: 'underline',
-  },
-  btnPrimary: {
-    backgroundColor: colors.blue.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing[4],
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing[4],
-  },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  btnPrimaryText: {
-    fontSize: typography.size.bodyMd,
-    fontWeight: typography.weight.bold,
-    color: colors.white,
-  },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
   },
   linkRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing[4],
-  },
-  linkText: {
-    fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
+    marginTop: spacing[3],
   },
   link: {
     fontSize: typography.size.bodySmall,
-    fontWeight: typography.weight.semibold,
+    fontFamily: typography.family.bold,
     color: colors.blue.primary,
   },
 });
