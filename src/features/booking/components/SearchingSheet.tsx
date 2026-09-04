@@ -45,16 +45,6 @@ const MODE_CONFIG: Record<RideMode, ModePresentation> = {
       'We could not find an eligible Shared ride for your route right now. You can cancel and try again.',
     icon: 'person.2.fill',
   },
-  hop: {
-    badge: 'Hop · Along route',
-    title: 'Looking for an Eligible Ride',
-    subtitle:
-      'Searching for an ongoing Shared ride already heading along your corridor.',
-    timeoutTitle: 'No Eligible Ride Found',
-    timeoutSubtitle:
-      'No active Shared ride on your corridor was eligible for this Hop request. You can cancel and try a standard ride.',
-    icon: 'arrow.turn.up.right',
-  },
 };
 
 export function SearchingSheet() {

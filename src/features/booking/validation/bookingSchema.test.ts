@@ -37,7 +37,7 @@ describe('bookingSchema validation', () => {
       expect(createTripSchema.safeParse(tooFew).success).toBe(false);
     });
 
-    it.each(['private', 'hopon', 'hop_on', 'pakyaw'])('rejects legacy mode %s', (mode) => {
+    it.each(['private', 'hop', 'hopon', 'hop_on', 'pakyaw'])('rejects legacy mode %s', (mode) => {
       expect(createTripSchema.safeParse({ ...validTrip, mode }).success).toBe(false);
     });
 

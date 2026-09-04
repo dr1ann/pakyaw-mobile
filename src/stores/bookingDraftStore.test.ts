@@ -95,11 +95,6 @@ describe('bookingDraftStore', () => {
     store.setPassengerCount(2);
     expect(useBookingDraftStore.getState().draft.passengerCount).toBe(2);
 
-    // Switch to hopon -> count resets to 1 (Hop invariant)
-    store.setRideMode('hopon');
-    expect(useBookingDraftStore.getState().draft.rideMode).toBe('hopon');
-    expect(useBookingDraftStore.getState().draft.passengerCount).toBe(1);
-
     // Switch back to private
     store.setRideMode('private');
     expect(useBookingDraftStore.getState().draft.rideMode).toBe('private');

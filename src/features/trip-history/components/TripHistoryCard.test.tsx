@@ -60,7 +60,7 @@ describe('TripHistoryCard component — Phase 8 History browsing', () => {
     expect(cancelledItem.cancelReason).toBe('vehicle_issue');
   });
 
-  it('renders Shared and Hop modes correctly', () => {
+  it('renders Shared and Legacy Hop modes correctly', () => {
     const sharedItem: TripHistoryItem = {
       ...baseCompletedItem,
       mode: 'shared',

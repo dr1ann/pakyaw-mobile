@@ -144,16 +144,6 @@ export function FareQuoteBreakdown({
           <Text style={styles.totalValue}>{peso(fare.total)}</Text>
         </View>
       </View>
-
-      {/* Hop Corridor Disclaimer */}
-      {mode === 'hopon' && (
-        <View style={styles.hopNotice}>
-          <SymbolIcon name="info.circle" size={14} tintColor={colors.blue.primary} />
-          <Text style={styles.hopNoticeText}>
-            Hop availability depends on an eligible Shared ride along your route corridor.
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -277,20 +267,5 @@ const styles = StyleSheet.create({
     fontSize: typography.size.h3,
     fontWeight: typography.weight.bold,
     color: colors.ink[900],
-  },
-  hopNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing[2],
-    backgroundColor: colors.blue.tint,
-    padding: spacing[2],
-    borderRadius: radius.sm,
-    marginTop: spacing[3],
-  },
-  hopNoticeText: {
-    flex: 1,
-    fontSize: 11,
-    color: colors.blue.deep,
-    lineHeight: 16,
   },
 });

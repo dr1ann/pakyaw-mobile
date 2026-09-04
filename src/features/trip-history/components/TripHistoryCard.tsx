@@ -17,7 +17,7 @@ export function TripHistoryCard({ trip, onPress }: TripHistoryCardProps) {
   const plate = trip.driver?.plate ?? null;
   const dateStr = formatDate(trip.completedAt ?? trip.requestedAt);
 
-  const modeLabel = trip.mode === 'shared' ? 'Shared' : trip.mode === 'hop' ? 'Hop' : 'Pakyaw';
+  const modeLabel = trip.mode === 'shared' ? 'Shared' : trip.mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
 
   const distanceKm = trip.distanceMeters && trip.distanceMeters > 0
     ? `${(trip.distanceMeters / 1000).toFixed(1)} km`

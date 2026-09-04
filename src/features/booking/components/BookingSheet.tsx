@@ -42,11 +42,6 @@ const MODE_SUMMARY: Record<
     title: 'Pay Per Seat',
     description: 'Pay per seat. Other passengers along your route may share the ride.',
   },
-  hopon: {
-    badge: 'Hop',
-    title: 'Along Route',
-    description: 'Join an eligible Shared ride already heading along your route.',
-  },
 };
 
 export function BookingSheet({
@@ -86,7 +81,6 @@ export function BookingSheet({
   }
 
   const confirmButtonLabel = React.useMemo(() => {
-    if (draft.rideMode === 'hopon') return 'Book Hop';
     if (draft.rideMode === 'shared') return 'Book Shared';
     return 'Book Pakyaw';
   }, [draft.rideMode]);
@@ -111,7 +105,7 @@ export function BookingSheet({
       mode: toRideMode(draft.rideMode),
       pickup: draft.pickup!,
       destination: draft.destination!,
-      passengerCount: draft.rideMode === 'hopon' ? 1 : draft.passengerCount,
+      passengerCount: draft.passengerCount,
       route: {
         distanceMeters: draft.route.distanceMeters,
         durationSeconds: draft.route.durationSeconds,
@@ -322,20 +316,7 @@ export function BookingSheet({
         </View>
 
         {/* Rider / Seat Count Section */}
-        {draft.rideMode === 'hopon' ? (
-          <View style={styles.hopCapacityCard}>
-            <View style={styles.hopCapacityLeft}>
-              <SymbolIcon name="person.fill" size={16} tintColor={colors.blue.primary} />
-              <View>
-                <Text style={styles.rowTitle}>1 Rider</Text>
-                <Text style={styles.rowSubtitle}>
-                  Hop bookings are for single riders joining an eligible Shared ride along the route.
-                </Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.formGroup}>
+        <View style={styles.formGroup}>
             <View style={styles.formRow}>
               <View style={styles.labelContainer}>
                 <Text style={styles.rowTitle}>
@@ -378,7 +359,6 @@ export function BookingSheet({
               </View>
             </View>
           </View>
-        )}
 
         {/* Booking Ownership Section ("Who is this ride for?") */}
         <View style={styles.formGroup}>
@@ -694,19 +674,6 @@ const styles = StyleSheet.create({
     fontSize: typography.size.bodySmall,
     color: colors.ink[700],
     lineHeight: 18,
-  },
-  hopCapacityCard: {
-    backgroundColor: colors.surface.muted,
-    borderRadius: radius.md,
-    padding: spacing[3],
-    marginBottom: spacing[3],
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  hopCapacityLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing[2],
   },
   formGroup: {
     backgroundColor: colors.surface.muted,

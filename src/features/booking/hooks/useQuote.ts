@@ -13,7 +13,7 @@ export function useQuote() {
   const hasCoords = !!draft.pickup?.coords && !!draft.destination?.coords;
   const canQuote = hasCoords && isRouteValid;
 
-  const effectiveRiderCount = draft.rideMode === 'hopon' ? 1 : Math.max(1, draft.passengerCount);
+  const effectiveRiderCount = Math.max(1, draft.passengerCount);
   const payload: CreateBookingInput | null = canQuote && draft.pickup && draft.destination && currentRoute
     ? {
         mode: toRideMode(draft.rideMode),

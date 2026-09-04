@@ -22,7 +22,7 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
   const trip = useActiveTripStore((s: any) => s.trip);
 
   const mode = trip?.mode ?? 'solo';
-  const modeLabel = mode === 'shared' ? 'Shared' : mode === 'hop' ? 'Hop' : 'Pakyaw';
+  const modeLabel = mode === 'shared' ? 'Shared' : mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
 
   const fareTotal = typeof trip?.fare === 'number'
     ? trip.fare

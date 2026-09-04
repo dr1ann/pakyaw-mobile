@@ -25,14 +25,4 @@ describe('RideModeSelector component', () => {
     expect(element).toBeDefined();
     expect(element.props.selectedMode).toBe('shared');
   });
-
-  it('instantiates correctly for Hop mode', () => {
-    const onSelectMode = vi.fn();
-    const element = (
-      <RideModeSelector selectedMode="hopon" onSelectMode={onSelectMode} />
-    );
-
-    expect(element).toBeDefined();
-    expect(element.props.selectedMode).toBe('hopon');
-  });
 });

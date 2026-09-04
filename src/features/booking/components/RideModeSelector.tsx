@@ -32,13 +32,6 @@ const MODES: readonly ModeConfig[] = [
     icon: 'person.2.fill',
     accessibilityLabel: 'Shared, Pay per seat ride',
   },
-  {
-    id: 'hopon',
-    name: 'Hop',
-    subtitle: 'Along route',
-    icon: 'arrow.turn.up.right',
-    accessibilityLabel: 'Hop, Join an eligible ride along route',
-  },
 ];
 
 export function RideModeSelector({ selectedMode, onSelectMode }: RideModeSelectorProps) {

@@ -47,7 +47,7 @@ export default function TripDetailScreen() {
   const vehicleDesc = trip.driverPublic?.vehicle?.description ?? trip.driverPublic?.vehicle?.type ?? null;
   const unitBodyNumber = trip.driverPublic?.vehicle?.unitBodyNumber ?? null;
 
-  const modeLabel = trip.mode === 'shared' ? 'Shared' : trip.mode === 'hop' ? 'Hop' : 'Pakyaw';
+  const modeLabel = trip.mode === 'shared' ? 'Shared' : trip.mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
 
   const dateStr = formatDate(trip.completedAt ?? trip.requestedAt);
 

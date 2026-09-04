@@ -46,18 +46,6 @@ const MODE_CONTENT: Record<
       'Other passengers along your route corridor may share the ride.',
     ],
   },
-  hopon: {
-    title: 'Hop',
-    badge: 'Along Route',
-    icon: 'arrow.turn.up.right',
-    color: colors.blue.primary,
-    description: 'Join an eligible Shared ride that is already traveling along your corridor.',
-    points: [
-      'Available when an eligible Shared ride is already moving on your route.',
-      'Single rider booking (1 passenger).',
-      'Quick boarding along the existing trip path.',
-    ],
-  },
 };
 
 export function OnboardingModal({ mode, isVisible, onClose }: OnboardingModalProps) {

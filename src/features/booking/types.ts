@@ -9,12 +9,11 @@
 import type { Place } from '@pakyaw/shared/types/place';
 import type { RideMode, RouteSnapshot } from '@pakyaw/shared/transport/contract';
 
-export type BookingRideSelection = 'private' | 'shared' | 'hopon';
+export type BookingRideSelection = 'private' | 'shared';
 
 export const BOOKING_RIDE_MODE_MAP: Readonly<Record<BookingRideSelection, RideMode>> = {
   private: 'solo',
   shared: 'shared',
-  hopon: 'hop',
 };
 
 export function toRideMode(selection: BookingRideSelection): RideMode {

@@ -105,7 +105,7 @@ describe('CompletedSheet component — Phase 8 Passenger Completion & Receipt', 
     expect(trip?.fare).toBe(35.0);
   });
 
-  it('renders Hop completed trip with Hop mode label', () => {
+  it('renders historical Hop completed trip with Legacy Hop mode label', () => {
     useActiveTripStore.getState().setTrip({
       ...baseCompletedTrip,
       mode: 'hop',

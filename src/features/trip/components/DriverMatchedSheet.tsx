@@ -115,7 +115,6 @@ export function DriverMatchedSheet({
 
   const mode = trip?.mode ?? 'solo';
   const isShared = mode === 'shared';
-  const isHop = mode === 'hop';
 
   const driverPublic = trip?.driverPublic;
   const driverName = driverPublic?.displayName || 'Driver Assigned';
@@ -136,13 +135,12 @@ export function DriverMatchedSheet({
 
   // Shared occupancy calculations
   const sharedRideSummary = trip?.sharedRideSummary;
-  const isSharedOrHop = isShared || isHop;
-  const maxSeats = isSharedOrHop
+  const maxSeats = isShared
     ? (sharedRideSummary?.maxSeats ?? 6)
     : Math.max(trip?.passengerCount || 0, trip?.billedSeats || 0, 4);
 
-  const userSeats = isHop ? 1 : (trip?.passengerCount || 1);
-  const seatsOccupied = isSharedOrHop
+  const userSeats = trip?.passengerCount || 1;
+  const seatsOccupied = isShared
     ? (sharedRideSummary?.seatsOccupied ?? userSeats)
     : userSeats;
 
@@ -166,10 +164,10 @@ export function DriverMatchedSheet({
     });
   }
 
-  const modeBadgeText = isHop
-    ? 'Hop'
-    : isShared
+  const modeBadgeText = isShared
     ? 'Shared'
+    : mode === 'hop'
+    ? 'Legacy Hop'
     : 'Pakyaw';
 
   return (

@@ -95,23 +95,10 @@ describe('SearchingSheet component', () => {
     expect(useActiveTripStore.getState().trip?.mode).toBe('shared');
   });
 
-  it('renders Hop requested state with truthful along-route copy and no radar terms', () => {
-    useActiveTripStore.getState().setTrip({
-      ...baseTrip,
-      mode: 'hop',
-      passengerCount: 1,
-      billedSeats: 1,
-    });
-
-    const element = <SearchingSheet />;
-    expect(element).toBeDefined();
-    expect(useActiveTripStore.getState().trip?.mode).toBe('hop');
-  });
-
   it('renders timed out state when matching stage is timed_out', () => {
     useActiveTripStore.getState().setTrip({
       ...baseTrip,
-      mode: 'hop',
+      mode: 'shared',
       matching: {
         stage: 'timed_out',
       },

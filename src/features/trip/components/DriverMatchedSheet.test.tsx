@@ -202,26 +202,6 @@ describe('DriverMatchedSheet component — Phase 7 Active Trip Experience', () =
     expect(state?.sharedRideSummary?.maxSeats).toBe(6);
   });
 
-  it('renders Hop accepted state with 1 seat and route corridor context', () => {
-    useActiveTripStore.getState().setTrip({
-      ...baseAcceptedTrip,
-      mode: 'hop',
-      passengerCount: 1,
-      billedSeats: 1,
-      sharedRideSummary: {
-        seatsOccupied: 3,
-        maxSeats: 6,
-        passengerGroups: 2,
-      },
-    });
-
-    const element = <DriverMatchedSheet />;
-    expect(element).toBeDefined();
-
-    const state = useActiveTripStore.getState().trip;
-    expect(state?.mode).toBe('hop');
-  });
-
   it('renders self-booking privacy disclosure when bookingFor is self or omitted', () => {
     useActiveTripStore.getState().setTrip({
       ...baseAcceptedTrip,
