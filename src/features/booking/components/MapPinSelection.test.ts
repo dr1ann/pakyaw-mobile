@@ -16,7 +16,8 @@ function isSameCoordinate(
   return Math.abs(latA - latB) < 1e-6 && Math.abs(lngA - lngB) < 1e-6;
 }
 
-type SearchMode = 'pickup' | 'destination' | 'pin_pickup' | 'pin_destination' | null;
+type SearchMode = 'pickup' | 'destination' | null;
+type PinTarget = 'pickup' | 'destination' | null;
 
 describe('Map Pin Selection State Machine & Regression Tests', () => {
   beforeEach(() => {
@@ -34,6 +35,7 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
 
     // Enter pin mode with initial target coords
     let searchMode: SearchMode = 'pickup';
+    let pinTarget: PinTarget = null;
     let pinSelection: Place | null = null;
 
     // Trigger onChooseOnMap
@@ -43,7 +45,8 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
       address: 'Ormoc City, Leyte',
       coords: pinCoords,
     };
-    searchMode = 'pin_destination';
+    pinTarget = 'destination';
+    searchMode = null;
 
     // Verify booking draft destination is NOT mutated yet
     expect(useBookingDraftStore.getState().draft.destination).toBeNull();
@@ -55,7 +58,8 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
       address: 'Ormoc City, Leyte',
       coords: pinCoords,
     });
-    expect(searchMode).toBe('pin_destination');
+    expect(searchMode).toBeNull();
+    expect(pinTarget).toBe('destination');
   });
 
   it('updates pinSelection immediately on map pan/drag with truthful fallback label', () => {
@@ -164,7 +168,8 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
   });
 
   it('canceling pin selection discards temporary state and returns cleanly to search mode', () => {
-    let searchMode: SearchMode = 'pin_destination' as SearchMode;
+    let searchMode: SearchMode = null;
+    let pinTarget: PinTarget = 'destination';
     let pinSelection: Place | null = {
       coords: { lat: 11.010, lng: 124.610 },
       label: 'Pinned location',
@@ -172,17 +177,20 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
     };
 
     // Cancel action
-    const isPickup = (searchMode as SearchMode) === 'pin_pickup';
+    const target = pinTarget;
     pinSelection = null;
-    searchMode = isPickup ? 'pickup' : 'destination';
+    pinTarget = null;
+    searchMode = target;
 
     expect(pinSelection).toBeNull();
+    expect(pinTarget).toBeNull();
     expect(searchMode).toBe('destination');
     expect(useBookingDraftStore.getState().draft.destination).toBeNull();
   });
 
   it('confirming pin selection commits exact coordinates and resolved label to bookingDraftStore', () => {
-    let searchMode: SearchMode = 'pin_pickup' as SearchMode;
+    let searchMode: SearchMode = null;
+    let pinTarget: PinTarget = 'pickup';
     let pinSelection: Place | null = {
       coords: { lat: 11.006, lng: 124.608 },
       label: 'Camp Downes Elementary School',
@@ -190,7 +198,7 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
     };
 
     // Confirm action
-    const isPickup = (searchMode as SearchMode) === 'pin_pickup';
+    const isPickup = pinTarget === 'pickup';
     const placeToSave = pinSelection;
     if (isPickup) {
       useBookingDraftStore.getState().setPickup(placeToSave!);
@@ -198,9 +206,11 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
       useBookingDraftStore.getState().setDestination(placeToSave!);
     }
     pinSelection = null;
+    pinTarget = null;
     searchMode = null;
 
     expect(searchMode).toBeNull();
+    expect(pinTarget).toBeNull();
     expect(pinSelection).toBeNull();
     expect(useBookingDraftStore.getState().draft.pickup).toEqual({
       coords: { lat: 11.006, lng: 124.608 },
@@ -209,22 +219,24 @@ describe('Map Pin Selection State Machine & Regression Tests', () => {
     });
   });
 
-  it('guards Modal onRequestClose against resetting searchMode when transitioning to pin mode (regression test for blank screen)', () => {
-    let searchMode: SearchMode = 'destination' as SearchMode;
+  it('keeps destination pin mode rendered after the search overlay closes (regression test for blank sheet)', () => {
+    let searchMode: SearchMode = 'destination';
+    let pinTarget: PinTarget = null;
+    let pinSelection: Place | null = null;
 
     // Transition to choose on map
-    searchMode = 'pin_destination';
-
-    // Modal unmounts in React Native, triggering onRequestClose
-    const handleModalRequestClose = () => {
-      if ((searchMode as SearchMode) === 'pickup' || (searchMode as SearchMode) === 'destination') {
-        searchMode = null;
-      }
+    pinSelection = {
+      coords: { lat: 11.006, lng: 124.608 },
+      label: 'Pinned location',
+      address: 'Ormoc City, Leyte',
     };
+    pinTarget = 'destination';
+    searchMode = null;
 
-    handleModalRequestClose();
-
-    // searchMode must NOT have been reset to null
-    expect(searchMode).toBe('pin_destination');
+    // Pin rendering no longer depends on the search overlay's state.
+    const isPinMode = pinTarget !== null && pinSelection !== null;
+    expect(searchMode).toBeNull();
+    expect(pinTarget).toBe('destination');
+    expect(isPinMode).toBe(true);
   });
 });

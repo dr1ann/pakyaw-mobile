@@ -83,7 +83,8 @@ export default function RideScreen() {
   const setRoute = useBookingDraftStore((s) => s.setRoute);
 
   const { uid } = useSession();
-  const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | 'pin_pickup' | 'pin_destination' | null>(null);
+  const [searchMode, setSearchMode] = useState<'pickup' | 'destination' | null>(null);
+  const [pinTarget, setPinTarget] = useState<'pickup' | 'destination' | null>(null);
   const [pinSelection, setPinSelection] = useState<Place | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [pickupDragKey, setPickupDragKey] = useState(0);
@@ -247,7 +248,7 @@ export default function RideScreen() {
     driverDistanceFromPickup,
   ]);
 
-  const isPinMode = searchMode === 'pin_pickup' || searchMode === 'pin_destination';
+  const isPinMode = pinTarget !== null && pinSelection !== null;
 
   const cameraController = useRideCameraController(mapRef, {
     pickupLocation: isPinMode ? null : mapData.pickupLocation,
@@ -407,7 +408,7 @@ export default function RideScreen() {
   };
 
   const handleMapRegionChangeComplete = (region: { latitude: number; longitude: number }) => {
-    if (searchMode === 'pin_pickup' || searchMode === 'pin_destination') {
+    if (isPinMode) {
       const newCoords = { lat: region.latitude, lng: region.longitude };
       // Immediate coordinate update with truthful generic label while moving
       setPinSelection({
@@ -444,7 +445,7 @@ export default function RideScreen() {
   };
 
   const handleConfirmPinning = () => {
-    const isPickup = searchMode === 'pin_pickup';
+    const isPickup = pinTarget === 'pickup';
     const placeToSave = pinSelection || (isPickup ? draft.pickup : draft.destination);
 
     if (!placeToSave || !placeToSave.coords) {
@@ -467,18 +468,16 @@ export default function RideScreen() {
       setIsMinimized(false);
     }
     setPinSelection(null);
+    setPinTarget(null);
     setSearchMode(null);
   };
 
   const handleCancelPinning = useCallback(() => {
-    const isPickup = searchMode === 'pin_pickup';
+    const target = pinTarget;
     setPinSelection(null);
-    if (isPickup) {
-      setSearchMode('pickup');
-    } else {
-      setSearchMode('destination');
-    }
-  }, [searchMode]);
+    setPinTarget(null);
+    setSearchMode(target);
+  }, [pinTarget]);
 
   function handleDismissTerminal() {
     useBookingDraftStore.getState().reset();
@@ -535,7 +534,7 @@ export default function RideScreen() {
 
   useEffect(() => {
     const onBackPress = () => {
-      if (searchMode === 'pin_pickup' || searchMode === 'pin_destination') {
+      if (isPinMode) {
         handleCancelPinning();
         return true;
       }
@@ -553,9 +552,9 @@ export default function RideScreen() {
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [searchMode, draft.destination, tripId, setDestination, setRoute, handleCancelPinning]);
+  }, [isPinMode, searchMode, draft.destination, tripId, setDestination, setRoute, handleCancelPinning]);
 
-  const activePinPlace = pinSelection || (searchMode === 'pin_pickup' ? draft.pickup : draft.destination);
+  const activePinPlace = pinSelection;
   const isPinOutsideServiceArea = Boolean(activePinPlace?.coords && !isInServiceArea(activePinPlace.coords));
 
   return (
@@ -600,13 +599,13 @@ export default function RideScreen() {
         <View style={styles.centerPinContainer} pointerEvents="none">
           <View style={styles.centerPinBubble}>
             <Text style={styles.centerPinBubbleText} numberOfLines={1}>
-              {activePinPlace?.label || (searchMode === 'pin_pickup' ? 'Set Pickup' : 'Set Destination')}
+              {activePinPlace?.label || (pinTarget === 'pickup' ? 'Set Pickup' : 'Set Destination')}
             </Text>
           </View>
           <SymbolIcon
             name="mappin"
             size={40}
-            tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary}
+            tintColor={pinTarget === 'pickup' ? colors.blue.primary : colors.amber.primary}
           />
         </View>
       )}
@@ -623,14 +622,13 @@ export default function RideScreen() {
                 onClose={() => setSearchMode(null)}
                 onChooseOnMap={(coords) => {
                   const isPickup = searchMode === 'pickup';
-                  const targetMode = isPickup ? 'pin_pickup' : 'pin_destination';
-
                   setPinSelection({
                     label: 'Pinned location',
                     address: 'Ormoc City, Leyte',
                     coords,
                   });
-                  setSearchMode(targetMode);
+                  setPinTarget(isPickup ? 'pickup' : 'destination');
+                  setSearchMode(null);
                   setIsMinimized(false);
 
                   setIsGeocoding(true);
@@ -670,12 +668,12 @@ export default function RideScreen() {
             <View style={[styles.pinConfirmCard, shadow.float]}>
               <View style={styles.pinHeaderRow}>
                 <SymbolIcon
-                  name={searchMode === 'pin_pickup' ? 'mappin.circle.fill' : 'flag.fill'}
+                  name={pinTarget === 'pickup' ? 'mappin.circle.fill' : 'flag.fill'}
                   size={20}
-                  tintColor={searchMode === 'pin_pickup' ? colors.blue.primary : colors.amber.primary}
+                  tintColor={pinTarget === 'pickup' ? colors.blue.primary : colors.amber.primary}
                 />
                 <Text style={styles.pinTitle}>
-                  {searchMode === 'pin_pickup' ? 'Set Pickup Location' : 'Set Destination Location'}
+                  {pinTarget === 'pickup' ? 'Set Pickup Location' : 'Set Destination Location'}
                 </Text>
               </View>
 
