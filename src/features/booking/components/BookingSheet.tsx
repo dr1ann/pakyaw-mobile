@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator, Alert } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { useCreateBooking } from '@/features/booking/hooks/useCreateBooking';
 import { useBookingDraftStore, routeMatchesInputs } from '@/stores/bookingDraftStore';
+import { useLocationStore } from '@/stores/locationStore';
+import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { PICKUP_DISTANCE_WARNING_THRESHOLD_METERS } from '@/lib/serviceArea';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { RideModeSelector } from './RideModeSelector';
 import { OnboardingModal } from './OnboardingModal';
@@ -108,6 +111,45 @@ export function BookingSheet({
       },
       displayedFare: quote?.fare.total ?? null,
     };
+
+    const deviceLocation = useLocationStore.getState().location;
+    let pickupDistanceMeters: number | null = null;
+    if (deviceLocation && draft.pickup.coords) {
+      pickupDistanceMeters = haversineMeters(
+        { lat: deviceLocation.latitude, lng: deviceLocation.longitude },
+        draft.pickup.coords
+      );
+    }
+
+    if (pickupDistanceMeters != null && pickupDistanceMeters >= PICKUP_DISTANCE_WARNING_THRESHOLD_METERS) {
+      const formattedDistance = pickupDistanceMeters >= 1000
+        ? `${(pickupDistanceMeters / 1000).toFixed(1)} km`
+        : `${Math.round(pickupDistanceMeters)} m`;
+
+      Alert.alert(
+        'Confirm Pickup Location',
+        `This pickup is ${formattedDistance} from your current location. Is this where you want the Driver to meet you?`,
+        [
+          {
+            text: 'Change Pickup',
+            style: 'cancel',
+            onPress: () => {
+              if (onSearchPickup) {
+                onSearchPickup();
+              }
+            },
+          },
+          {
+            text: 'Continue',
+            onPress: () => {
+              logger.info('[BookingSheet] Submitting trip booking request after distance confirmation', payload);
+              mutate(payload);
+            },
+          },
+        ]
+      );
+      return;
+    }
 
     logger.info('[BookingSheet] Submitting trip booking request', payload);
     mutate(payload);

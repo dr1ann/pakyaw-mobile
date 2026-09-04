@@ -241,6 +241,14 @@ export function DriverMatchedSheet() {
         </View>
       </View>
 
+      {/* Privacy Transparency Notice */}
+      <View style={styles.privacyNoticeCard}>
+        <SymbolIcon name="location.fill" size={14} tintColor={colors.blue.primary} />
+        <Text style={styles.privacyNoticeText}>
+          Your live location is shared with your assigned Driver until pickup to help them find you.
+        </Text>
+      </View>
+
       {/* Cancellation Error Banner */}
       {isError && (
         <View style={styles.errorBanner}>
@@ -563,6 +571,23 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.medium,
     color: colors.ink[900],
     marginTop: 2,
+  },
+  privacyNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    backgroundColor: colors.blue.tint,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    marginBottom: spacing[3],
+  },
+  privacyNoticeText: {
+    flex: 1,
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.medium,
+    color: colors.blue.primary,
+    lineHeight: 16,
   },
   errorBanner: {
     flexDirection: 'row',

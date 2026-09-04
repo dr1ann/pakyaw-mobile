@@ -6,7 +6,7 @@ export class ServiceAreaError extends Error {
   readonly placeLabel: string;
 
   constructor(placeLabel: string) {
-    super(`Location "${placeLabel}" is outside the Ormoc City service area.`);
+    super('Pakyaw currently accepts pickup and destination points within Ormoc City.');
     this.name = 'ServiceAreaError';
     this.placeLabel = placeLabel;
     
@@ -17,6 +17,7 @@ export class ServiceAreaError extends Error {
 
 export const MIN_ROUTE_DISTANCE_METERS = 50;
 export const MAX_ROUTE_DISTANCE_METERS = 60_000;
+export const PICKUP_DISTANCE_WARNING_THRESHOLD_METERS = 1000;
 
 export function isRouteDistanceTooShort(meters: number): boolean {
   return meters < MIN_ROUTE_DISTANCE_METERS;

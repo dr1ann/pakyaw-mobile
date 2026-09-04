@@ -9,7 +9,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
-import { colors, spacing, typography } from '@/constants/theme';
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import { colors, spacing, typography, radius } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
@@ -34,6 +35,12 @@ export function ArrivedSheet() {
       <Text style={styles.subtitle}>
         Head to your pickup location. Your driver is waiting for you.
       </Text>
+      <View style={styles.privacyNoticeCard}>
+        <SymbolIcon name="location.fill" size={14} tintColor={colors.blue.primary} />
+        <Text style={styles.privacyNoticeText}>
+          Your live location is shared with your assigned Driver until pickup to help them find you.
+        </Text>
+      </View>
       <Button
         label="Cancel ride"
         onPress={handleCancel}
@@ -62,5 +69,21 @@ const styles = StyleSheet.create({
     fontSize: typography.size.body,
     color: colors.ink[500],
     lineHeight: typography.lineHeight.body,
+  },
+  privacyNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    backgroundColor: colors.blue.tint,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  privacyNoticeText: {
+    flex: 1,
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.medium,
+    color: colors.blue.primary,
+    lineHeight: 16,
   },
 });
