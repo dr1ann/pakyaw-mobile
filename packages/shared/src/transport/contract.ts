@@ -227,6 +227,21 @@ export type SharedRideMember = {
   status: SharedRideMemberStatus;
 };
 
+export type SharedRideOperationalStop = {
+  readonly id: string;
+  readonly tripId: string;
+  readonly kind: 'pickup' | 'dropoff';
+  readonly place: Place;
+  readonly status: 'pending' | 'completed' | 'cancelled';
+};
+
+export type SharedRideOperational = {
+  readonly stopOrder: readonly string[];
+  readonly currentStopId: string | null;
+  readonly nextStopId: string | null;
+  readonly stops: readonly SharedRideOperationalStop[];
+};
+
 export type SharedRideSummary = {
   seatsOccupied: number;
   maxSeats: number;
@@ -243,6 +258,7 @@ export type SharedRide = {
 
   tripIds: string[];
   members: SharedRideMember[];
+  operational?: SharedRideOperational | null;
 
   route: RouteSnapshot;
 

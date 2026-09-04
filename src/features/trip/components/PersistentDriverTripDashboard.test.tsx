@@ -553,4 +553,346 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       expect(useActiveTripStore.getState().trip).toBeNull();
     });
   });
+
+  describe('Phase 13 Shared / Hop Multi-Passenger Operational Workspace', () => {
+    const tripMaria: TripDoc = {
+      ...sampleTrip,
+      id: 'trip-maria',
+      mode: 'shared',
+      status: 'accepted',
+      passengerCount: 2,
+      billedSeats: 2,
+      rider: {
+        firstName: 'Maria',
+      },
+      pickup: {
+        label: 'Robinsons Place Ormoc',
+        coords: { lat: 11.018, lng: 124.618 },
+      },
+      destination: {
+        label: 'Ormoc Port',
+        coords: { lat: 11.002, lng: 124.605 },
+      },
+      pickupNote: 'Waiting beside the main entrance',
+      bookingFor: 'self',
+    };
+
+    const tripAna: TripDoc = {
+      ...sampleTrip,
+      id: 'trip-ana',
+      mode: 'shared',
+      status: 'in_progress',
+      passengerCount: 1,
+      billedSeats: 1,
+      rider: {
+        firstName: 'Ana',
+      },
+      pickup: {
+        label: 'Ormoc City Hall',
+        coords: { lat: 11.005, lng: 124.6075 },
+      },
+      destination: {
+        label: 'Ormoc Port',
+        coords: { lat: 11.002, lng: 124.605 },
+      },
+      bookingFor: 'self',
+    };
+
+    const tripCarloHop: TripDoc = {
+      ...sampleTrip,
+      id: 'trip-carlo',
+      mode: 'hop',
+      status: 'accepted',
+      passengerCount: 1,
+      billedSeats: 1,
+      rider: {
+        firstName: 'Carlo',
+      },
+      bookingFor: 'other',
+      pickup: {
+        label: 'Ormoc Doctor Hospital',
+        coords: { lat: 11.012, lng: 124.61 },
+      },
+      destination: {
+        label: 'SM Center Ormoc',
+        coords: { lat: 11.009, lng: 124.608 },
+      },
+    };
+
+    const sharedRideSample = {
+      id: 'shared-ride-001',
+      driverId: 'driver-001',
+      status: 'active' as const,
+      maxSeats: 4,
+      seatsBooked: 3,
+      seatsReserved: 3,
+      totalPassengersCount: 3,
+      routePolyline: '',
+      routeOrigin: { lat: 11.005, lng: 124.6075 },
+      routeDestination: { lat: 11.002, lng: 124.605 },
+      routeGeohash: '',
+      routeHeadingDeg: 0,
+      corridorThresholdMeters: 0,
+      tripIds: ['trip-maria', 'trip-ana', 'trip-carlo'],
+      members: [
+        {
+          tripId: 'trip-ana',
+          passengerId: 'p-ana',
+          seats: 1,
+          pickup: { latitude: 11.005, longitude: 124.6075, label: 'Ormoc City Hall' },
+          destination: { latitude: 11.002, longitude: 124.605, label: 'Ormoc Port' },
+          mode: 'shared' as const,
+          status: 'onboard' as const,
+        },
+        {
+          tripId: 'trip-maria',
+          passengerId: 'p-maria',
+          seats: 2,
+          pickup: { latitude: 11.018, longitude: 124.618, label: 'Robinsons Place Ormoc' },
+          destination: { latitude: 11.002, longitude: 124.605, label: 'Ormoc Port' },
+          mode: 'shared' as const,
+          status: 'waiting_pickup' as const,
+        },
+        {
+          tripId: 'trip-carlo',
+          passengerId: 'p-carlo',
+          seats: 1,
+          pickup: { latitude: 11.012, longitude: 124.61, label: 'Ormoc Doctor Hospital' },
+          destination: { latitude: 11.009, longitude: 124.608, label: 'SM Center Ormoc' },
+          mode: 'hop' as const,
+          status: 'reserved' as const,
+        },
+      ],
+      operational: {
+        stopOrder: ['trip-maria:pickup', 'trip-ana:dropoff', 'trip-carlo:pickup'],
+        currentStopId: 'trip-maria:pickup',
+        nextStopId: 'trip-ana:dropoff',
+        stops: [
+          {
+            id: 'trip-maria:pickup',
+            tripId: 'trip-maria',
+            kind: 'pickup' as const,
+            place: { latitude: 11.018, longitude: 124.618, label: 'Robinsons Place Ormoc' },
+            status: 'pending' as const,
+          },
+          {
+            id: 'trip-ana:dropoff',
+            tripId: 'trip-ana',
+            kind: 'dropoff' as const,
+            place: { latitude: 11.002, longitude: 124.605, label: 'Ormoc Port' },
+            status: 'pending' as const,
+          },
+        ],
+      },
+      passengers: [],
+      createdAt: { toMillis: () => 1725500000000 } as any,
+      completedAt: null,
+    };
+
+    it('renders current pickup stop with dominant UI, rider name, seat count, and pickup note', () => {
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-maria': tripMaria,
+          'trip-ana': tripAna,
+          'trip-carlo': tripCarloHop,
+        },
+        currentStop: sharedRideSample.operational.stops[0],
+        nextStop: sharedRideSample.operational.stops[1],
+        currentTrip: tripMaria,
+        nextTrip: tripAna,
+        occupancy: {
+          seatsReserved: 3,
+          maxSeats: 4,
+          onboardCount: 1,
+          waitingCount: 2,
+        },
+      });
+      const json = JSON.stringify(tree);
+
+      // Current stop dominates
+      expect(json).toContain('CURRENT STOP');
+      expect(json).toContain('Pick up Maria');
+      expect(json).toContain('Robinsons Place Ormoc');
+      expect(json).toContain('2 seats');
+      expect(json).toContain('Shared');
+      expect(json).toContain('Waiting beside the main entrance');
+      expect(json).toContain('Head to Pickup');
+
+      // Occupancy strip
+      expect(json).toContain('3 / 4');
+      expect(json).toContain('seats reserved');
+      expect(json).toContain('1');
+      expect(json).toContain('onboard');
+
+      // Next stop context
+      expect(json).toContain('NEXT');
+      expect(json).toContain('Drop off Ana');
+      expect(json).toContain('Ormoc Port');
+
+      // Passenger member list with Shared and Hop distinction
+      expect(json).toContain('PASSENGERS (3)');
+      expect(json).toContain('Ana');
+      expect(json).toContain('Maria');
+      expect(json).toContain('Carlo');
+      expect(json).toContain('Hop');
+    });
+
+    it('renders third-party traveller with rider.firstName and "Booked for someone else" indicator', () => {
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-maria': tripMaria,
+          'trip-ana': tripAna,
+          'trip-carlo': tripCarloHop,
+        },
+        currentStop: {
+          id: 'trip-carlo:pickup',
+          tripId: 'trip-carlo',
+          kind: 'pickup',
+          place: { latitude: 11.012, longitude: 124.61, label: 'Ormoc Doctor Hospital' },
+          status: 'pending',
+        },
+        nextStop: null,
+        currentTrip: tripCarloHop,
+        nextTrip: null,
+        occupancy: {
+          seatsReserved: 3,
+          maxSeats: 4,
+          onboardCount: 1,
+          waitingCount: 2,
+        },
+      });
+      const json = JSON.stringify(tree);
+
+      expect(json).toContain('Pick up Carlo');
+      expect(json).toContain('Booked for someone else');
+      expect(json).toContain('Hop');
+      expect(json).toContain('1 seat');
+    });
+
+    it('renders safe fallback "Rider" when historical trip lacks rider profile without querying users collection', () => {
+      const historicalTrip: TripDoc = {
+        ...sampleTrip,
+        id: 'trip-historical',
+        rider: null,
+      };
+
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-historical': historicalTrip,
+        },
+        currentStop: {
+          id: 'trip-historical:pickup',
+          tripId: 'trip-historical',
+          kind: 'pickup',
+          place: { latitude: 11.005, longitude: 124.6075, label: 'Ormoc City Hall' },
+          status: 'pending',
+        },
+        nextStop: null,
+        currentTrip: historicalTrip,
+        nextTrip: null,
+        occupancy: {
+          seatsReserved: 1,
+          maxSeats: 4,
+          onboardCount: 0,
+          waitingCount: 1,
+        },
+      });
+      const json = JSON.stringify(tree);
+
+      expect(json).toContain('Pick up Rider');
+    });
+
+    it('renders waiting state when currentStop is null without inventing a stop', () => {
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-maria': tripMaria,
+        },
+        currentStop: null,
+        nextStop: null,
+        currentTrip: null,
+        nextTrip: null,
+        occupancy: {
+          seatsReserved: 2,
+          maxSeats: 4,
+          onboardCount: 0,
+          waitingCount: 2,
+        },
+      });
+      const json = JSON.stringify(tree);
+
+      expect(json).toContain('SHARED RIDE IN PROGRESS');
+      expect(json).toContain('Awaiting next passenger stop');
+    });
+
+    it('executes lifecycle transitions for current stop trip via callable transitionTrip', () => {
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-maria': tripMaria,
+        },
+        currentStop: sharedRideSample.operational.stops[0],
+        nextStop: null,
+        currentTrip: tripMaria,
+        nextTrip: null,
+        occupancy: {
+          seatsReserved: 2,
+          maxSeats: 4,
+          onboardCount: 0,
+          waitingCount: 2,
+        },
+      });
+
+      const primaryBtn = findElementByTestId(tree, 'driver-primary-action-btn');
+      primaryBtn.props.onPress();
+
+      expect(mockTransition).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tripId: 'trip-maria',
+          status: 'driver_arriving',
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('cancels current stop trip with canonical reason when driver cancels in Shared session', () => {
+      const tree = PersistentDriverTripDashboard({
+        trip: null,
+        sharedRide: sharedRideSample,
+        memberTrips: {
+          'trip-maria': tripMaria,
+        },
+        currentStop: sharedRideSample.operational.stops[0],
+        nextStop: null,
+        currentTrip: tripMaria,
+        nextTrip: null,
+        occupancy: {
+          seatsReserved: 2,
+          maxSeats: 4,
+          onboardCount: 0,
+          waitingCount: 2,
+        },
+      });
+
+      const confirmCancelBtn = findElementByTestId(tree, 'confirm-cancel-trip-btn');
+      confirmCancelBtn.props.onPress();
+
+      expect(mockCancelTrip).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tripId: 'trip-maria',
+          by: 'driver',
+          reason: 'unable_to_locate_passenger',
+        }),
+        expect.any(Object)
+      );
+    });
+  });
 });

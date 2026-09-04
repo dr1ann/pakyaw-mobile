@@ -122,7 +122,16 @@ export default function DriveScreen() {
   // Phase 8E: subscribe to active trip document.
   useActiveTrip();
 
-  const { sharedRide, sharedRideId } = useSharedRideSession();
+  const {
+    sharedRide,
+    sharedRideId,
+    memberTrips,
+    currentStop,
+    nextStop,
+    currentTrip,
+    nextTrip,
+    occupancy,
+  } = useSharedRideSession();
 
   const [boardingToastVisible, setBoardingToastVisible] = useState(false);
   const [lastPassengerCount, setLastPassengerCount] = useState(0);
@@ -136,7 +145,22 @@ export default function DriveScreen() {
     setLastPassengerCount(passengerCount);
   }
 
+  const operationalStops = sharedRide?.operational?.stops;
   const passengerStops = useMemo<MapPassengerStop[]>(() => {
+    if (operationalStops && operationalStops.length > 0) {
+      return operationalStops
+        .filter((s) => s.status !== 'completed' && s.status !== 'cancelled')
+        .map((s) => {
+          const tripForStop = memberTrips[s.tripId];
+          const riderName = tripForStop?.rider?.firstName || 'Rider';
+          return {
+            id: s.id,
+            type: s.kind === 'pickup' ? 'pickup' : 'destination',
+            passengerName: riderName,
+            location: { latitude: s.place.latitude, longitude: s.place.longitude },
+          };
+        });
+    }
     if (!sharedRidePassengers) return [];
     const stops: MapPassengerStop[] = [];
     sharedRidePassengers.forEach((p, idx) => {
@@ -158,7 +182,7 @@ export default function DriveScreen() {
       }
     });
     return stops;
-  }, [sharedRidePassengers]);
+  }, [operationalStops, memberTrips, sharedRidePassengers]);
 
   const navHeading = useActiveTripStore((s) => s.navHeading);
   const arrowRotation = useActiveTripStore((s) => s.arrowRotation);
@@ -182,29 +206,31 @@ export default function DriveScreen() {
   const optimisticNavEngaged = useActiveTripStore((s) => s.optimisticNavEngaged);
   const gpsSpeed = useActiveTripStore((s) => s.gpsSpeed);
 
+  const activeNavTrip = (sharedRideId && currentTrip) ? currentTrip : trip;
+
   // Fetch driver navigation route leg/polyline locally
   const {
     data: driverRouteData,
     isRerouting,
     refetch: refetchDriverRoute,
-  } = useDriverRouteQuery(trip?.id ?? null);
+  } = useDriverRouteQuery(activeNavTrip?.id ?? null);
 
   // Calculate local maneuver progression
   const progressStats = useManeuverProgress(driverRouteData ?? null, driverLocation);
   const canPublishProgress = driverRouteData != null && driverLocation != null;
   useTripProgressPublisher({
-    tripId: trip?.id ?? null,
-    status: trip?.status ?? null,
+    tripId: activeNavTrip?.id ?? null,
+    status: activeNavTrip?.status ?? null,
     remainingMeters: canPublishProgress ? progressStats.remainingDistanceMeters : null,
     etaSeconds: canPublishProgress ? progressStats.etaSeconds : null,
   });
 
   // Temporary Passenger live location subscription for pre-pickup coordination
   const { passengerLocation } = usePassengerLiveLocation(
-    trip?.id ?? null,
-    trip?.status ?? null,
-    trip?.pickup?.coords ?? null,
-    trip?.bookingFor ?? null
+    activeNavTrip?.id ?? null,
+    activeNavTrip?.status ?? null,
+    activeNavTrip?.pickup?.coords ?? null,
+    activeNavTrip?.bookingFor ?? null
   );
 
   // Availability mutations.
@@ -259,8 +285,8 @@ export default function DriveScreen() {
   // to the trip lifecycle sheets once the authoritative trip snapshot lands.
   const isOnTrip = trip != null || tripId != null;
   const isTripTerminal =
-    trip?.status === 'completed' || trip?.status === 'cancelled';
-  const isTripInProgress = trip?.status === 'in_progress';
+    activeNavTrip?.status === 'completed' || activeNavTrip?.status === 'cancelled';
+  const isTripInProgress = activeNavTrip?.status === 'in_progress';
   const ownLocation =
     lastLatitude !== null && lastLongitude !== null
       ? { latitude: lastLatitude, longitude: lastLongitude }
@@ -270,16 +296,28 @@ export default function DriveScreen() {
       && incomingRequests.length > 0;
   const topRequest = showIncomingCard ? incomingRequests[0] : null;
 
-  const pickupLocation = !isTripTerminal && trip?.pickup?.coords
-    ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-    : topRequest?.pickup?.coords
-      ? { latitude: topRequest.pickup.coords.lat, longitude: topRequest.pickup.coords.lng }
-      : null;
-  const destinationLocation = !isTripTerminal && trip?.destination?.coords
-    ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-    : topRequest?.destination?.coords
-      ? { latitude: topRequest.destination.coords.lat, longitude: topRequest.destination.coords.lng }
-      : null;
+  const sharedPickupLoc = currentStop?.kind === 'pickup'
+    ? { latitude: currentStop.place.latitude, longitude: currentStop.place.longitude }
+    : null;
+  const sharedDestLoc = currentStop?.kind === 'dropoff'
+    ? { latitude: currentStop.place.latitude, longitude: currentStop.place.longitude }
+    : null;
+
+  const pickupLocation = (sharedRideId && currentStop)
+    ? sharedPickupLoc
+    : !isTripTerminal && trip?.pickup?.coords
+      ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
+      : topRequest?.pickup?.coords
+        ? { latitude: topRequest.pickup.coords.lat, longitude: topRequest.pickup.coords.lng }
+        : null;
+
+  const destinationLocation = (sharedRideId && currentStop)
+    ? sharedDestLoc
+    : !isTripTerminal && trip?.destination?.coords
+      ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
+      : topRequest?.destination?.coords
+        ? { latitude: topRequest.destination.coords.lat, longitude: topRequest.destination.coords.lng }
+        : null;
   const rawNavigationCoordinate = driverLocation ?? ownLocation;
   const currentRoutePolyline = useMemo(
     () => driverRouteData?.steps.flatMap((step) => step.polyline) ?? [],
@@ -322,10 +360,10 @@ export default function DriveScreen() {
 
   // Fused heading — GPS-course first, route-bearing fallback when stationary,
   // magnetometer only when the user has explicitly enabled Compass Mode.
-  useDriverHeading(trip?.status ?? null, { routeBearing });
+  useDriverHeading(activeNavTrip?.status ?? null, { routeBearing });
 
   // Navigation Mode (tilted driving camera) starts automatically for active driving legs.
-  const isDriving = getAutomaticNavigationStatus(trip?.status) !== null;
+  const isDriving = getAutomaticNavigationStatus(activeNavTrip?.status) !== null;
 
   // Once Firestore confirms a nav-active status, clear the optimistic flag.
   useEffect(() => {
@@ -334,12 +372,13 @@ export default function DriveScreen() {
     }
   }, [isDriving]);
 
-  const headingToDestination =
-    trip?.status === 'driver_arrived' || trip?.status === 'in_progress';
+  const headingToDestination = (sharedRideId && currentStop)
+    ? currentStop.kind === 'dropoff'
+    : activeNavTrip?.status === 'driver_arrived' || activeNavTrip?.status === 'in_progress';
   const legTarget = headingToDestination ? destinationLocation : pickupLocation;
   const overviewCoordinates =
     !isDriving &&
-    trip?.status === 'accepted' &&
+    activeNavTrip?.status === 'accepted' &&
     navigationCoordinate &&
     legTarget
       ? [navigationCoordinate, legTarget]
@@ -377,7 +416,7 @@ export default function DriveScreen() {
   const isInPip = useUiStore((s) => s.pip.isInPip);
   const currentNavStep = driverRouteData?.steps[navStepIndex] ?? null;
   useVoiceGuidance({
-    enabled: isDriving && trip?.status !== 'driver_arrived' && driverRouteData != null,
+    enabled: isDriving && activeNavTrip?.status !== 'driver_arrived' && driverRouteData != null,
     currentStep: currentNavStep,
     stepIndex: navStepIndex,
     routeFetchedAt: driverRouteData?.fetchedAt ?? null,
@@ -398,19 +437,19 @@ export default function DriveScreen() {
         showDestination={destinationLocation != null}
         showDriverRoute={
           !isTripTerminal &&
-          trip?.status !== 'driver_arrived' &&
-          (trip?.status === 'accepted' ||
-            trip?.status === 'driver_arriving' ||
-            trip?.status === 'in_progress')
+          activeNavTrip?.status !== 'driver_arrived' &&
+          (activeNavTrip?.status === 'accepted' ||
+            activeNavTrip?.status === 'driver_arriving' ||
+            activeNavTrip?.status === 'in_progress')
         }
         driverRouteVariant={isTripInProgress ? 'trip' : 'pickup'}
         routePolyline={
           isTripTerminal || isTripInProgress
             ? null
-            : trip?.route?.polyline ?? topRequest?.route?.polyline ?? null
+            : activeNavTrip?.route?.polyline ?? topRequest?.route?.polyline ?? null
         }
         driverRoutePolyline={
-          isTripTerminal || trip?.status === 'driver_arrived'
+          isTripTerminal || activeNavTrip?.status === 'driver_arrived'
             ? null
             : driverRouteData?.overviewPolyline ?? null
         }
@@ -436,7 +475,7 @@ export default function DriveScreen() {
       )}
 
       {/* Turn-by-turn Navigation Banner */}
-      {!isInPip && isDriving && trip?.status !== 'driver_arrived' && driverRouteData && (
+      {!isInPip && isDriving && activeNavTrip?.status !== 'driver_arrived' && driverRouteData && (
         <NavigationBanner
           currentStep={currentNavStep}
           distanceToManeuver={progressStats.distanceToManeuver}
@@ -471,6 +510,12 @@ export default function DriveScreen() {
             <PersistentDriverTripDashboard
               trip={trip}
               sharedRide={sharedRide}
+              memberTrips={memberTrips}
+              currentStop={currentStop}
+              nextStop={nextStop}
+              currentTrip={currentTrip}
+              nextTrip={nextTrip}
+              occupancy={occupancy}
               remainingDistanceMeters={progressStats.remainingDistanceMeters}
               etaSeconds={progressStats.etaSeconds}
               onDismissTerminal={handleDismissTerminal}

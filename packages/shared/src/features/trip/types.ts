@@ -20,6 +20,10 @@ import type {
   DriverPublicSnapshot,
   FareBreakdown,
   RideMode,
+  SharedRideMember,
+  SharedRideMemberStatus,
+  SharedRideOperational,
+  SharedRideOperationalStop,
   SharedRideSummary,
   TripStatus,
 } from '@pakyaw/shared/transport/contract';
@@ -27,6 +31,10 @@ import type {
 export type {
   DriverPublicSnapshot,
   RideMode,
+  SharedRideMember,
+  SharedRideMemberStatus,
+  SharedRideOperational,
+  SharedRideOperationalStop,
   TripStatus,
 } from '@pakyaw/shared/transport/contract';
 
@@ -128,6 +136,7 @@ export type SharedRideDoc = {
   readonly status: SharedRideStatus;
   readonly maxSeats: number;
   readonly seatsBooked: number;
+  readonly seatsReserved?: number;
   readonly totalPassengersCount?: number;
   readonly isLockedForHops?: boolean;
   readonly routePolyline: string;
@@ -137,6 +146,8 @@ export type SharedRideDoc = {
   readonly routeHeadingDeg: number;
   readonly corridorThresholdMeters: number;
   readonly tripIds: readonly string[];
+  readonly members?: readonly SharedRideMember[];
+  readonly operational?: SharedRideOperational | null;
   readonly passengers: readonly SharedRidePassenger[];
   readonly createdAt: Timestamp | null;
   readonly completedAt: Timestamp | null;
