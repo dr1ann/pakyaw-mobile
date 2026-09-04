@@ -366,7 +366,6 @@ export default function DriveScreen() {
   const topRequest = showIncomingCard ? incomingRequests[0] : null;
 
   function handleDismissTerminal() {
-    useAvailabilityStore.getState().setAvailability('online');
     useActiveTripStore.getState().clearTrip();
   }
 
