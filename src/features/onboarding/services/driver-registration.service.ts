@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   setDoc,
   signInWithPhoneNumber,
+  signOut,
   type ConfirmationResult,
 } from '@/services/firebase/firebase';
 
@@ -136,6 +137,13 @@ export async function createVerifiedDriverProfile(input: {
     throw error;
   }
   if (existing.exists()) {
+    const data = existing.data() as { role?: string };
+    if (data.role === 'passenger') {
+      await signOut(auth).catch(() => undefined);
+      throw new Error(
+        'This mobile number is registered to a Pakyaw Passenger account. Sign in using the Pakyaw Passenger app.',
+      );
+    }
     throw new Error('This verified mobile already has a Pakyaw account. Sign in instead.');
   }
 

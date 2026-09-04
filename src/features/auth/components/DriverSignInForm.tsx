@@ -70,6 +70,7 @@ export function DriverSignInForm() {
   const [busy, setBusy] = useState(false);
   const [loadingText, setLoadingText] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [accountNotFound, setAccountNotFound] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
   const otpInputRef = useRef<TextInput>(null);
@@ -86,6 +87,7 @@ export function DriverSignInForm() {
   async function handleSendCode() {
     if (busy) return;
     setErrorMessage(null);
+    setAccountNotFound(false);
 
     const normalized = normalizePhilippineMobile(mobile);
     if (!normalized) {
@@ -134,6 +136,7 @@ export function DriverSignInForm() {
     setBusy(true);
     setLoadingText('Signing in…');
     setErrorMessage(null);
+    setAccountNotFound(false);
 
     try {
       setSigningIn(true);
@@ -158,12 +161,16 @@ export function DriverSignInForm() {
         router.replace('/(driver)/application');
       } else if (
         resolution.status === 'account_suspended' ||
-        resolution.status === 'account_blocked' ||
-        resolution.status === 'authenticated_role_mismatch'
+        resolution.status === 'account_blocked'
       ) {
         router.replace('/driver-account-state');
+      } else if (resolution.status === 'authenticated_role_mismatch' || resolution.role === 'passenger') {
+        setErrorMessage(
+          'This mobile number is registered to a Pakyaw Passenger account. Sign in using the Pakyaw Passenger app.',
+        );
       } else if (resolution.status === 'authenticated_account_missing') {
-        setErrorMessage('No Pakyaw Driver account was found for this number. Please apply to drive.');
+        setAccountNotFound(true);
+        setErrorMessage('No Pakyaw Driver account was found for this mobile number.');
       } else {
         setErrorMessage('Unable to sign in. Please try again.');
       }
@@ -288,6 +295,13 @@ export function DriverSignInForm() {
                 <Text style={styles.errorText} selectable>
                   {errorMessage}
                 </Text>
+                {accountNotFound ? (
+                  <Link href="./driver-register" asChild>
+                    <Pressable style={styles.actionLinkBtn} testID="not-found-apply-link" hitSlop={8}>
+                      <Text style={styles.actionLinkText}>Apply as a Driver</Text>
+                    </Pressable>
+                  </Link>
+                ) : null}
               </View>
             ) : null}
 
@@ -419,6 +433,13 @@ export function DriverSignInForm() {
                 <Text style={styles.errorText} selectable>
                   {errorMessage}
                 </Text>
+                {accountNotFound ? (
+                  <Link href="./driver-register" asChild>
+                    <Pressable style={styles.actionLinkBtn} testID="not-found-apply-link-otp" hitSlop={8}>
+                      <Text style={styles.actionLinkText}>Apply as a Driver</Text>
+                    </Pressable>
+                  </Link>
+                ) : null}
               </View>
             ) : null}
 
@@ -698,5 +719,15 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.medium,
     color: colors.danger,
     lineHeight: 18,
+  },
+  actionLinkBtn: {
+    marginTop: spacing[2],
+    alignSelf: 'flex-start',
+  },
+  actionLinkText: {
+    color: colors.blue.primary,
+    fontSize: typography.size.bodySmall,
+    fontFamily: typography.family.bold,
+    textDecorationLine: 'underline',
   },
 });

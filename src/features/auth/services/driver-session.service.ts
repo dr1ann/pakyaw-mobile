@@ -119,11 +119,15 @@ export async function resolveDriverSession(uid: string): Promise<DriverSessionRe
 export function storeDriverSessionResolution(
   resolution: DriverSessionResolution,
 ): void {
-  useDriverSessionStore.getState().setResolution(resolution);
-
-  if (resolution.role === 'driver') {
+  if (
+    resolution.role === 'driver' &&
+    resolution.status !== 'authenticated_role_mismatch' &&
+    resolution.status !== 'authenticated_account_missing'
+  ) {
+    useDriverSessionStore.getState().setResolution(resolution);
     useSessionStore.getState().setSession(resolution.uid, 'driver');
   } else {
+    useDriverSessionStore.getState().clear();
     useSessionStore.getState().clear();
   }
 }
@@ -133,6 +137,17 @@ export async function resolveAndStoreDriverSession(
 ): Promise<DriverSessionResolution> {
   try {
     const resolution = await resolveDriverSession(uid);
+    if (
+      resolution.status === 'authenticated_account_missing' ||
+      resolution.status === 'authenticated_role_mismatch' ||
+      resolution.role !== 'driver'
+    ) {
+      const { auth, signOut } = await import('@/services/firebase/firebase');
+      await signOut(auth).catch(() => undefined);
+      useSessionStore.getState().clear();
+      useDriverSessionStore.getState().clear();
+      return resolution;
+    }
     storeDriverSessionResolution(resolution);
     return resolution;
   } catch (error) {

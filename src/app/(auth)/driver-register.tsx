@@ -159,7 +159,12 @@ export default function DriverRegistrationScreen() {
       clearPendingSetup();
       router.replace('../(driver)/application');
     } catch (error) {
-      if (otpConfirmed && authenticatedUid) {
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('Passenger account') || msg.includes('already has a Pakyaw account')) {
+        setMessage(msg);
+        useSessionStore.getState().clear();
+        useDriverSessionStore.getState().clear();
+      } else if (otpConfirmed && authenticatedUid) {
         setMessage('Your mobile number was verified, but we couldn’t finish setting up your account. Try again.');
         try {
           await resolveAndStoreDriverSession(authenticatedUid);

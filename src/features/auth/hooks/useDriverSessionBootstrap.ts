@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
-import { auth, doc, firestore, onAuthStateChanged, onSnapshot } from '@/services/firebase/firebase';
+import { auth, doc, firestore, onAuthStateChanged, onSnapshot, signOut } from '@/services/firebase/firebase';
 import { useDriverSessionStore } from '@/features/auth/stores/driver-session.store';
 import {
   driverSessionStatusForAuthUser,
@@ -37,7 +37,32 @@ export function useDriverSessionBootstrap(): void {
       void resolveDriverSession(user.uid)
         .then((resolution) => {
           if (!mounted || generation !== resolutionGeneration) return;
+          if (
+            resolution.status === 'authenticated_account_missing' ||
+            resolution.status === 'authenticated_role_mismatch' ||
+            resolution.role !== 'driver'
+          ) {
+            signOut(auth).catch(() => undefined);
+            useDriverSessionStore.getState().clear();
+            useSessionStore.getState().clear();
+            return;
+          }
           storeDriverSessionResolution(resolution);
+
+          // Live subscription: auto-update session store whenever application status changes (e.g. approved)
+          try {
+            unsubApplication = onSnapshot(doc(firestore, 'driverApplications', user.uid), () => {
+              if (!mounted) return;
+              void resolveDriverSession(user.uid)
+                .then((res) => {
+                  if (!mounted) return;
+                  storeDriverSessionResolution(res);
+                })
+                .catch(() => undefined);
+            });
+          } catch {
+            // ignore
+          }
         })
         .catch((error: unknown) => {
           if (!mounted || generation !== resolutionGeneration) return;
@@ -45,21 +70,6 @@ export function useDriverSessionBootstrap(): void {
           useSessionStore.getState().clear();
           useDriverSessionStore.getState().setResolutionError(user.uid);
         });
-
-      // Live subscription: auto-update session store whenever application status changes (e.g. approved)
-      try {
-        unsubApplication = onSnapshot(doc(firestore, 'driverApplications', user.uid), () => {
-          if (!mounted) return;
-          void resolveDriverSession(user.uid)
-            .then((resolution) => {
-              if (!mounted) return;
-              storeDriverSessionResolution(resolution);
-            })
-            .catch(() => undefined);
-        });
-      } catch {
-        // ignore
-      }
     });
 
     return () => {

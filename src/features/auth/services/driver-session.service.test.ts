@@ -9,9 +9,11 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 vi.mock('@/services/firebase/firebase', () => ({
+  auth: { currentUser: null },
   firestore: {},
   doc: vi.fn(),
   getDoc: vi.fn(),
+  signOut: vi.fn().mockResolvedValue(undefined),
 }));
 
 import type { UserDoc } from '@pakyaw/shared/features/auth/types';
@@ -100,5 +102,80 @@ describe('Driver session state resolver', () => {
     expect(isDriverApplicationState('driver_application_rejected')).toBe(true);
     expect(isDriverApplicationState('driver_application_approved')).toBe(false);
     expect(isDriverApplicationState('account_blocked')).toBe(false);
+  });
+
+  it('rejects a Passenger account, signs out from Firebase, and clears session store', async () => {
+    const { getDoc, signOut } = await import('@/services/firebase/firebase');
+    const { useSessionStore } = await import('@pakyaw/shared/stores/sessionStore');
+    const { useDriverSessionStore } = await import('@/features/auth/stores/driver-session.store');
+    const { resolveAndStoreDriverSession } = await import('./driver-session.service');
+
+    (getDoc as any).mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ ...activeDriver, role: 'passenger' }),
+    });
+
+    useSessionStore.getState().setSession('passenger-uid', 'driver');
+    useDriverSessionStore.getState().setResolution({
+      status: 'driver_application_approved',
+      uid: 'passenger-uid',
+      role: 'driver',
+    });
+
+    const resolution = await resolveAndStoreDriverSession('passenger-uid');
+
+    expect(resolution.status).toBe('authenticated_role_mismatch');
+    expect(signOut).toHaveBeenCalled();
+    expect(useSessionStore.getState().status).toBe('unauthenticated');
+    expect(useDriverSessionStore.getState().status).toBe('unauthenticated');
+  });
+
+  it('succeeds for a valid approved Driver account and sets active session', async () => {
+    const { getDoc } = await import('@/services/firebase/firebase');
+    const { useSessionStore } = await import('@pakyaw/shared/stores/sessionStore');
+    const { useDriverSessionStore } = await import('@/features/auth/stores/driver-session.store');
+    const { resolveAndStoreDriverSession } = await import('./driver-session.service');
+
+    (getDoc as any)
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => activeDriver,
+      })
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({ status: 'approved' }),
+      });
+
+    const resolution = await resolveAndStoreDriverSession('driver-uid');
+
+    expect(resolution.status).toBe('driver_application_approved');
+    expect(useSessionStore.getState().status).toBe('authenticated');
+    expect(useSessionStore.getState().role).toBe('driver');
+    expect(useDriverSessionStore.getState().status).toBe('driver_application_approved');
+  });
+
+  it('rejects an unregistered phone (missing users/{uid}), signs out from Firebase, and clears session', async () => {
+    const { getDoc, signOut } = await import('@/services/firebase/firebase');
+    const { useSessionStore } = await import('@pakyaw/shared/stores/sessionStore');
+    const { useDriverSessionStore } = await import('@/features/auth/stores/driver-session.store');
+    const { resolveAndStoreDriverSession } = await import('./driver-session.service');
+
+    (getDoc as any).mockResolvedValueOnce({
+      exists: () => false,
+    });
+
+    useSessionStore.getState().setSession('unregistered-uid', 'driver');
+    useDriverSessionStore.getState().setResolution({
+      status: 'driver_application_approved',
+      uid: 'unregistered-uid',
+      role: 'driver',
+    });
+
+    const resolution = await resolveAndStoreDriverSession('unregistered-uid');
+
+    expect(resolution.status).toBe('authenticated_account_missing');
+    expect(signOut).toHaveBeenCalled();
+    expect(useSessionStore.getState().status).toBe('unauthenticated');
+    expect(useDriverSessionStore.getState().status).toBe('unauthenticated');
   });
 });
