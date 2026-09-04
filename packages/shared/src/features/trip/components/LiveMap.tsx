@@ -60,6 +60,7 @@ export type LiveMapProps = {
   readonly onRegionChangeComplete?: (region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) => void;
   readonly debugTripStatus?: string | null;
   readonly passengerStops?: readonly MapPassengerStop[];
+  readonly passengerLiveLocation?: { latitude: number; longitude: number; accuracyMeters?: number | null } | null;
 };
 
 export type MapPassengerStop = {
@@ -288,6 +289,7 @@ export function LiveMap({
   onRegionChangeComplete,
   debugTripStatus = null,
   passengerStops = [],
+  passengerLiveLocation = null,
 }: LiveMapProps) {
   const localMapRef = useRef<MapView>(null);
   const mapRef = externalMapRef || localMapRef;
@@ -736,6 +738,20 @@ export function LiveMap({
           </Marker>
         )}
 
+        {/* Temporary Passenger Live Location Marker (Assigned Driver pre-pickup coordination) */}
+        {passengerLiveLocation && (
+          <Marker
+            coordinate={passengerLiveLocation}
+            anchor={{ x: 0.5, y: 0.5 }}
+            title="Passenger Live Location"
+            testID="passenger-live-location-marker"
+          >
+            <View style={[styles.markerRing, styles.passengerLiveRing, shadow.float]}>
+              <View style={[styles.markerDot, styles.passengerLiveDot]} />
+            </View>
+          </Marker>
+        )}
+
         {/* Passenger Stop Waypoint Markers on Navigation Map */}
         {passengerStops.map((stop) => (
           <Marker
@@ -856,6 +872,23 @@ const styles = StyleSheet.create({
   },
   pickupDot: {
     backgroundColor: colors.blue.primary,
+  },
+  // Passenger Live Marker (Pre-pickup coordination with soft halo)
+  passengerLiveRing: {
+    borderColor: 'rgba(47, 128, 237, 0.40)',
+    backgroundColor: 'rgba(47, 128, 237, 0.18)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+  },
+  passengerLiveDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.blue.primary,
+    borderWidth: 2,
+    borderColor: colors.white,
   },
   // Destination Marker (Orange)
   destinationRing: {

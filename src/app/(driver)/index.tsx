@@ -48,11 +48,11 @@ import {
 } from '@/features/trip/components/DriverTripSheets';
 import { PersistentDriverTripDashboard } from '@/features/trip/components/PersistentDriverTripDashboard';
 import { BoardingConfirmationToast } from '@/features/trip/components/BoardingConfirmationToast';
-import { MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
+import { LiveMap, type MapPassengerStop } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useSharedRideSession } from '@/features/shared-ride/hooks/useSharedRideSession';
-import { LiveMap } from '@pakyaw/shared/features/trip/components/LiveMap';
 import { useActiveTrip } from '@pakyaw/shared/features/trip/hooks/useActiveTrip';
 import { useTripProgressPublisher } from '@/features/trip/hooks/useTripProgressPublisher';
+import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
 import type { TripStatus } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
@@ -171,6 +171,13 @@ export default function DriveScreen() {
     remainingMeters: canPublishProgress ? progressStats.remainingDistanceMeters : null,
     etaSeconds: canPublishProgress ? progressStats.etaSeconds : null,
   });
+
+  // Temporary Passenger live location subscription for pre-pickup coordination
+  const { passengerLocation } = usePassengerLiveLocation(
+    trip?.id ?? null,
+    trip?.status ?? null,
+    trip?.pickup?.coords ?? null
+  );
 
   // Availability mutations.
   const goOnlineMutation = useGoOnlineMutation();
@@ -413,6 +420,7 @@ export default function DriveScreen() {
         navigationArrowRotation={navigationArrowRotation}
         navigationActive={cameraNavEnabled}
         passengerStops={passengerStops}
+        passengerLiveLocation={passengerLocation}
         freezeNavigationMapPadding={isInPip}
         onMapReady={cameraController.onMapReady}
         onUserPan={cameraController.onUserPan}

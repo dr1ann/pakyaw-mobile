@@ -14,6 +14,40 @@ import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useTripTransition } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
+import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
+
+function PassengerPickupPresenceCard({
+  trip,
+  formattedDistanceToPickup,
+  hasLiveLocation,
+}: {
+  readonly trip: any;
+  readonly formattedDistanceToPickup: string | null;
+  readonly hasLiveLocation: boolean;
+}) {
+  if (hasLiveLocation && formattedDistanceToPickup) {
+    return (
+      <View style={styles.presenceCard}>
+        <View style={styles.presenceHeader}>
+          <View style={styles.presenceDot} />
+          <Text style={styles.presenceTitle}>PASSENGER GPS</Text>
+        </View>
+        <Text style={styles.presenceText}>{formattedDistanceToPickup}</Text>
+        <Text style={styles.presenceSubtext}>
+          Pickup point: {trip?.pickup?.label || 'Requested pickup'}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.presenceCardUnavailable}>
+      <Text style={styles.presenceUnavailableText}>
+        Passenger live location unavailable · Proceed to requested pickup
+      </Text>
+    </View>
+  );
+}
 
 // ── DriverAcceptedSheet ─────────────────────────────────────────────────────
 // Shown when status is 'accepted'. Driver just accepted, about to head out.
@@ -25,6 +59,11 @@ type DriverSheetModeProps = {
 export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
+  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
+    trip?.id ?? null,
+    trip?.status ?? null,
+    trip?.pickup?.coords ?? null
+  );
 
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(20));
@@ -106,6 +145,11 @@ export function DriverAcceptedSheet({ compact = false }: DriverSheetModeProps) {
         Head to {trip?.pickup.label ?? 'pickup location'} to pick up your
         passenger.
       </Text>
+      <PassengerPickupPresenceCard
+        trip={trip}
+        formattedDistanceToPickup={formattedDistanceToPickup}
+        hasLiveLocation={!!passengerLocation}
+      />
       <Button
         label="Start navigation"
         onPress={handleStartNavigation}
@@ -128,6 +172,11 @@ export function DriverEnRouteSheet({
 }) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
+  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
+    trip?.id ?? null,
+    trip?.status ?? null,
+    trip?.pickup?.coords ?? null
+  );
 
   function handleArrived() {
     if (trip) {
@@ -197,6 +246,12 @@ export function DriverEnRouteSheet({
         </View>
       )}
 
+      <PassengerPickupPresenceCard
+        trip={trip}
+        formattedDistanceToPickup={formattedDistanceToPickup}
+        hasLiveLocation={!!passengerLocation}
+      />
+
       <Button
         label="Arrived at pickup"
         onPress={handleArrived}
@@ -214,6 +269,11 @@ export function DriverEnRouteSheet({
 export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: transition, isPending } = useTripTransition();
+  const { passengerLocation, formattedDistanceToPickup } = usePassengerLiveLocation(
+    trip?.id ?? null,
+    trip?.status ?? null,
+    trip?.pickup?.coords ?? null
+  );
 
   function handleStartTrip() {
     if (trip) {
@@ -250,6 +310,11 @@ export function DriverArrivedSheet({ compact = false }: DriverSheetModeProps) {
       <Text style={styles.subtitle}>
         You have arrived at the pickup location.
       </Text>
+      <PassengerPickupPresenceCard
+        trip={trip}
+        formattedDistanceToPickup={formattedDistanceToPickup}
+        hasLiveLocation={!!passengerLocation}
+      />
       <Button
         label="Start trip"
         onPress={handleStartTrip}
@@ -473,6 +538,55 @@ const styles = StyleSheet.create({
     minWidth: 104,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
+  },
+  presenceCard: {
+    backgroundColor: colors.blue.tint,
+    borderRadius: 10,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    gap: spacing[1],
+    marginVertical: spacing[2],
+    borderWidth: 1,
+    borderColor: 'rgba(47, 128, 237, 0.20)',
+  },
+  presenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  presenceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.blue.primary,
+  },
+  presenceTitle: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
+    letterSpacing: 0.6,
+  },
+  presenceText: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  presenceSubtext: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.medium,
+    color: colors.ink[500],
+  },
+  presenceCardUnavailable: {
+    backgroundColor: colors.surface.muted,
+    borderRadius: 10,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+    marginVertical: spacing[2],
+  },
+  presenceUnavailableText: {
+    fontSize: typography.size.label,
+    fontWeight: typography.weight.medium,
+    color: colors.ink[500],
   },
 });
 
