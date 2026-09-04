@@ -60,6 +60,7 @@ import { getDistanceToStepEnd } from '@pakyaw/shared/lib/geoProjection';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
+import { useRouter } from 'expo-router';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
@@ -77,6 +78,7 @@ function isSameCoordinate(
 }
 
 export default function RideScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const trip = useActiveTripStore((s) => s.trip);
   const tripId = useActiveTripStore((s) => s.tripId);
@@ -501,6 +503,11 @@ export default function RideScreen() {
     useActiveTripStore.getState().clearTrip();
   }
 
+  const handleViewActivity = useCallback(() => {
+    handleDismissTerminal();
+    router.push('/activity');
+  }, []);
+
   const status = trip?.status ?? (tripId ? 'requested' : null);
   const isSheetSelfContained = status === null || status === 'requested';
 
@@ -799,6 +806,7 @@ export default function RideScreen() {
           <TripSheet
             status={status}
             onDismiss={handleDismissTerminal}
+            onViewActivity={handleViewActivity}
             remainingDistanceMeters={progressStats.remainingDistanceMeters}
             etaSeconds={progressStats.etaSeconds}
           />
@@ -808,6 +816,7 @@ export default function RideScreen() {
               <TripSheet
                 status={status}
                 onDismiss={handleDismissTerminal}
+                onViewActivity={handleViewActivity}
                 remainingDistanceMeters={progressStats.remainingDistanceMeters}
                 etaSeconds={progressStats.etaSeconds}
               />
@@ -877,6 +886,7 @@ class BookingSheetErrorBoundary extends Component<
 type TripSheetProps = {
   status: TripStatus | null;
   onDismiss: () => void;
+  onViewActivity?: () => void;
   remainingDistanceMeters: number | null;
   etaSeconds: number | null;
 };
@@ -884,6 +894,7 @@ type TripSheetProps = {
 function TripSheet({
   status,
   onDismiss,
+  onViewActivity,
   remainingDistanceMeters,
   etaSeconds,
 }: TripSheetProps) {
@@ -901,7 +912,7 @@ function TripSheet({
         />
       );
     case 'completed':
-      return <CompletedSheet onDismiss={onDismiss} />;
+      return <CompletedSheet onDismiss={onDismiss} onViewActivity={onViewActivity} />;
     case 'cancelled':
       return <CancelledSheet onDismiss={onDismiss} />;
     default:

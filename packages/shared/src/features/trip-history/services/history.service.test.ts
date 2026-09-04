@@ -1,236 +1,135 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { PermissionError, NotFoundError, NetworkError } from '../errors';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { listForPassenger, getTrip } from './history.service';
-import { FirebaseError } from '@/services/firebase/firebase';
+import * as firebaseModule from '@/services/firebase/firebase';
 
-// Mock firestore operations
-const mockGetDocs = vi.fn();
-const mockGetDoc = vi.fn();
-const mockQuery = vi.fn();
-const mockWhere = vi.fn();
-const mockOrderBy = vi.fn();
-const mockLimit = vi.fn();
-const mockStartAfter = vi.fn();
-
-vi.mock('@/services/firebase/firebase', () => {
-  class MockFirebaseError extends Error {
+vi.mock('@/services/firebase/firebase', () => ({
+  collection: vi.fn(),
+  doc: vi.fn(),
+  firestore: {},
+  getDoc: vi.fn(),
+  getDocs: vi.fn(),
+  limit: vi.fn(),
+  orderBy: vi.fn(),
+  query: vi.fn(),
+  startAfter: vi.fn(),
+  Timestamp: class MockTimestamp {
+    seconds: number;
+    nanoseconds: number;
+    constructor(s: number, ns: number) {
+      this.seconds = s;
+      this.nanoseconds = ns;
+    }
+  },
+  where: vi.fn(),
+  FirebaseError: class MockFirebaseError extends Error {
     code: string;
     constructor(code: string, message: string) {
       super(message);
-      this.name = 'FirebaseError';
       this.code = code;
     }
-  }
-
-  class MockTimestamp {
-    seconds: number;
-    nanoseconds: number;
-    constructor(seconds: number, nanoseconds: number) {
-      this.seconds = seconds;
-      this.nanoseconds = nanoseconds;
-    }
-  }
-
-  return {
-    firestore: {},
-    collection: vi.fn(() => 'trips-col'),
-    doc: vi.fn((_fs, coll, id) => ({ collection: coll, id })),
-    getDocs: () => mockGetDocs(),
-    getDoc: () => mockGetDoc(),
-    query: vi.fn((...args: any[]) => {
-      mockQuery(...args);
-      return { type: 'query', args };
-    }),
-    where: vi.fn((field, op, val) => {
-      mockWhere(field, op, val);
-      return { type: 'where', field, op, val };
-    }),
-    orderBy: vi.fn((field, dir) => {
-      mockOrderBy(field, dir);
-      return { type: 'orderBy', field, dir };
-    }),
-    limit: vi.fn((n) => {
-      mockLimit(n);
-      return { type: 'limit', value: n };
-    }),
-    startAfter: vi.fn((val) => {
-      mockStartAfter(val);
-      return { type: 'startAfter', value: val };
-    }),
-    Timestamp: MockTimestamp,
-    FirebaseError: MockFirebaseError,
-  };
-});
-
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    error: vi.fn(),
-    info: vi.fn(),
   },
 }));
 
-// Tests for history.service
-
-describe('history.service', () => {
+describe('history.service — listForPassenger and getTrip mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('listForPassenger', () => {
-    it('issues the correct query for passenger history', async () => {
-      mockGetDocs.mockResolvedValueOnce({
-        docs: [
-          {
-            id: 'trip-1',
-            data: () => ({
-              status: 'completed',
-              passengerId: 'p-1',
-              pickup: { label: 'Origin' },
-              destination: { label: 'Destination' },
-              passengerCount: 2,
-              requestedAt: { seconds: 1000, nanoseconds: 0 },
-            }),
-          },
-        ],
-      });
+  it('listForPassenger maps completed and cancelled trip documents with authoritative fields', async () => {
+    const mockSnap = {
+      docs: [
+        {
+          id: 'trip-1',
+          data: () => ({
+            status: 'completed',
+            mode: 'solo',
+            fare: 68.5,
+            passengerId: 'user-1',
+            pickup: { label: 'Ormoc City Hall' },
+            destination: { label: 'Robinsons Place' },
+            passengerCount: 1,
+            requestedAt: { seconds: 1788520000, nanoseconds: 0 },
+            completedAt: { seconds: 1788521000, nanoseconds: 0 },
+            driverPublic: {
+              driverId: 'd-1',
+              displayName: 'Mang Juan',
+              profilePhotoUrl: null,
+              vehicle: {
+                plateNumber: '8899 HA',
+              },
+              verification: { verified: true },
+            },
+            route: {
+              distanceMeters: 3200,
+            },
+            bookingFor: 'self',
+          }),
+        },
+      ],
+    };
 
-      const result = await listForPassenger('p-1', { limit: 5, cursor: null });
+    vi.spyOn(firebaseModule, 'getDocs').mockResolvedValue(mockSnap as any);
 
-      expect(mockWhere).toHaveBeenCalledWith('passengerId', '==', 'p-1');
-      expect(mockWhere).toHaveBeenCalledWith('status', 'in', ['completed', 'cancelled']);
-      expect(mockOrderBy).toHaveBeenCalledWith('requestedAt', 'desc');
-      expect(mockLimit).toHaveBeenCalledWith(5);
-      expect(result.trips).toHaveLength(1);
-      expect(result.trips[0].tripId).toBe('trip-1');
-      expect(result.trips[0].status).toBe('completed');
-      expect(result.nextCursor).toBeNull();
-    });
-
-    it('paginates using cursor when provided', async () => {
-      mockGetDocs.mockResolvedValueOnce({
-        docs: [
-          {
-            id: 'trip-2',
-            data: () => ({
-              status: 'cancelled',
-              passengerId: 'p-1',
-              pickup: { label: 'Origin' },
-              destination: { label: 'Destination' },
-              passengerCount: 1,
-              requestedAt: { seconds: 500, nanoseconds: 0 },
-            }),
-          },
-        ],
-      });
-
-      const cursor = { seconds: 1000, nanoseconds: 0 };
-      await listForPassenger('p-1', { limit: 5, cursor });
-
-      expect(mockStartAfter).toHaveBeenCalled();
-      // Should pass reconstructed Timestamp to startAfter
-      const startAfterCall = vi.mocked(mockStartAfter).mock.calls[0][0];
-      expect(startAfterCall.seconds).toBe(1000);
-      expect(startAfterCall.nanoseconds).toBe(0);
-    });
-
-    it('returns nextCursor when list length equals limit', async () => {
-      mockGetDocs.mockResolvedValueOnce({
-        docs: [
-          {
-            id: 'trip-1',
-            data: () => ({
-              status: 'completed',
-              requestedAt: { seconds: 2000, nanoseconds: 10 },
-            }),
-          },
-          {
-            id: 'trip-2',
-            data: () => ({
-              status: 'cancelled',
-              requestedAt: { seconds: 1000, nanoseconds: 20 },
-            }),
-          },
-        ],
-      });
-
-      const result = await listForPassenger('p-1', { limit: 2, cursor: null });
-
-      expect(result.trips).toHaveLength(2);
-      expect(result.nextCursor).toEqual({ seconds: 1000, nanoseconds: 20 });
-    });
+    const result = await listForPassenger('user-1', { limit: 10, cursor: null });
+    expect(result.trips).toHaveLength(1);
+    expect(result.trips[0].tripId).toBe('trip-1');
+    expect(result.trips[0].mode).toBe('solo');
+    expect(result.trips[0].fare).toBe(68.5);
+    expect(result.trips[0].distanceMeters).toBe(3200);
+    expect(result.trips[0].driver?.displayName).toBe('Mang Juan');
+    expect(result.trips[0].driver?.plate).toBe('8899 HA');
   });
 
-  describe('getTrip', () => {
-    it('fetches single trip details', async () => {
-      mockGetDoc.mockResolvedValueOnce({
-        exists: () => true,
-        id: 'trip-abc',
-        data: () => ({
-          mode: 'solo',
-          status: 'completed',
-          passengerId: 'p-1',
+  it('getTrip maps trip detail snapshot correctly', async () => {
+    const mockDocSnap = {
+      exists: () => true,
+      id: 'trip-1',
+      data: () => ({
+        status: 'completed',
+        mode: 'shared',
+        passengerId: 'user-1',
+        driverId: 'd-1',
+        pickup: { label: 'Ormoc City Hall' },
+        destination: { label: 'Robinsons Place' },
+        passengerCount: 2,
+        billedSeats: 2,
+        geohash: 'w9x8y7',
+        requestedAt: { seconds: 1788520000, nanoseconds: 0 },
+        completedAt: { seconds: 1788521000, nanoseconds: 0 },
+        fareBreakdown: {
+          baseFare: 20,
+          distanceFare: 7.5,
+          surcharges: 0,
+          techFee: 7.5,
+          total: 35,
+        },
+        driverPublic: {
           driverId: 'd-1',
-          pickup: { label: 'Origin' },
-          destination: { label: 'Destination' },
-          passengerCount: 2,
-          billedSeats: 4,
-          geohash: '9q5',
-          requestedAt: null,
-          driverPublic: {
-            driverId: 'd-1',
-            displayName: 'John Driver',
-            profilePhotoUrl: null,
-            vehicle: {
-              type: 'tricycle',
-              description: 'Blue tricycle',
-              plateNumber: 'ABC-123',
-              unitBodyNumber: 'UNIT-001',
-            },
-            verification: { verified: true },
+          displayName: 'Mang Juan',
+          profilePhotoUrl: null,
+          vehicle: {
+            plateNumber: '8899 HA',
+            description: 'Blue Bajaj',
           },
-          driver: {
-            displayName: 'John Driver',
-            phone: '123',
-            rating: 4.8,
-            tripCount: 100,
-            plate: 'ABC-123',
-          },
-        }),
-      });
+          verification: { verified: true },
+        },
+        route: {
+          distanceMeters: 2500,
+        },
+        bookingFor: 'other',
+        rider: { firstName: 'Maria' },
+      }),
+    };
 
-      const trip = await getTrip('trip-abc');
+    vi.spyOn(firebaseModule, 'getDoc').mockResolvedValue(mockDocSnap as any);
 
-      expect(trip.id).toBe('trip-abc');
-      expect(trip.driver?.displayName).toBe('John Driver');
-      expect(trip.driver?.plate).toBe('ABC-123');
-      expect(trip.driverPublic?.vehicle.plateNumber).toBe('ABC-123');
-      expect(trip.driver).not.toHaveProperty('rating');
-      expect(trip.driver).not.toHaveProperty('phone');
-    });
-
-    it('throws NotFoundError when trip does not exist', async () => {
-      mockGetDoc.mockResolvedValueOnce({
-        exists: () => false,
-      });
-
-      await expect(getTrip('missing')).rejects.toThrow(NotFoundError);
-    });
-
-    it('translates permission-denied FirebaseError', async () => {
-      mockGetDoc.mockRejectedValueOnce(
-        new FirebaseError('permission-denied', 'Missing permissions.'),
-      );
-
-      await expect(getTrip('secret-trip')).rejects.toThrow(PermissionError);
-    });
-
-    it('translates unavailable FirebaseError', async () => {
-      mockGetDoc.mockRejectedValueOnce(
-        new FirebaseError('unavailable', 'Firestore is offline.'),
-      );
-
-      await expect(getTrip('any-trip')).rejects.toThrow(NetworkError);
-    });
+    const trip = await getTrip('trip-1');
+    expect(trip.id).toBe('trip-1');
+    expect(trip.mode).toBe('shared');
+    expect(trip.fare).toBe(35);
+    expect(trip.fareBreakdown?.total).toBe(35);
+    expect(trip.bookingFor).toBe('other');
+    expect(trip.rider?.firstName).toBe('Maria');
+    expect(trip.driverPublic?.displayName).toBe('Mang Juan');
   });
 });

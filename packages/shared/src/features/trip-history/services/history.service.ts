@@ -63,9 +63,25 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
           plate: typeof historicalDriver.plate === 'string' ? historicalDriver.plate : 'Plate unavailable',
         }
       : null;
+
+  const fare =
+    typeof data.fare === 'number'
+      ? data.fare
+      : data.fareBreakdown && typeof data.fareBreakdown.total === 'number'
+        ? data.fareBreakdown.total
+        : null;
+
+  const distanceMeters =
+    data.route && typeof data.route.distanceMeters === 'number'
+      ? data.route.distanceMeters
+      : null;
+
   return {
     tripId: id,
     status: data.status as string,
+    mode: historicalRideMode(data.mode),
+    fare,
+    distanceMeters,
     pickup: {
       label: data.pickup?.label ?? data.pickup?.address ?? 'Unknown Pickup',
     },
@@ -77,6 +93,10 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
     completedAt: (data.completedAt as TimestampType) ?? null,
     cancelledAt: (data.cancelledAt as TimestampType) ?? null,
     driver,
+    bookingFor: data.bookingFor ?? null,
+    rider: data.rider && typeof data.rider.firstName === 'string' ? { firstName: data.rider.firstName } : null,
+    cancelledBy: data.cancelledBy ?? null,
+    cancelReason: data.cancelReason ?? null,
   };
 }
 
@@ -126,6 +146,13 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
     const data = snap.data();
     const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
     const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
+    const fare =
+      typeof data.fare === 'number'
+        ? data.fare
+        : data.fareBreakdown && typeof data.fareBreakdown.total === 'number'
+          ? data.fareBreakdown.total
+          : undefined;
+
     return {
       id: snap.id,
       mode: historicalRideMode(data.mode),
@@ -143,6 +170,14 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
       cancelledAt: (data.cancelledAt as TimestampType) ?? null,
       cancelledBy: data.cancelledBy ?? null,
       cancelReason: data.cancelReason ?? null,
+      fare,
+      fareBreakdown: data.fareBreakdown ?? undefined,
+      route: data.route ?? null,
+      driverRoute: data.driverRoute ?? null,
+      tripProgress: data.tripProgress ?? null,
+      bookingFor: data.bookingFor ?? null,
+      rider: data.rider ?? null,
+      pickupNote: data.pickupNote ?? null,
       driverPublic,
       driver: driverPublic
         ? {

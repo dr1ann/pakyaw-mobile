@@ -12,31 +12,47 @@ export type TripHistoryCardProps = {
 };
 
 export function TripHistoryCard({ trip, onPress }: TripHistoryCardProps) {
-  const driverName = trip.driver?.displayName ?? 'Cancelled request';
-  const plate = trip.driver?.plate ?? '—';
-  const dateStr = formatDate(trip.requestedAt);
+  const isCompleted = trip.status === 'completed';
+  const driverName = trip.driver?.displayName ?? (isCompleted ? 'Pakyaw Driver' : 'No driver assigned');
+  const plate = trip.driver?.plate ?? null;
+  const dateStr = formatDate(trip.completedAt ?? trip.requestedAt);
+
+  const modeLabel = trip.mode === 'shared' ? 'Shared' : trip.mode === 'hop' ? 'Hop' : 'Pakyaw';
+
+  const distanceKm = trip.distanceMeters && trip.distanceMeters > 0
+    ? `${(trip.distanceMeters / 1000).toFixed(1)} km`
+    : null;
+
+  const fareFormatted = typeof trip.fare === 'number' && isCompleted
+    ? `₱${trip.fare.toFixed(2)}`
+    : null;
+
+  const accessibilityLabel = `Trip to ${trip.destination.label}, ${isCompleted ? 'Completed' : 'Cancelled'}, ${dateStr}${fareFormatted ? `, Fare ${fareFormatted}` : ''}`;
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+    >
       <Card style={styles.card}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.dateTimeText}>{dateStr}</Text>
-            <Text style={styles.driverInfoText}>
+            <Text style={styles.driverInfoText} numberOfLines={1}>
               {driverName}
             </Text>
-            {trip.driver ? (
-              <Text style={styles.plateText}>{plate}</Text>
-            ) : null}
+            {plate ? <Text style={styles.plateText}>{plate}</Text> : null}
           </View>
           <View style={styles.headerRight}>
             <View style={styles.modeBadge}>
-              <Text style={styles.modeBadgeText}>PAKYAW</Text>
+              <Text style={styles.modeBadgeText}>{modeLabel}</Text>
             </View>
             <StatusPill
-              label={trip.status === 'completed' ? 'Completed' : 'Cancelled'}
-              tone={trip.status === 'completed' ? 'success' : 'danger'}
+              label={isCompleted ? 'Completed' : 'Cancelled'}
+              tone={isCompleted ? 'success' : 'danger'}
               dot
             />
           </View>
@@ -57,13 +73,44 @@ export function TripHistoryCard({ trip, onPress }: TripHistoryCardProps) {
 
         {/* Footer Meta */}
         <View style={styles.footer}>
-          <Text style={styles.metaText}>
-            Passengers: {trip.passengerCount}
-          </Text>
+          <View style={styles.footerMetaLeft}>
+            {trip.bookingFor === 'other' ? (
+              <Text style={styles.riderBadge}>
+                Rider: {trip.rider?.firstName ?? 'Someone else'}
+              </Text>
+            ) : null}
+            {distanceKm ? (
+              <Text style={styles.metaText}>{distanceKm}</Text>
+            ) : null}
+            {!distanceKm && trip.bookingFor !== 'other' ? (
+              <Text style={styles.metaText}>
+                {trip.passengerCount} {trip.passengerCount === 1 ? 'passenger' : 'passengers'}
+              </Text>
+            ) : null}
+          </View>
+
+          {isCompleted && fareFormatted ? (
+            <Text style={styles.fareText}>{fareFormatted}</Text>
+          ) : !isCompleted && trip.cancelReason ? (
+            <Text style={styles.cancelReasonText} numberOfLines={1}>
+              {formatCancelReason(trip.cancelReason, trip.cancelledBy)}
+            </Text>
+          ) : null}
         </View>
       </Card>
     </Pressable>
   );
+}
+
+function formatCancelReason(reason: string, cancelledBy?: 'driver' | 'passenger' | null): string {
+  if (reason === 'passenger_changed_mind') return 'Changed mind';
+  if (reason === 'driver_unavailable') return 'Driver unavailable';
+  if (reason === 'unable_to_locate_passenger') return 'Could not locate';
+  if (reason === 'vehicle_issue') return 'Vehicle issue';
+  if (reason === 'safety_concern') return 'Safety concern';
+  if (cancelledBy === 'driver') return 'Cancelled by driver';
+  if (cancelledBy === 'passenger') return 'Cancelled by passenger';
+  return 'Cancelled';
 }
 
 function formatDate(timestamp: any): string {
@@ -78,9 +125,12 @@ function formatDate(timestamp: any): string {
     typeof (timestamp as { toDate: unknown }).toDate === 'function'
   ) {
     date = (timestamp as { toDate: () => Date }).toDate();
+  } else if (typeof timestamp === 'object' && timestamp !== null && typeof timestamp.seconds === 'number') {
+    date = new Date(timestamp.seconds * 1000);
   } else {
     date = new Date(timestamp as string | number);
   }
+  if (isNaN(date.getTime())) return '—';
   return (
     date.toLocaleDateString('en-US', {
       month: 'short',
@@ -97,9 +147,16 @@ function formatDate(timestamp: any): string {
 }
 
 const styles = StyleSheet.create({
+  pressable: {
+    borderRadius: radius.md,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
   card: {
-    marginBottom: spacing[4],
+    marginBottom: spacing[3],
     gap: spacing[3],
+    padding: spacing[4],
   },
   header: {
     flexDirection: 'row',
@@ -112,6 +169,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
     gap: spacing[1],
+    marginRight: spacing[2],
   },
   headerRight: {
     alignItems: 'flex-end',
@@ -133,9 +191,9 @@ const styles = StyleSheet.create({
   },
   modeBadge: {
     backgroundColor: colors.blue.tint,
-    borderRadius: radius.sm,
+    borderRadius: radius.xs,
     paddingHorizontal: spacing[2],
-    paddingVertical: spacing[1],
+    paddingVertical: 2,
   },
   modeBadgeText: {
     fontSize: typography.size.label,
@@ -157,15 +215,45 @@ const styles = StyleSheet.create({
   addressText: {
     fontSize: typography.size.bodySmall,
     color: colors.ink[700],
+    fontWeight: typography.weight.medium,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  footerMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    flex: 1,
+  },
+  riderBadge: {
+    fontSize: typography.size.caption,
+    fontWeight: typography.weight.semibold,
+    color: colors.amber.primary,
+    backgroundColor: colors.amber.tint,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 1,
+    borderRadius: radius.xs,
   },
   metaText: {
     fontSize: typography.size.bodySmall,
     color: colors.ink[500],
+  },
+  fareText: {
+    fontSize: typography.size.bodyMd,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  cancelReasonText: {
+    fontSize: typography.size.bodySmall,
+    color: colors.danger,
+    fontStyle: 'italic',
+    maxWidth: '50%',
+    textAlign: 'right',
   },
 });
