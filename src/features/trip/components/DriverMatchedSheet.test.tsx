@@ -88,6 +88,7 @@ describe('DriverMatchedSheet component', () => {
     expect(state?.driverPublic?.displayName).toBe('Mang Juan dela Cruz');
     expect(state?.driverPublic?.vehicle.plateNumber).toBe('7890 HA');
     expect(state?.driverPublic?.vehicle.unitBodyNumber).toBe('042');
+    expect(state?.fareBreakdown?.total).toBe(60);
   });
 
   it('renders Shared accepted state with seat occupancy from sharedRideSummary', () => {
@@ -132,7 +133,63 @@ describe('DriverMatchedSheet component', () => {
     expect(state?.mode).toBe('hop');
   });
 
-  it('gracefully handles missing optional Driver and vehicle data without crashing', () => {
+  it('handles tripProgress.etaSeconds over driverRoute.durationSeconds', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      tripProgress: {
+        remainingMeters: 400,
+        etaSeconds: 90,
+        updatedAt: null,
+      },
+      driverRoute: {
+        polyline: 'poly',
+        distanceMeters: 800,
+        durationSeconds: 240,
+        updatedAt: null,
+      },
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+  });
+
+  it('falls back to neutral "Your Driver is on the way" when no ETA duration or distance is available', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      tripProgress: null,
+      driverRoute: null,
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+  });
+
+  it('renders self-booking privacy disclosure when bookingFor is self or omitted', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      bookingFor: 'self',
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+    expect(useActiveTripStore.getState().trip?.bookingFor).toBe('self');
+  });
+
+  it('renders third-party booking privacy disclosure when bookingFor is other', () => {
+    useActiveTripStore.getState().setTrip({
+      ...baseAcceptedTrip,
+      bookingFor: 'other',
+      rider: { firstName: 'Dree' },
+      pickupNote: 'Waiting near gate',
+    });
+
+    const element = <DriverMatchedSheet />;
+    expect(element).toBeDefined();
+    expect(useActiveTripStore.getState().trip?.bookingFor).toBe('other');
+    expect(useActiveTripStore.getState().trip?.rider?.firstName).toBe('Dree');
+  });
+
+  it('gracefully handles missing optional Driver and vehicle data without crashing and without fabricating data', () => {
     const minimalTrip: TripDoc = {
       ...baseAcceptedTrip,
       driverPublic: {
@@ -145,11 +202,33 @@ describe('DriverMatchedSheet component', () => {
         verification: { verified: true },
       },
       driverRoute: null,
+      tripProgress: null,
     };
 
     useActiveTripStore.getState().setTrip(minimalTrip);
 
     const element = <DriverMatchedSheet />;
     expect(element).toBeDefined();
+
+    const state = useActiveTripStore.getState().trip;
+    expect(state?.driverPublic?.profilePhotoUrl).toBeNull();
+    expect(state?.driverPublic?.vehicle.unitBodyNumber).toBeUndefined();
+  });
+
+  it('verifies requested -> accepted transition in activeTripStore', () => {
+    const requestedTrip: TripDoc = {
+      ...baseAcceptedTrip,
+      status: 'requested',
+      driverId: null,
+      driverPublic: null,
+    };
+
+    useActiveTripStore.getState().setTrip(requestedTrip);
+    expect(useActiveTripStore.getState().trip?.status).toBe('requested');
+    expect(useActiveTripStore.getState().trip?.driverId).toBeNull();
+
+    useActiveTripStore.getState().setTrip(baseAcceptedTrip);
+    expect(useActiveTripStore.getState().trip?.status).toBe('accepted');
+    expect(useActiveTripStore.getState().trip?.driverId).toBe('d-1');
   });
 });

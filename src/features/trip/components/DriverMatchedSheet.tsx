@@ -32,8 +32,11 @@ export function DriverMatchedSheet() {
   }
 
   // Derived real ETA / Distance string without guesswork
-  let etaText = 'Driver on the way';
-  if (trip?.driverRoute?.durationSeconds != null && trip.driverRoute.durationSeconds > 0) {
+  let etaText = 'Your Driver is on the way';
+  if (trip?.tripProgress?.etaSeconds != null && trip.tripProgress.etaSeconds > 0) {
+    const minutes = Math.max(1, Math.round(trip.tripProgress.etaSeconds / 60));
+    etaText = `~${minutes} min away`;
+  } else if (trip?.driverRoute?.durationSeconds != null && trip.driverRoute.durationSeconds > 0) {
     const minutes = Math.max(1, Math.round(trip.driverRoute.durationSeconds / 60));
     etaText = `~${minutes} min away`;
   } else if (driverDistanceMeters != null && driverDistanceMeters > 0) {
@@ -95,10 +98,11 @@ export function DriverMatchedSheet() {
   }
 
   const modeBadgeText = isHop
-    ? 'HOP RIDE CONFIRMED'
+    ? 'Hop'
     : isShared
-    ? 'SHARED RIDE CONFIRMED'
-    : 'PAKYAW CONFIRMED';
+    ? 'Shared'
+    : 'Pakyaw';
+
 
   return (
     <ScrollView
