@@ -57,6 +57,8 @@ import type { TripStatus } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { useAvailabilityStore } from '@/stores/availabilityStore';
+import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
+import { doc, firestore, onSnapshot } from '@/services/firebase/firebase';
 import { useDriverRouteQuery } from '@/features/maps/hooks/useDriverRouteQuery';
 import { useDriverHeading } from '@/features/maps/hooks/useDriverHeading';
 import { useInterpolatedCoordinate } from '@pakyaw/shared/features/maps/hooks/useInterpolatedCoordinate';
@@ -78,6 +80,7 @@ import { useUiStore } from '@/stores/uiStore';
 
 export default function DriveScreen() {
   const mapRef = useRef<MapView>(null);
+  const uid = useSessionStore((s) => s.uid);
   const availability = useAvailabilityStore((s) => s.availability);
   const lastLatitude = useAvailabilityStore((s) => s.lastLatitude);
   const lastLongitude = useAvailabilityStore((s) => s.lastLongitude);
@@ -87,6 +90,37 @@ export default function DriveScreen() {
 
   const [showPreflight, setShowPreflight] = useState(false);
   const [expandedTripStatus, setExpandedTripStatus] = useState<TripStatus | null>(null);
+
+  // Sync active trip and availability directly from drivers/{uid} document
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = onSnapshot(doc(firestore, 'drivers', uid), (snap) => {
+      if (snap && snap.exists) {
+        const data = snap.data();
+        const serverActiveTripId = data?.activeTripId;
+        const serverAvailability = data?.availability;
+
+        if (typeof serverActiveTripId === 'string' && serverActiveTripId.trim().length > 0) {
+          useActiveTripStore.getState().setTripId(serverActiveTripId.trim());
+          useAvailabilityStore.getState().setAvailability('on_trip');
+        } else if (serverActiveTripId === null) {
+          if (useActiveTripStore.getState().tripId) {
+            useActiveTripStore.getState().clearTrip();
+          }
+        }
+
+        if (
+          serverAvailability === 'online' ||
+          serverAvailability === 'offline' ||
+          serverAvailability === 'on_trip'
+        ) {
+          useAvailabilityStore.getState().setAvailability(serverAvailability);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [uid]);
 
   // Location subscription — starts/stops with availability & AppState.
   // Phase 7: subscribe to nearby trip requests while online.
@@ -225,7 +259,7 @@ export default function DriveScreen() {
 
   function handleToggleTripSheet() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedTripStatus((expandedStatus) =>
+    setExpandedTripStatus((expandedStatus: TripStatus | null) =>
       expandedStatus === trip?.status ? null : (trip?.status ?? null)
     );
   }
