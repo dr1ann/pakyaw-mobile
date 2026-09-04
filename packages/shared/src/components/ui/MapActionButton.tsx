@@ -45,6 +45,7 @@ export function MapActionButton({
         pressed && styles.pressed,
         style,
       ]}
+      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
       onPress={onPress}
       accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
@@ -63,7 +64,8 @@ export function MapActionButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 44,
+    minHeight: 48,
+    minWidth: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
