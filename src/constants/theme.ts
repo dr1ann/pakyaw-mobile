@@ -36,10 +36,11 @@ export const colors = {
     deep: '#008B97',
   },
 
-  // Semantic
+  // Semantic states
   success: '#27AE60',
   warning: '#F2A93B',
   danger: '#EB5757',
+  dangerSubtle: '#FDECEC',
   info: '#2F80ED',
 
   // Neutrals / Ink
@@ -50,6 +51,19 @@ export const colors = {
     400: '#9AA4B2',
   },
 
+  // Semantic text roles
+  text: {
+    primary: '#0E1726',
+    secondary: '#33415C',
+    muted: '#6B7689',
+    subtle: '#9AA4B2',
+    inverse: '#FFFFFF',
+    danger: '#EB5757',
+    success: '#27AE60',
+    warning: '#F2A93B',
+    info: '#2F80ED',
+  },
+
   // Surfaces
   surface: {
     card: '#FFFFFF',
@@ -58,9 +72,15 @@ export const colors = {
     bgLight: '#F7FAFE',
   },
 
+  // Overlay / backdrop
+  overlay: 'rgba(14, 23, 38, 0.5)',
+
   // Border
   border: {
     subtle: '#E6EBF2',
+    default: '#CBD5E1',
+    focus: '#2F80ED',
+    danger: '#EB5757',
   },
 
   // Utility
@@ -82,6 +102,7 @@ export const spacing = {
 } as const;
 
 export const radius = {
+  xs: 4,
   sm: 10,
   md: 14,
   lg: 20,
@@ -89,6 +110,13 @@ export const radius = {
 } as const;
 
 export const shadow = {
+  none: {
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
   card: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -114,10 +142,12 @@ export const typography = {
     extraBold: 'Montserrat_800ExtraBold',
   },
   size: {
+    caption: 12,
     label: 11,
     bodySmall: 13,
     body: 15,
     bodyMd: 16,
+    button: 15,
     h3: 18,
     h2: 24,
     h1: 30,
@@ -132,12 +162,20 @@ export const typography = {
     extraBold: '800' as const,
   },
   letterSpacing: {
+    tight: -0.4,
+    normal: 0,
+    wide: 0.2,
     label: 0.8,
   },
   lineHeight: {
-    body: 22,
+    caption: 16,
     bodySmall: 20,
+    body: 22,
+    bodyMd: 24,
+    h3: 26,
+    h2: 32,
     h1: 36,
     display: 38,
+    hero: 46,
   },
 } as const;

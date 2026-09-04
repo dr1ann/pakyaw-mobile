@@ -16,6 +16,7 @@ export type StatusPillProps = {
   tone?: StatusPillTone;
   dot?: boolean;
   uppercase?: boolean;
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -23,7 +24,7 @@ const TONES: Record<StatusPillTone, { bg: string; fg: string }> = {
   info: { bg: colors.blue.tint, fg: colors.blue.primary },
   success: { bg: colors.green.tint, fg: colors.success },
   warning: { bg: colors.amber.tint, fg: colors.warning },
-  danger: { bg: '#FDECEC', fg: colors.danger },
+  danger: { bg: colors.dangerSubtle, fg: colors.danger },
   neutral: { bg: colors.surface.muted, fg: colors.ink[500] },
   amber: { bg: colors.amber.tint, fg: colors.amber.deep },
   violet: { bg: colors.violet.tint, fg: colors.violet.primary },
@@ -34,12 +35,17 @@ export function StatusPill({
   tone = 'neutral',
   dot = false,
   uppercase = true,
+  accessibilityLabel,
   style,
 }: StatusPillProps) {
   const palette = TONES[tone];
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.bg }, style]}>
+    <View
+      style={[styles.container, { backgroundColor: palette.bg }, style]}
+      accessibilityRole="text"
+      accessibilityLabel={accessibilityLabel ?? label}
+    >
       {dot ? <View style={[styles.dot, { backgroundColor: palette.fg }]} /> : null}
       <Text
         style={[
@@ -71,7 +77,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
+    fontFamily: typography.family.semibold,
     letterSpacing: typography.letterSpacing.label,
   },
   uppercase: {

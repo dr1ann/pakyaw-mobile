@@ -31,18 +31,19 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
+    fontFamily: typography.family.semibold,
     letterSpacing: typography.letterSpacing.label,
-    color: colors.ink[500],
+    color: colors.ink[700],
     textTransform: 'uppercase',
   },
   hint: {
-    fontSize: typography.size.bodySmall,
+    fontSize: typography.size.caption,
+    fontFamily: typography.family.regular,
     color: colors.ink[500],
   },
   error: {
-    fontSize: typography.size.bodySmall,
+    fontSize: typography.size.caption,
+    fontFamily: typography.family.medium,
     color: colors.danger,
-    fontWeight: typography.weight.medium,
   },
 });

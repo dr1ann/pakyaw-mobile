@@ -43,12 +43,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typography.size.h3,
-    fontWeight: typography.weight.bold,
+    fontFamily: typography.family.bold,
     color: colors.ink[900],
     textAlign: 'center',
   },
   description: {
     fontSize: typography.size.body,
+    fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
     lineHeight: typography.lineHeight.body,
