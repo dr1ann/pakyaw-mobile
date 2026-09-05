@@ -490,15 +490,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   container: {
-    paddingHorizontal: spacing[5],
-    paddingTop: spacing[3],
-    paddingBottom: spacing[6],
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[2],
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   modeBadge: {
     flexDirection: 'row',
@@ -562,8 +562,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.green.tint,
     borderRadius: radius.md,
-    padding: spacing[3],
-    marginBottom: spacing[3],
+    padding: spacing[2],
+    marginBottom: spacing[2],
     gap: spacing[3],
     borderWidth: 1,
     borderColor: colors.green.primary,
@@ -584,8 +584,8 @@ const styles = StyleSheet.create({
   driverCard: {
     backgroundColor: colors.surface.card,
     borderRadius: radius.lg,
-    padding: spacing[4],
-    marginBottom: spacing[3],
+    padding: spacing[3],
+    marginBottom: spacing[2],
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
@@ -593,12 +593,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   avatarWrapper: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
   },
   avatarImage: {
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   plateBadge: {
     flexDirection: 'row',
@@ -812,8 +812,8 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     backgroundColor: colors.surface.muted,
     borderRadius: radius.md,
-    padding: spacing[3],
-    marginBottom: spacing[3],
+    padding: spacing[2],
+    marginBottom: spacing[2],
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
@@ -839,8 +839,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blue.tint,
     borderRadius: radius.md,
     paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    marginBottom: spacing[3],
+    paddingVertical: spacing[1],
+    marginBottom: spacing[2],
   },
   privacyTextCol: {
     flex: 1,
@@ -865,7 +865,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   driverLocationUnavailableText: {
     fontSize: typography.size.label,
@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.medium,
   },
   safetyContainer: {
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   errorBanner: {
     flexDirection: 'row',
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[2],
     borderRadius: radius.md,
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   errorText: {
     flex: 1,
@@ -929,6 +929,7 @@ const styles = StyleSheet.create({
     height: 44,
   },
   cancelBtn: {
-    minHeight: 44,
+    minHeight: 40,
+    marginTop: spacing[1],
   },
 });
