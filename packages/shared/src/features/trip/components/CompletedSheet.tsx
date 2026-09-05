@@ -218,6 +218,10 @@ function formatCompletionTime(completedAt: any, requestedAt: any): string {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: colors.surface.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    overflow: 'hidden',
     paddingHorizontal: spacing[5],
     paddingTop: spacing[4],
     paddingBottom: spacing[6],
