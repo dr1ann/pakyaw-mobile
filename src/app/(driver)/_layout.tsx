@@ -1,7 +1,6 @@
 import { Redirect, Slot, Tabs, useSegments } from 'expo-router';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors } from '../../constants/theme';
-import { useAvailabilityStore } from '../../stores/availabilityStore';
 import { useDriverSession } from '@/features/auth/stores/driver-session.store';
 import { isDriverWorkspaceState } from '@/features/auth/services/driver-session.service';
 
@@ -10,8 +9,6 @@ export const unstable_settings = { initialRouteName: 'index' };
 export default function DriverLayout() {
   const { status } = useDriverSession();
   const segments = useSegments();
-  const availability = useAvailabilityStore((s) => s.availability);
-  const isFullScreenDriverMode = availability !== 'offline';
   const isWorkspace = isDriverWorkspaceState(status);
   const isGatedRoute = segments[segments.length - 1] === 'application'
     || segments[segments.length - 1] === 'support';
@@ -29,12 +26,10 @@ export default function DriverLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.green.primary,
         tabBarInactiveTintColor: colors.ink[400],
-        tabBarStyle: isFullScreenDriverMode
-          ? { display: 'none' }
-          : {
-              backgroundColor: colors.surface.card,
-              borderTopColor: colors.border.subtle,
-            },
+        tabBarStyle: {
+          backgroundColor: colors.surface.card,
+          borderTopColor: colors.border.subtle,
+        },
       }}
     >
       <Tabs.Screen

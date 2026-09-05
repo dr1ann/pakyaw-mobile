@@ -23,8 +23,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   LayoutAnimation,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -206,6 +208,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
     setIsMinimized((m) => !m);
   }
 
+  const windowHeight = Dimensions.get('window').height;
   const modeLabel = isShared ? 'SHARED' : 'PAKYAW';
   const passengerLabel = `${request.passengerCount} ${request.passengerCount === 1 ? 'passenger' : 'passengers'}`;
 
@@ -215,6 +218,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
         styles.card,
         shadow.float,
         {
+          maxHeight: Math.min(windowHeight * 0.85, 580),
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
@@ -259,7 +263,12 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
       </View>
 
       {!isMinimized && (
-        <>
+        <ScrollView
+          style={styles.detailsScroll}
+          contentContainerStyle={styles.detailsScrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {/* Third-party Booking Notice */}
           {isOther && (
             <View style={styles.otherBookingBanner} testID="third-party-booking-banner">
@@ -355,7 +364,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
               </Text>
             </View>
           )}
-        </>
+        </ScrollView>
       )}
 
       {/* Race Condition / Status Feedback Banner */}
@@ -431,11 +440,18 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface.card,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing[5],
-    paddingVertical: spacing[5],
-    gap: spacing[4],
-    maxHeight: '90%',
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[4],
+    gap: spacing[3],
+    overflow: 'hidden',
     flexShrink: 1,
+  },
+  detailsScroll: {
+    flexShrink: 1,
+  },
+  detailsScrollContent: {
+    gap: spacing[3],
   },
   headerRow: {
     flexDirection: 'row',

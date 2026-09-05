@@ -501,7 +501,7 @@ export default function DriveScreen() {
 
       {/* Bottom sheet area */}
       {!isInPip && (
-      <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+      <View style={styles.sheetArea} pointerEvents="box-none">
         {/* Compass Mode toggle — visible when driving camera is engaged */}
         <CompassModeToggle visible={isDriving} />
 
@@ -549,7 +549,7 @@ export default function DriveScreen() {
             />
           )}
         </View>
-      </SafeAreaView>
+      </View>
       )}
 
       {/* Passenger Boarding Confirmation Toast */}
