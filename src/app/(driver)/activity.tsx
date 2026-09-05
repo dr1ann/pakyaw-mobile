@@ -347,14 +347,8 @@ export default function ActivityScreen() {
             </View>
             <Text style={styles.emptyTitle}>No active reports</Text>
             <Text style={styles.emptySubtitle}>
-              Lost-item reports and trip support inquiries will appear here.
+              Lost-item reports and trip cases requiring your action will appear here.
             </Text>
-            <Pressable
-              style={styles.createReportBtn}
-              onPress={() => router.push('/(driver)/support')}
-            >
-              <Text style={styles.createReportBtnText}>Submit a Report</Text>
-            </Pressable>
           </View>
         ) : (
           <FlatList
@@ -362,15 +356,6 @@ export default function ActivityScreen() {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => <ReportCard report={item} />}
             contentContainerStyle={styles.listContent}
-            ListFooterComponent={
-              <Pressable
-                style={styles.newReportFooterBtn}
-                onPress={() => router.push('/(driver)/support')}
-              >
-                <SymbolIcon name="doc.text.fill" size={16} tintColor={colors.blue.primary} />
-                <Text style={styles.newReportFooterText}>Create New Report</Text>
-              </Pressable>
-            }
           />
         )
       )}
@@ -659,38 +644,6 @@ const styles = StyleSheet.create({
     color: colors.ink[500],
     textAlign: 'center',
     lineHeight: 20,
-  },
-  createReportBtn: {
-    marginTop: spacing[4],
-    backgroundColor: colors.blue.primary,
-    paddingHorizontal: spacing[5],
-    paddingVertical: spacing[3],
-    borderRadius: radius.pill,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  createReportBtnText: {
-    color: colors.white,
-    fontSize: 15,
-    fontFamily: typography.family.bold,
-  },
-  newReportFooterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.surface.card,
-    paddingVertical: spacing[3],
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    minHeight: 48,
-    marginTop: spacing[2],
-  },
-  newReportFooterText: {
-    fontSize: 15,
-    fontFamily: typography.family.semibold,
-    color: colors.blue.primary,
   },
   loadingText: {
     fontSize: 15,

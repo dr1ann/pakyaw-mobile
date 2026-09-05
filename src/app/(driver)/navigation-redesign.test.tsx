@@ -2,11 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 import React from 'react';
 // @ts-ignore
 import { renderToStaticMarkup } from 'react-dom/server';
-import DriverLayout from './_layout';
-import DriverSettingsScreen from './settings';
-import ActivityScreen from './activity';
 
 // Mocks
+vi.mock('@pakyaw/shared/components/ui/SymbolIcon', () => ({
+  SymbolIcon: () => null,
+}));
+
+vi.mock('@pakyaw/shared/components/ui/Avatar', () => ({
+  Avatar: ({ name }: any) => React.createElement('div', {}, name),
+}));
+
+
 vi.mock('expo-router', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -37,6 +43,50 @@ vi.mock('@/features/auth/stores/driver-session.store', () => ({
 
 vi.mock('@/features/auth/services/driver-session.service', () => ({
   isDriverWorkspaceState: (status: string) => status === 'approved_active',
+}));
+
+vi.mock('@pakyaw/shared/features/auth/hooks/useSession', () => ({
+  useSession: () => ({
+    uid: 'driver-123',
+    session: { user: { uid: 'driver-123' } },
+  }),
+}));
+
+vi.mock('@pakyaw/shared/features/auth/hooks/useSignOut', () => ({
+  useSignOut: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+    error: null,
+  }),
+}));
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({
+    data: {
+      firstName: 'Andres',
+      lastName: 'Manili',
+      phone: '+639171234567',
+    },
+    isLoading: false,
+  }),
+}));
+
+vi.mock('@/features/onboarding/hooks/useDriverApplication', () => ({
+  useDriverApplication: () => ({
+    application: {
+      status: 'approved',
+      personalDetails: {
+        fullLegalName: 'Andres Umpad Manili',
+        verifiedMobile: '+639171234567',
+      },
+      vehicle: {
+        vehicleTypeId: 'tricycle',
+        plateNumber: '654315',
+        unitBodyNumber: '762',
+      },
+    },
+    isApplicationLoaded: true,
+  }),
 }));
 
 vi.mock('@pakyaw/shared/features/trip-history/hooks/useDriverTripHistory', () => ({
@@ -92,6 +142,12 @@ vi.mock('@/services/firebase/firebase', () => ({
   }),
 }));
 
+import DriverLayout from './_layout';
+import DriverSettingsScreen from './settings';
+import ActivityScreen from './activity';
+import DriverAccountScreen from './account';
+
+
 describe('Driver Operational Redesign', () => {
   it('renders DriverLayout with exactly four visible tabs and hidden sub-routes', () => {
     const layout = DriverLayout();
@@ -127,7 +183,7 @@ describe('Driver Operational Redesign', () => {
     expect(markup).toContain('Ormoc City, Leyte');
   });
 
-  it('renders Activity screen with segmented Trips and Reports structure', () => {
+  it('renders Activity screen with segmented Trips and Reports structure without generic create button', () => {
     const markup = renderToStaticMarkup(React.createElement(ActivityScreen));
     expect(markup).toBeDefined();
 
@@ -137,5 +193,31 @@ describe('Driver Operational Redesign', () => {
     expect(markup).toContain('Reports');
     expect(markup).toContain('Camp Downes');
     expect(markup).toContain('Robinsons Place Ormoc');
+    expect(markup).not.toContain('Create New Report');
+    expect(markup).not.toContain('Submit a Report');
+  });
+
+  it('renders DriverAccountScreen with identity, vehicle, support, and settings without Trip Reports duplicate', () => {
+    const markup = renderToStaticMarkup(React.createElement(DriverAccountScreen));
+    expect(markup).toBeDefined();
+
+    expect(markup).toContain('Account');
+    expect(markup).toContain('Verified Driver');
+    expect(markup).toContain('Active');
+    expect(markup).toContain('Driver Information');
+    expect(markup).toContain('Phone');
+    expect(markup).toContain('Vehicle');
+    expect(markup).toContain('Plate');
+    expect(markup).toContain('Body / Unit');
+    expect(markup).toContain('Capacity');
+    expect(markup).toContain('Driver Account');
+    expect(markup).toContain('Verification');
+    expect(markup).toContain('View application');
+    expect(markup).toContain('Help &amp; Support');
+    expect(markup).toContain('Settings');
+    expect(markup).toContain('Sign Out');
+
+    // Should NOT contain duplicate Trip Reports entry in Account
+    expect(markup).not.toContain('Trip Reports');
   });
 });

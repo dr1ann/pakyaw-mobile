@@ -119,21 +119,6 @@ export default function DriverAccountScreen() {
             <View style={styles.card}>
               <Pressable
                 style={styles.navRow}
-                onPress={() => router.push('/(driver)/activity')}
-                accessibilityRole="button"
-                accessibilityLabel="Trip reports"
-              >
-                <View style={styles.navIconRow}>
-                  <SymbolIcon name="doc.text.fill" size={18} tintColor={colors.blue.primary} />
-                  <Text style={styles.navRowLabel}>Trip Reports</Text>
-                </View>
-                <SymbolIcon name="chevron.right" size={16} tintColor={colors.ink[400]} />
-              </Pressable>
-
-              <View style={styles.rowDivider} />
-
-              <Pressable
-                style={styles.navRow}
                 onPress={() => router.push('/(driver)/support')}
                 accessibilityRole="button"
                 accessibilityLabel="Help & Support"

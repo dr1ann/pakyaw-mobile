@@ -280,6 +280,14 @@ vi.mock('@react-native-firebase/functions', () => {
   };
 });
 
+vi.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children, ...props }: any) => {
+    const React = require('react');
+    return React.createElement('div', props, children);
+  },
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
 vi.mock('expo-symbols', () => ({
   SymbolView: 'SymbolView',
 }));
