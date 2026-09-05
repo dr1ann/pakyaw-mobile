@@ -1,3 +1,4 @@
+import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
 import { useEffect, useState } from 'react';
 import {
   View,
@@ -6,10 +7,9 @@ import {
   ScrollView,
   Pressable,
   Animated,
-  Easing,
   Modal,
 } from 'react-native';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, radius, spacing, typography, shadow, motion } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type {
@@ -17,14 +17,12 @@ import type {
   SharedRideDoc,
   SharedRideOperationalStop,
   TripStatus,
-  CancelReason,
 } from '@pakyaw/shared/features/trip/types';
 import { useTripTransition, useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { SosButton } from '@/features/safety/components/SosButton';
 import { PassengerPickupPresenceCard } from '@/features/trip/components/DriverTripSheets';
 import { usePassengerLiveLocation } from '@/features/trip/hooks/usePassengerLiveLocation';
-import { DEFAULT_VEHICLE_CAPACITY } from '@pakyaw/shared/transport/contract';
 
 type PersistentDriverTripDashboardProps = {
   readonly trip: TripDoc | null;
@@ -45,15 +43,6 @@ type PersistentDriverTripDashboardProps = {
   readonly onDismissTerminal?: () => void;
 };
 
-export const CANONICAL_DRIVER_CANCEL_REASONS: { code: CancelReason; label: string }[] = [
-  { code: 'unable_to_locate_passenger', label: 'Unable to locate passenger' },
-  { code: 'passenger_changed_mind', label: 'Passenger changed mind / requested cancel' },
-  { code: 'vehicle_issue', label: 'Vehicle or mechanical issue' },
-  { code: 'safety_concern', label: 'Safety or security concern' },
-  { code: 'driver_unavailable', label: 'Driver emergency / unavailable' },
-  { code: 'other', label: 'Other operational reason' },
-];
-
 export function PersistentDriverTripDashboard({
   trip,
   sharedRide,
@@ -70,7 +59,7 @@ export function PersistentDriverTripDashboard({
   const [isExpanded, setIsExpanded] = useState(true);
   const [showEndTripModal, setShowEndTripModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedCancelReason, setSelectedCancelReason] = useState<CancelReason>('unable_to_locate_passenger');
+  const [selectedCancelReason, setSelectedCancelReason] = useState('');
   const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
@@ -91,21 +80,21 @@ export function PersistentDriverTripDashboard({
 
   // Entrance & State Transition Animations
   const [fadeAnim] = useState(() => new Animated.Value(0));
-  const [slideAnim] = useState(() => new Animated.Value(25));
+  const [slideAnim] = useState(() => new Animated.Value(12));
   const [buttonPulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 450,
-        easing: Easing.out(Easing.ease),
+        duration: motion.duration.normal,
+        easing: motion.easing.decelerate,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 450,
-        easing: Easing.out(Easing.back(1.2)),
+        duration: motion.duration.normal,
+        easing: motion.easing.standard,
         useNativeDriver: true,
       }),
     ]).start();
@@ -117,14 +106,14 @@ export function PersistentDriverTripDashboard({
   useEffect(() => {
     Animated.sequence([
       Animated.timing(buttonPulseAnim, {
-        toValue: 0.96,
-        duration: 120,
+        toValue: 0.98,
+        duration: motion.duration.instant,
         useNativeDriver: true,
       }),
       Animated.timing(buttonPulseAnim, {
         toValue: 1.0,
-        duration: 180,
-        easing: Easing.out(Easing.ease),
+        duration: motion.duration.fast,
+        easing: motion.easing.standard,
         useNativeDriver: true,
       }),
     ]).start();
@@ -218,13 +207,13 @@ export function PersistentDriverTripDashboard({
   }
 
   function handleConfirmCancel() {
-    if (!activeTrip) return;
+    if (!activeTrip || !selectedCancelReason.trim() || isCancelling) return;
     setActionErrorMessage(null);
     cancelTrip(
       {
         tripId: activeTrip.id,
         by: 'driver',
-        reason: selectedCancelReason,
+        reason: selectedCancelReason.trim(),
       },
       {
         onSuccess: () => {
@@ -545,7 +534,7 @@ export function PersistentDriverTripDashboard({
         {canDriverCancel && (
           <Button
             label="Cancel Ride"
-            onPress={() => setShowCancelModal(true)}
+            onPress={() => { setSelectedCancelReason(''); setShowCancelModal(true); }}
             loading={isCancelling}
             disabled={isCancelling || isTransitioning}
             tone="destructive"
@@ -744,7 +733,7 @@ export function PersistentDriverTripDashboard({
         onRequestClose={() => setShowCancelModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, shadow.float]}>
+          <ScrollView style={[styles.modalCard, shadow.float, { maxHeight: '90%' }]} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHeader}>
               <View style={[styles.modalIconBox, { backgroundColor: 'rgba(235, 87, 87, 0.12)' }]}>
                 <SymbolIcon name="exclamationmark.triangle.fill" size={26} tintColor={colors.danger} />
@@ -752,41 +741,17 @@ export function PersistentDriverTripDashboard({
               <Text style={styles.modalTitle}>Cancel This Trip?</Text>
             </View>
             <Text style={styles.modalMessage}>
-              Cancelling will release the booking for {riderFirstName}. Please select a reason:
+              Cancelling will release the booking for {riderFirstName}. Please choose a cancellation reason:
             </Text>
 
-            <View style={styles.reasonsList}>
-              {CANONICAL_DRIVER_CANCEL_REASONS.map((item) => {
-                const isSelected = selectedCancelReason === item.code;
-                return (
-                  <Pressable
-                    key={item.code}
-                    onPress={() => setSelectedCancelReason(item.code)}
-                    style={[
-                      styles.reasonOption,
-                      isSelected && styles.reasonOptionSelected,
-                    ]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: isSelected }}
-                    testID={`cancel-reason-${item.code}`}
-                  >
-                    <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
-                      {isSelected && <View style={styles.radioDot} />}
-                    </View>
-                    <Text style={[styles.reasonLabel, isSelected && styles.reasonLabelSelected]}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <CancellationReasonInput value={selectedCancelReason} onChangeText={setSelectedCancelReason} disabled={isCancelling} />
 
             <View style={styles.modalActions}>
               <Button
                 label={isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
                 onPress={handleConfirmCancel}
                 loading={isCancelling}
-                disabled={isCancelling}
+                disabled={isCancelling || !selectedCancelReason.trim()}
                 tone="destructive"
                 style={styles.modalPrimaryBtn}
                 testID="confirm-cancel-trip-btn"
@@ -800,7 +765,7 @@ export function PersistentDriverTripDashboard({
                 testID="dismiss-cancel-trip-dialog-btn"
               />
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </Animated.View>

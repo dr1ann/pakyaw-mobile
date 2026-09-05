@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   LayoutAnimation,
   Pressable,
   StyleSheet,
@@ -30,7 +31,7 @@ import {
   Vibration,
 } from 'react-native';
 
-import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography, motion } from '@/constants/theme';
 import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
 import { declineTripOffer } from '@/features/matching/services/matching.service';
 import type { IncomingRequest } from '@/features/matching/types';
@@ -51,6 +52,26 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(16));
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: motion.duration.normal,
+        easing: motion.easing.decelerate,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: motion.duration.normal,
+        easing: motion.easing.standard,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const calculateRemainingSeconds = useCallback(() => {
     if (request.expiresAt == null) return 15;
@@ -183,7 +204,17 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
   const passengerLabel = `${request.passengerCount} ${request.passengerCount === 1 ? 'passenger' : 'passengers'}`;
 
   return (
-    <View style={[styles.card, shadow.float]} testID="incoming-request-card">
+    <Animated.View
+      style={[
+        styles.card,
+        shadow.float,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+      testID="incoming-request-card"
+    >
       {/* Header with Mode Badge, Passenger Count, and Minimize Button */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
@@ -386,7 +417,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
           )}
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

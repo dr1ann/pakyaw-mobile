@@ -4,13 +4,15 @@ import { PersistentDriverTripDashboard } from './PersistentDriverTripDashboard';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
 
+let typedCancelReason = '';
+
 // Mock React hooks for pure functional tree execution
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
     useState: (initial: any) => {
-      return [typeof initial === 'function' ? initial() : initial, vi.fn()];
+      return [initial === '' ? typedCancelReason : typeof initial === 'function' ? initial() : initial, vi.fn()];
     },
     useCallback: (fn: any) => fn,
     useMemo: (fn: any) => fn(),
@@ -144,6 +146,7 @@ function findElementByTestId(tree: any, testId: string): any {
 
 describe('PersistentDriverTripDashboard Lifecycle', () => {
   beforeEach(() => {
+    typedCancelReason = '';
     vi.clearAllMocks();
     mockIsTransitioning = false;
     mockIsCancelling = false;
@@ -311,7 +314,17 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
     expect(mockDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it('handles cancellation confirmation with canonical reason selection', () => {
+  it('blocks cancellation until a nonblank reason is entered', () => {
+    typedCancelReason = '   ';
+    const tree = PersistentDriverTripDashboard({ trip: sampleTrip });
+    const button = findElementByTestId(tree, 'confirm-cancel-trip-btn');
+    expect(button.props.disabled).toBe(true);
+    button.props.onPress();
+    expect(mockCancelTrip).not.toHaveBeenCalled();
+  });
+
+  it('submits the selected cancellation reason', () => {
+    typedCancelReason = 'vehicle_issue';
     const tree = PersistentDriverTripDashboard({
       trip: sampleTrip,
     });
@@ -324,7 +337,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       expect.objectContaining({
         tripId: 'trip-test-101',
         by: 'driver',
-        reason: 'unable_to_locate_passenger',
+        reason: 'vehicle_issue',
       }),
       expect.any(Object)
     );
@@ -863,7 +876,8 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
       );
     });
 
-    it('cancels current stop trip with canonical reason when driver cancels in Shared session', () => {
+    it('cancels current stop trip with the selected reason in a Shared session', () => {
+      typedCancelReason = 'vehicle_issue';
       const tree = PersistentDriverTripDashboard({
         trip: null,
         sharedRide: sharedRideSample,
@@ -889,7 +903,7 @@ describe('PersistentDriverTripDashboard Lifecycle', () => {
         expect.objectContaining({
           tripId: 'trip-maria',
           by: 'driver',
-          reason: 'unable_to_locate_passenger',
+          reason: 'vehicle_issue',
         }),
         expect.any(Object)
       );

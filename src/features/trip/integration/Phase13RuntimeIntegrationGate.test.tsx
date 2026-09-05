@@ -5,12 +5,14 @@ import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { mapCanonicalSharedRide } from '@/features/shared-ride/hooks/useSharedRideSession';
 import type { TripDoc, SharedRideDoc } from '@pakyaw/shared/features/trip/types';
 
+let typedCancelReason = '';
+
 // Mock React hooks for pure functional tree execution
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
-    useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, vi.fn()],
+    useState: (initial: any) => [initial === '' ? typedCancelReason : typeof initial === 'function' ? initial() : initial, vi.fn()],
     useCallback: (fn: any) => fn,
     useMemo: (fn: any) => fn(),
     useRef: (initial: any) => ({ current: initial }),
@@ -117,6 +119,7 @@ const baseSoloTrip: TripDoc = {
 
 describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () => {
   beforeEach(() => {
+    typedCancelReason = '';
     vi.clearAllMocks();
     useActiveTripStore.getState().clearTrip();
   });
@@ -786,7 +789,8 @@ describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () =
   });
 
   // 12. Cancellation
-  it('Scenario 12: Cancellation of one member — cancels member trip with canonical reason and retains SharedRide', () => {
+  it('Scenario 12: Cancellation preserves the selected reason and retains SharedRide', () => {
+    typedCancelReason = 'vehicle_issue';
     const tripMaria: TripDoc = { ...baseSoloTrip, id: 'trip-maria', rider: { firstName: 'Maria' } };
 
     const sharedRide: SharedRideDoc = {
@@ -849,7 +853,7 @@ describe('Phase 13 Runtime Integration Gate — 12 Required E2E Scenarios', () =
       expect.objectContaining({
         tripId: 'trip-maria',
         by: 'driver',
-        reason: 'unable_to_locate_passenger',
+        reason: 'vehicle_issue',
       }),
       expect.any(Object)
     );

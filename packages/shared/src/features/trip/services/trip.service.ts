@@ -32,7 +32,6 @@ import {
   TripServiceError,
 } from '@pakyaw/shared/features/trip/errors';
 import {
-  type CancelReason,
   type CancelledBy,
   type TripDoc,
   type TripStatus,
@@ -437,11 +436,11 @@ export async function transition(
 export async function cancel(
   tripId: string,
   actorId: string,
-  reason: CancelReason,
+  reason: string,
 ): Promise<void> {
   try {
     const result = await httpsCallable<
-      { readonly tripId: string; readonly actorId: string; readonly reason: CancelReason },
+      { readonly tripId: string; readonly actorId: string; readonly reason: string },
       CallableResult
     >(functions, 'cancelTrip')({ tripId, actorId, reason });
     if (result.data.result !== 'ok') {

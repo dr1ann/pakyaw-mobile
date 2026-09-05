@@ -74,6 +74,7 @@ vi.mock('react-native', () => {
       spring: () => ({ start: (cb?: any) => cb?.({ finished: true }) }),
     },
     Easing: {
+      inOut: (e: any) => e,
       out: (e: any) => e,
       ease: (t: any) => t,
       back: () => (t: any) => t,
