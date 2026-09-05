@@ -572,6 +572,8 @@ function DriverApplicationWizard({
       .map((req) => ({ key: req.key, label: req.label }));
   }, [catalog, form.vehicle.vehicleTypeId, effectiveDocuments, metadataState]);
 
+  const status = application?.status;
+
   // 1. Approved
   if (status === 'approved') {
     return (
