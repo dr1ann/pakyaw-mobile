@@ -1,16 +1,6 @@
 /**
  * Passenger ride screen — (passenger)/index.tsx
  *
- * Phase 12D: Map-Driven Booking & Figma Alignment.
- *
- * The screen manages the passenger booking flow and active trip states.
- * Under Phase 12, the passenger booking flow is fully map-driven:
- *   - No active trip:
-/**
- * Passenger ride screen — (passenger)/index.tsx
- *
- * Phase 12D: Map-Driven Booking & Figma Alignment.
- *
  * The screen manages the passenger booking flow and active trip states.
  * Under Phase 12, the passenger booking flow is fully map-driven:
  *   - No active trip:
@@ -61,7 +51,6 @@ import { getDistanceToStepEnd } from '@pakyaw/shared/lib/geoProjection';
 import { logger } from '@pakyaw/shared/lib/logger';
 import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
-import { useRouter } from 'expo-router';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
 
