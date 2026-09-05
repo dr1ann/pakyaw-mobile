@@ -1234,9 +1234,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   expandedScroll: {
+    flex: 0,
     marginTop: spacing[1],
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     maxHeight: '45%',
   },
   sectionTitle: {
