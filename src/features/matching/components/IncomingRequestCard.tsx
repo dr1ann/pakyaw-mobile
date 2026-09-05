@@ -466,9 +466,6 @@ const styles = StyleSheet.create({
   badgeShared: {
     backgroundColor: colors.blue.tint,
   },
-  badgeHop: {
-    backgroundColor: colors.amber.tint,
-  },
   badgePrivate: {
     backgroundColor: colors.green.tint,
   },
@@ -479,9 +476,6 @@ const styles = StyleSheet.create({
   },
   badgeTextShared: {
     color: colors.blue.primary,
-  },
-  badgeTextHop: {
-    color: colors.amber.primary,
   },
   badgeTextPrivate: {
     color: colors.green.primary,

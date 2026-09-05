@@ -10,7 +10,7 @@ import type {
   TripDoc,
 } from '@pakyaw/shared/features/trip/types';
 import { subscribe } from '@pakyaw/shared/features/trip/services/trip.service';
-import { SHARED_RIDES_COLLECTION, DEFAULT_VEHICLE_CAPACITY } from '@pakyaw/shared/transport/contract';
+import { SHARED_RIDES_COLLECTION } from '@pakyaw/shared/transport/contract';
 import { logger } from '@pakyaw/shared/lib/logger';
 
 function isTimestamp(value: unknown): boolean {

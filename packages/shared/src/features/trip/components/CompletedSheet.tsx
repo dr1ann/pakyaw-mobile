@@ -48,7 +48,7 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
   }, [fadeAnim, slideAnim, reduceMotion]);
 
   const mode = trip?.mode ?? 'solo';
-  const modeLabel = mode === 'shared' ? 'Shared' : mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
+  const modeLabel = mode === 'shared' ? 'Shared' : 'Pakyaw';
 
   const fareTotal = typeof trip?.fare === 'number'
     ? trip.fare

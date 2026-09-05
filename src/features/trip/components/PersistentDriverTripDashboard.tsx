@@ -436,7 +436,7 @@ export function PersistentDriverTripDashboard({
       {/* FOLLOWING STOP / ROUTE CONTEXT (IF NEXT STOP EXISTS) */}
       {isSharedRideSession && nextStop && (
         <View style={styles.nextStopBar} testID="shared-next-stop-context">
-          <Text style={styles.nextStopPrefix}>NEXT</Text>
+          <Text style={styles.nextStopPrefix}>NEXT STOP</Text>
           <Text style={styles.nextStopLabel} numberOfLines={1}>
             {nextStop.kind === 'pickup' ? `Pick up ${nextRiderFirstName}` : `Drop off ${nextRiderFirstName}`} • {nextTrip?.destination?.label || nextStop.place.label || 'Next Stop'}
           </Text>
