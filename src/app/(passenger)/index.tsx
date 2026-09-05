@@ -640,7 +640,7 @@ export default function RideScreen() {
         // Booking Flow sheets
         searchMode === 'pickup' || searchMode === 'destination' ? (
           // Full-screen search overlay
-          <View style={styles.fullscreenSearchOverlay}>
+          <View key="location-search" style={styles.fullscreenSearchOverlay}>
             <SafeAreaView style={styles.fullscreenSearch} edges={['top', 'left', 'right']}>
               <SetDestinationSheet
                 mode={searchMode === 'pickup' ? 'pickup' : 'destination'}
@@ -699,7 +699,7 @@ export default function RideScreen() {
           </View>
         ) : isPinMode ? (
           // Map Pinning Confirmation Card
-          <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+          <SafeAreaView key="pin-selection" edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
             <View style={[styles.pinConfirmCard, shadow.float]}>
               <View style={styles.pinHeaderRow}>
                 <SymbolIcon
@@ -763,8 +763,9 @@ export default function RideScreen() {
             </View>
           </SafeAreaView>
         ) : draft.destination ? (
-          // Booking options sheet
-          <SafeAreaView edges={['bottom']} style={styles.bookingSheetArea} pointerEvents="box-none">
+          // Mount a fresh native layout when leaving the pin card. Its content-sized
+          // container must not be reused for the full-height, clipped booking panel.
+          <SafeAreaView key="booking" edges={['bottom']} style={styles.bookingSheetArea} pointerEvents="box-none">
             <View style={[
               styles.bookingSheetCard,
               isMinimized && styles.bookingSheetCardMinimized,
@@ -789,7 +790,7 @@ export default function RideScreen() {
           </SafeAreaView>
         ) : (
           // Home sheet ("Where to?")
-          <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+          <SafeAreaView key="home" edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
             <HomeSheet
               onSearchPress={() => setSearchMode('destination')}
               onPickupPress={() => setSearchMode('pickup')}
