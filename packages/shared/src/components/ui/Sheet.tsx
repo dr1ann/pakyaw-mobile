@@ -97,6 +97,8 @@ const styles = StyleSheet.create({
   sheet: {
     backgroundColor: colors.surface.card,
     paddingBottom: spacing[8],
+    maxHeight: '90%',
+    flexShrink: 1,
   },
   roundedMd: {
     borderTopLeftRadius: radius.md,

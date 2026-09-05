@@ -791,10 +791,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingTop: spacing[2],
     paddingBottom: spacing[4],
-    maxHeight: 440,
+    maxHeight: '65%',
   },
   containerExpanded: {
-    maxHeight: 680,
+    maxHeight: '85%',
   },
   handleContainer: {
     alignItems: 'center',
