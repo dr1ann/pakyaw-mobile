@@ -1,5 +1,6 @@
 import { formatCancellationReason } from '@pakyaw/shared/features/trip/cancellationReasons';
 import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
+import { formatUserFriendlyError } from '@pakyaw/shared/lib/userError';
 import { useEffect, useState } from 'react';
 import {
   View,
@@ -164,7 +165,7 @@ export function PersistentDriverTripDashboard({
           onError: (err) => {
             useActiveTripStore.getState().setOptimisticNavEngaged(false);
             setActionErrorMessage(
-              err instanceof Error ? err.message : 'Unable to update status. Please check your connection.'
+              formatUserFriendlyError(err, 'Unable to update status. Please check your connection.')
             );
           },
         }
@@ -175,7 +176,7 @@ export function PersistentDriverTripDashboard({
         {
           onError: (err) => {
             setActionErrorMessage(
-              err instanceof Error ? err.message : 'Unable to confirm arrival. Please try again.'
+              formatUserFriendlyError(err, 'Unable to confirm arrival. Please try again.')
             );
           },
         }
@@ -186,7 +187,7 @@ export function PersistentDriverTripDashboard({
         {
           onError: (err) => {
             setActionErrorMessage(
-              err instanceof Error ? err.message : 'Unable to start trip. Please try again.'
+              formatUserFriendlyError(err, 'Unable to start trip. Please try again.')
             );
           },
         }
@@ -210,7 +211,7 @@ export function PersistentDriverTripDashboard({
         onError: (err) => {
           setShowEndTripModal(false);
           setActionErrorMessage(
-            err instanceof Error ? err.message : 'Unable to complete trip. Please check your connection and retry.'
+            formatUserFriendlyError(err, 'Unable to complete trip. Please check your connection and retry.')
           );
         },
       }
@@ -233,7 +234,7 @@ export function PersistentDriverTripDashboard({
         onError: (err) => {
           setShowCancelModal(false);
           setActionErrorMessage(
-            err instanceof Error ? err.message : 'Unable to cancel trip. Please check your connection.'
+            formatUserFriendlyError(err, 'Unable to cancel trip. Please check your connection.')
           );
         },
       }
