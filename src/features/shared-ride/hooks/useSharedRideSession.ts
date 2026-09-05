@@ -307,7 +307,7 @@ export function useSharedRideSession() {
       nextTrip: nxtTrip,
       occupancy: {
         seatsReserved: sharedRide?.seatsReserved ?? 0,
-        maxSeats: sharedRide?.maxSeats ?? DEFAULT_VEHICLE_CAPACITY,
+        maxSeats: sharedRide?.maxSeats ?? null,
         onboardCount,
         waitingCount,
       },

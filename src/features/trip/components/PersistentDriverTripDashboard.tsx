@@ -36,7 +36,7 @@ type PersistentDriverTripDashboardProps = {
   readonly nextTrip?: TripDoc | null;
   readonly occupancy?: {
     readonly seatsReserved: number;
-    readonly maxSeats: number;
+    readonly maxSeats?: number | null;
     readonly onboardCount: number;
     readonly waitingCount: number;
   };
@@ -142,7 +142,7 @@ export function PersistentDriverTripDashboard({
 
   // Occupancy values
   const seatsReserved = occupancy?.seatsReserved ?? (sharedRide?.seatsBooked ?? (activeTrip?.billedSeats || 1));
-  const maxSeats = occupancy?.maxSeats ?? (sharedRide?.maxSeats ?? DEFAULT_VEHICLE_CAPACITY);
+  const maxSeats = occupancy?.maxSeats !== undefined ? occupancy.maxSeats : (sharedRide?.maxSeats ?? null);
   const onboardCount = occupancy?.onboardCount ?? 0;
 
   // Dynamic Navigation & Status Button Actions
@@ -426,7 +426,7 @@ export function PersistentDriverTripDashboard({
           <View style={styles.occupancyLeft}>
             <SymbolIcon name="person.3.fill" size={16} tintColor={colors.ink[700]} />
             <Text style={styles.occupancyText}>
-              <Text style={styles.occupancyBold}>{`${seatsReserved} / ${maxSeats}`}</Text> seats reserved • <Text style={styles.occupancyBold}>{`${onboardCount}`}</Text> onboard
+              <Text style={styles.occupancyBold}>{maxSeats != null ? `${seatsReserved} / ${maxSeats}` : `${seatsReserved}`}</Text> seats reserved • <Text style={styles.occupancyBold}>{`${onboardCount}`}</Text> onboard
             </Text>
           </View>
         </View>
