@@ -31,7 +31,7 @@ import {
   Vibration,
 } from 'react-native';
 
-import { colors, radius, shadow, spacing, typography, motion } from '@/constants/theme';
+import { colors, radius, shadow, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import { useAcceptTrip } from '@/features/matching/hooks/useAcceptTrip';
 import { declineTripOffer } from '@/features/matching/services/matching.service';
 import type { IncomingRequest } from '@/features/matching/types';
@@ -55,8 +55,14 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
 
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(16));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -71,7 +77,7 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, reduceMotion]);
 
   const calculateRemainingSeconds = useCallback(() => {
     if (request.expiresAt == null) return 15;
@@ -567,7 +573,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: typography.size.bodySmall,
-    color: colors.ink[500],
+    color: colors.ink[700],
     fontWeight: typography.weight.medium,
   },
   infoValue: {
@@ -596,7 +602,7 @@ const styles = StyleSheet.create({
   sharedNoticeText: {
     flex: 1,
     fontSize: typography.size.bodySmall,
-    color: colors.blue.primary,
+    color: colors.blue.deep,
     fontWeight: typography.weight.medium,
     lineHeight: 18,
   },
@@ -611,7 +617,7 @@ const styles = StyleSheet.create({
   feedbackText: {
     flex: 1,
     fontSize: typography.size.bodySmall,
-    color: colors.amber.primary,
+    color: colors.amber.deep,
     fontWeight: typography.weight.semibold,
   },
   actionsRow: {

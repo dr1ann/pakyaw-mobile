@@ -12,3 +12,15 @@ export const CANCELLATION_REASONS: { code: CancelReason; label: string }[] = [
 export function isCancellationReason(value: string): value is CancelReason {
   return CANCELLATION_REASONS.some(({ code }) => code === value);
 }
+
+/** Display stored codes without changing the cancellation record. */
+export function formatCancellationReason(reason: string | null | undefined): string {
+  if (!reason?.trim()) return 'No reason provided.';
+  const label = CANCELLATION_REASONS.find(({ code }) => code === reason)?.label;
+  if (label) return label;
+  if (/^[a-z]+(?:_[a-z]+)+$/.test(reason)) {
+    const words = reason.replace(/_/g, ' ');
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+  return reason;
+}

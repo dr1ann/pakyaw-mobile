@@ -1,3 +1,4 @@
+import { formatCancellationReason } from '@pakyaw/shared/features/trip/cancellationReasons';
 import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
 import { useEffect, useState } from 'react';
 import {
@@ -9,7 +10,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
-import { colors, radius, spacing, typography, shadow, motion } from '@/constants/theme';
+import { colors, radius, spacing, typography, shadow, motion, useReduceMotion } from '@/constants/theme';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import type {
@@ -82,8 +83,14 @@ export function PersistentDriverTripDashboard({
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(12));
   const [buttonPulseAnim] = useState(() => new Animated.Value(1));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -98,12 +105,16 @@ export function PersistentDriverTripDashboard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, reduceMotion]);
 
   // Animate button on trip status change for smooth UX feedback
   const status = activeTrip?.status ?? (sharedRide?.status === 'completed' ? 'completed' : sharedRide?.status === 'cancelled' ? 'cancelled' : 'accepted');
 
   useEffect(() => {
+    if (reduceMotion) {
+      buttonPulseAnim.setValue(1);
+      return;
+    }
     Animated.sequence([
       Animated.timing(buttonPulseAnim, {
         toValue: 0.98,
@@ -117,7 +128,7 @@ export function PersistentDriverTripDashboard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [status, buttonPulseAnim]);
+  }, [status, buttonPulseAnim, reduceMotion]);
 
   // Driver identity from canonical trip
   const driverPublic = activeTrip?.driverPublic ?? null;
@@ -481,7 +492,7 @@ export function PersistentDriverTripDashboard({
           </Text>
           {activeTrip?.cancelReason ? (
             <Text style={styles.cancelledNoticeReason}>
-              {`Reason: ${activeTrip.cancelReason}`}
+              {`Reason: ${formatCancellationReason(activeTrip.cancelReason)}`}
             </Text>
           ) : null}
         </View>
@@ -1076,11 +1087,11 @@ const styles = StyleSheet.create({
     marginVertical: spacing[3],
   },
   primaryActionButton: {
-    minHeight: 52,
+    minHeight: 56,
     width: '100%',
   },
   cancelRideButton: {
-    minHeight: 52,
+    minHeight: 56,
     paddingHorizontal: spacing[3],
   },
   cancelledNoticeBox: {

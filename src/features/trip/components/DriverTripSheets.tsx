@@ -1,3 +1,4 @@
+import { formatCancellationReason } from '@pakyaw/shared/features/trip/cancellationReasons';
 /**
  * Phase 8E — Driver-side trip status sheets.
  *
@@ -490,7 +491,7 @@ type DriverCancelledSheetProps = {
 export function DriverCancelledSheet({ onDismiss }: DriverCancelledSheetProps) {
   const trip = useActiveTripStore((s) => s.trip);
   const cancelledBy = trip?.cancelledBy ?? 'unknown';
-  const reason = trip?.cancelReason ?? 'No reason provided.';
+  const reason = formatCancellationReason(trip?.cancelReason);
 
   return (
     <View style={styles.container}>

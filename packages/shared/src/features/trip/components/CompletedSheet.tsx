@@ -11,7 +11,7 @@ import { Animated, StyleSheet, Text, View, Pressable, ScrollView } from 'react-n
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
-import { colors, radius, spacing, typography, motion } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 type CompletedSheetProps = {
@@ -23,8 +23,14 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
   const trip = useActiveTripStore((s: any) => s.trip);
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(14));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -39,7 +45,7 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, reduceMotion]);
 
   const mode = trip?.mode ?? 'solo';
   const modeLabel = mode === 'shared' ? 'Shared' : mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
