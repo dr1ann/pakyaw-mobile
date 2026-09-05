@@ -8,7 +8,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { formatCancellationReason } from '../cancellationReasons';
 
@@ -54,6 +54,10 @@ export function CancelledSheet({ onDismiss }: CancelledSheetProps) {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: colors.surface.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    overflow: 'hidden',
     paddingHorizontal: spacing[5],
     paddingTop: spacing[4],
     paddingBottom: spacing[6],
