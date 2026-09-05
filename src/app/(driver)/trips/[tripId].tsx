@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
 import { formatPhp } from '@pakyaw/shared/features/trip-history/services/earnings.service';
 
@@ -84,12 +84,12 @@ export default function DriverTripDetailsScreen() {
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => (typeof router.canGoBack === 'function' && router.canGoBack() ? router.back() : router.replace('/(driver)/activity'))}
           accessibilityRole="button"
-          accessibilityLabel="Back to Trips"
+          accessibilityLabel="Back to Activity"
         >
           <SymbolIcon name="chevron.left" size={20} tintColor={colors.blue.primary} />
-          <Text style={styles.backButtonText}>Back</Text>
+          <Text style={styles.backButtonText}>Activity</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Trip Details</Text>
         <View style={styles.headerSpacer} />
@@ -97,7 +97,7 @@ export default function DriverTripDetailsScreen() {
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.blue.primary} />
+          <ActivityIndicator size="large" color={colors.green.primary} />
           <Text style={styles.loadingText}>Loading trip details...</Text>
         </View>
       ) : isError || !trip ? (
@@ -112,8 +112,8 @@ export default function DriverTripDetailsScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* Status & Mode Card */}
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Summary / Status Card */}
           <View style={styles.card}>
             <View style={styles.cardRow}>
               <View>
@@ -122,7 +122,7 @@ export default function DriverTripDetailsScreen() {
               </View>
               <View style={[styles.statusBadge, isCompleted ? styles.completedBadge : styles.cancelledBadge]}>
                 <Text style={[styles.statusBadgeText, isCompleted ? styles.completedBadgeText : styles.cancelledBadgeText]}>
-                  {isCompleted ? 'Completed' : 'Cancelled'}
+                  {isCompleted ? 'COMPLETED' : 'CANCELLED'}
                 </Text>
               </View>
             </View>
@@ -130,7 +130,7 @@ export default function DriverTripDetailsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Date</Text>
+              <Text style={styles.metaLabel}>Date & Time</Text>
               <Text style={styles.metaValue}>
                 {formatTripDate(trip.completedAt ?? trip.cancelledAt ?? trip.requestedAt)}
               </Text>
@@ -161,19 +161,19 @@ export default function DriverTripDetailsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Distance</Text>
+              <Text style={styles.metaLabel}>Trip distance</Text>
               <Text style={styles.metaValue}>
                 {formatDistanceKm(trip.route?.distanceMeters ?? trip.driverRoute?.distanceMeters)}
               </Text>
             </View>
           </View>
 
-          {/* Passenger & Seats Card */}
+          {/* Rider & Passenger Card */}
           <View style={styles.card}>
-            <Text style={styles.cardSectionTitle}>Passenger & Booking</Text>
+            <Text style={styles.cardSectionTitle}>Rider & Booking</Text>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Rider</Text>
-              <Text style={styles.metaValue}>{trip.rider?.firstName ?? '—'}</Text>
+              <Text style={styles.metaValue}>{trip.rider?.firstName ?? 'Passenger'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Passengers</Text>
@@ -202,12 +202,12 @@ export default function DriverTripDetailsScreen() {
               <Text style={styles.earningsHighlightValue}>
                 {isCompleted && typeof driverEarnings === 'number'
                   ? formatPhp(driverEarnings)
-                  : '—'}
+                  : 'No earnings recorded'}
               </Text>
             </View>
           </View>
 
-          {/* Cancellation Card (if cancelled) */}
+          {/* Cancellation Info if cancelled */}
           {trip.status === 'cancelled' ? (
             <View style={[styles.card, styles.cancellationCard]}>
               <Text style={styles.cancellationTitle}>Cancellation Details</Text>
@@ -253,11 +253,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 4,
+    paddingVertical: 6,
+    minHeight: 44,
   },
   backButtonText: {
     fontSize: 15,
-    fontFamily: typography.family.medium,
+    fontFamily: typography.family.semibold,
     color: colors.blue.primary,
   },
   headerTitle: {
@@ -266,15 +267,16 @@ const styles = StyleSheet.create({
     color: colors.ink[900],
   },
   headerSpacer: {
-    width: 50,
+    width: 60,
   },
   content: {
     padding: spacing[4],
     gap: spacing[3],
+    paddingBottom: spacing[8],
   },
   card: {
     backgroundColor: colors.surface.card,
-    borderRadius: 12,
+    borderRadius: radius.md,
     padding: spacing[4],
     borderWidth: 1,
     borderColor: colors.border.subtle,
@@ -286,7 +288,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 12,
-    fontFamily: typography.family.regular,
+    fontFamily: typography.family.medium,
     color: colors.ink[500],
   },
   primaryValue: {
@@ -301,9 +303,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: typography.family.bold,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   completedBadge: {
     backgroundColor: colors.green.tint,
@@ -318,7 +320,7 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   cardSectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     marginBottom: spacing[3],
@@ -335,22 +337,22 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   metaLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
   },
   metaValue: {
-    fontSize: 14,
-    fontFamily: typography.family.medium,
+    fontSize: 15,
+    fontFamily: typography.family.semibold,
     color: colors.ink[900],
   },
   earningsHighlightLabel: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
   },
   earningsHighlightValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: typography.family.bold,
     color: colors.green.primary,
   },
@@ -366,7 +368,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginTop: 4,
+    marginTop: 5,
   },
   pickupDot: {
     backgroundColor: colors.blue.primary,
@@ -389,9 +391,10 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.regular,
     color: colors.ink[400],
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   routeMainText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.medium,
     color: colors.ink[900],
     marginTop: 1,
@@ -401,7 +404,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF2F2',
   },
   cancellationTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.bold,
     color: colors.danger,
     marginBottom: spacing[2],
@@ -413,20 +416,20 @@ const styles = StyleSheet.create({
     padding: spacing[6],
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.medium,
     color: colors.ink[500],
     marginTop: spacing[3],
   },
   errorTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     marginTop: spacing[3],
     marginBottom: 4,
   },
   errorText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
@@ -437,9 +440,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
     borderRadius: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 14,
     fontFamily: typography.family.bold,
   },

@@ -2,7 +2,6 @@
  * OnlineSheet — bottom sheet content rendered when driver is online.
  *
  * Shows the online status indicator and a Go Offline PowerButton.
- * Phase 7 will overlay IncomingRequestCard here when a nearby request arrives.
  *
  * Designed as a content component (not a Modal wrapper) so the map
  * remains visible beneath it in drive.tsx.
@@ -60,11 +59,11 @@ export function OnlineSheet({
           setAddressText(formatted);
           lastGeocodedCoords.current = { lat: lastLatitude, lng: lastLongitude };
         } else {
-          setAddressText('Address unavailable');
+          setAddressText('Ormoc City');
         }
       } catch {
         if (isMounted) {
-          setAddressText('Address unavailable');
+          setAddressText('Ormoc City');
         }
       }
     })();
@@ -90,12 +89,12 @@ export function OnlineSheet({
       </View>
 
       <Text style={styles.title}>
-        {isOnTrip ? 'Trip in progress' : "You're online"}
+        {isOnTrip ? 'Trip in progress' : "You're ready for trips"}
       </Text>
       <Text style={styles.subtitle}>
         {isOnTrip
           ? 'Complete your current trip to return to the online state.'
-          : 'Waiting for ride requests'}
+          : 'Ormoc City · Waiting for nearby requests'}
       </Text>
 
       {/* Last known location */}
@@ -133,9 +132,9 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   dotOnline: {
     backgroundColor: colors.green.primary,
@@ -144,9 +143,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blue.primary,
   },
   statusLabel: {
-    fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
-    letterSpacing: typography.letterSpacing.label,
+    fontSize: 12,
+    fontFamily: typography.family.bold,
+    letterSpacing: 0.8,
   },
   statusLabelOnline: {
     color: colors.green.primary,
@@ -155,14 +154,15 @@ const styles = StyleSheet.create({
     color: colors.blue.primary,
   },
   title: {
-    fontSize: typography.size.h3,
-    fontWeight: typography.weight.bold,
+    fontSize: 22,
+    fontFamily: typography.family.bold,
     color: colors.ink[900],
   },
   subtitle: {
-    fontSize: typography.size.body,
+    fontSize: 15,
+    fontFamily: typography.family.regular,
     color: colors.ink[500],
-    lineHeight: typography.lineHeight.body,
+    lineHeight: 22,
   },
   coordsCard: {
     backgroundColor: colors.surface.muted,
@@ -171,15 +171,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
   },
   coordsLabel: {
-    fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
+    fontSize: 11,
+    fontFamily: typography.family.bold,
     color: colors.ink[400],
-    letterSpacing: typography.letterSpacing.label,
+    letterSpacing: 0.8,
     marginBottom: 2,
   },
   coordsValue: {
-    fontSize: typography.size.bodySmall,
+    fontSize: 14,
     color: colors.ink[700],
-    fontWeight: typography.weight.medium,
+    fontFamily: typography.family.medium,
   },
 });

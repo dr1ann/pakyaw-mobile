@@ -80,14 +80,60 @@ vi.mock('react-native', () => {
       back: () => (t: any) => t,
       bezier: () => (t: any) => t,
     },
-    Pressable: 'Pressable',
-    View: 'View',
-    Text: 'Text',
-    TextInput: 'TextInput',
-    ScrollView: 'ScrollView',
-    ActivityIndicator: 'ActivityIndicator',
-    Modal: 'Modal',
-    Image: 'Image',
+    Pressable: ({ children, style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('div', props, typeof children === 'function' ? children({ pressed: false }) : children);
+    },
+    View: ({ children, style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('div', props, children);
+    },
+    Text: ({ children, style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('span', props, children);
+    },
+    TextInput: ({ style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('input', props);
+    },
+    ScrollView: ({ children, style, contentContainerStyle, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('div', props, children);
+    },
+    ActivityIndicator: () => {
+      const React = require('react');
+      return React.createElement('div', {});
+    },
+    Modal: ({ children, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('div', props, children);
+    },
+    Image: ({ style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('img', props);
+    },
+    SafeAreaView: ({ children, style, ...props }: any) => {
+      const React = require('react');
+      return React.createElement('div', props, children);
+    },
+    Switch: (props: any) => {
+      const React = require('react');
+      return React.createElement('input', { type: 'checkbox', ...props });
+    },
+    FlatList: ({ data, renderItem, ListHeaderComponent, ListFooterComponent, style, contentContainerStyle, ...props }: any) => {
+      const React = require('react');
+      return React.createElement(
+        'div',
+        props,
+        ListHeaderComponent ? (typeof ListHeaderComponent === 'function' ? React.createElement(ListHeaderComponent) : ListHeaderComponent) : null,
+        Array.isArray(data) && renderItem ? data.map((item: any, index: number) => renderItem({ item, index })) : null,
+        ListFooterComponent ? (typeof ListFooterComponent === 'function' ? React.createElement(ListFooterComponent) : ListFooterComponent) : null,
+      );
+    },
+    RefreshControl: () => {
+      const React = require('react');
+      return React.createElement('div', {});
+    },
   };
 });
 
@@ -233,3 +279,13 @@ vi.mock('@react-native-firebase/functions', () => {
     getFunctions: vi.fn(() => functionsInstance),
   };
 });
+
+vi.mock('expo-symbols', () => ({
+  SymbolView: 'SymbolView',
+}));
+
+vi.mock('expo-font', () => ({
+  useFonts: () => [true, null],
+  loadAsync: vi.fn().mockResolvedValue(true),
+  isLoaded: vi.fn(() => true),
+}));

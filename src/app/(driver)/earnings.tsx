@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useDriverAllCompletedTrips } from '@pakyaw/shared/features/trip-history/hooks/useDriverTripHistory';
 import {
   computeDriverEarningsSummary,
@@ -28,14 +28,13 @@ import { auth } from '@/services/firebase/firebase';
 
 /**
  * Returns a safe, user-facing message for an earnings load error.
- * Never exposes raw Firebase error messages, index URLs, or stack internals.
  */
 function getEarningsErrorMessage(err: unknown): string {
   if (err instanceof QueryIndexError || err instanceof TripHistoryServiceError) {
     return 'Earnings are temporarily unavailable. Please try again shortly.';
   }
   if (err instanceof NetworkError) {
-    return 'Network error \u2014 please check your connection and try again.';
+    return 'Network error — please check your connection and try again.';
   }
   if (err instanceof PermissionError) {
     return 'You do not have permission to view earnings.';
@@ -108,7 +107,7 @@ export default function EarningsScreen() {
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.blue.primary} />
+          <ActivityIndicator size="large" color={colors.green.primary} />
           <Text style={styles.loadingText}>Loading earnings summary...</Text>
         </View>
       ) : isError ? (
@@ -127,7 +126,7 @@ export default function EarningsScreen() {
           <View style={styles.emptyIconCircle}>
             <SymbolIcon name="banknote" size={32} tintColor={colors.ink[400]} />
           </View>
-          <Text style={styles.emptyTitle}>No completed-trip earnings yet.</Text>
+          <Text style={styles.emptyTitle}>No completed-trip earnings yet</Text>
           <Text style={styles.emptySubtitle}>Completed trips will generate authoritative earnings records.</Text>
         </View>
       ) : (
@@ -139,40 +138,40 @@ export default function EarningsScreen() {
           contentContainerStyle={styles.scrollContent}
           ListHeaderComponent={
             <View style={styles.summaryContainer}>
-              {/* Main Today Card */}
+              {/* Today Hero Card */}
               <View style={styles.heroCard}>
                 <Text style={styles.heroCardLabel}>Today</Text>
                 <Text style={styles.heroCardAmount}>{formatPhp(summary.today)}</Text>
               </View>
 
-              {/* Grid Cards for 7 Days & 30 Days */}
+              {/* 7 Days & 30 Days Grid */}
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
-                  <Text style={styles.statCardLabel}>Last 7 Days</Text>
+                  <Text style={styles.statCardLabel}>7 Days</Text>
                   <Text style={styles.statCardAmount}>{formatPhp(summary.last7Days)}</Text>
                 </View>
 
                 <View style={styles.statCard}>
-                  <Text style={styles.statCardLabel}>Last 30 Days</Text>
+                  <Text style={styles.statCardLabel}>30 Days</Text>
                   <Text style={styles.statCardAmount}>{formatPhp(summary.last30Days)}</Text>
                 </View>
               </View>
 
               {/* Completed Trips Counter */}
               <View style={styles.completedCard}>
-                <Text style={styles.completedCardLabel}>Completed Trips</Text>
+                <Text style={styles.completedCardLabel}>Completed trips</Text>
                 <Text style={styles.completedCardValue}>{summary.completedCount}</Text>
               </View>
 
-              {/* Notice Card */}
+              {/* Secondary concise notice */}
               <View style={styles.noticeBox}>
-                <SymbolIcon name="info.circle" size={18} tintColor={colors.blue.primary} />
+                <SymbolIcon name="info.circle" size={16} tintColor={colors.ink[500]} />
                 <Text style={styles.noticeText}>
-                  Earnings shown are based on completed trip records and are not a withdrawable account balance.
+                  Earnings are based on completed trips.
                 </Text>
               </View>
 
-              <Text style={styles.sectionHeader}>Recent Completed Trips</Text>
+              <Text style={styles.sectionHeader}>Recent earnings</Text>
             </View>
           }
         />
@@ -195,12 +194,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border.subtle,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     marginTop: 2,
@@ -215,7 +214,7 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: colors.green.primary,
-    borderRadius: 12,
+    borderRadius: radius.md,
     padding: spacing[5],
     alignItems: 'center',
     shadowColor: '#000',
@@ -226,15 +225,15 @@ const styles = StyleSheet.create({
   },
   heroCardLabel: {
     fontSize: 14,
-    fontFamily: typography.family.medium,
+    fontFamily: typography.family.bold,
     color: '#E3F6EC',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   heroCardAmount: {
-    fontSize: 32,
+    fontSize: 34,
     fontFamily: typography.family.bold,
-    color: '#FFFFFF',
+    color: colors.white,
     marginTop: 4,
   },
   statsGrid: {
@@ -244,14 +243,14 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: colors.surface.card,
-    borderRadius: 12,
+    borderRadius: radius.md,
     padding: spacing[4],
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
   statCardLabel: {
-    fontSize: 12,
-    fontFamily: typography.family.regular,
+    fontSize: 13,
+    fontFamily: typography.family.medium,
     color: colors.ink[500],
   },
   statCardAmount: {
@@ -265,39 +264,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surface.card,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
     borderWidth: 1,
     borderColor: colors.border.subtle,
+    minHeight: 48,
   },
   completedCardLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.medium,
     color: colors.ink[700],
   },
   completedCardValue: {
     fontSize: 18,
     fontFamily: typography.family.bold,
-    color: colors.blue.primary,
+    color: colors.green.primary,
   },
   noticeBox: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: colors.blue.tint,
-    borderRadius: 10,
-    padding: spacing[3],
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface.muted,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
   },
   noticeText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: typography.family.regular,
-    color: colors.blue.deep,
-    lineHeight: 18,
+    color: colors.ink[500],
   },
   sectionHeader: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     marginTop: spacing[2],
@@ -309,10 +309,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
-    borderRadius: 10,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border.subtle,
     marginBottom: spacing[2],
+    minHeight: 52,
   },
   tripRowPressed: {
     backgroundColor: '#F8FAFC',
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   modeBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.family.bold,
     textTransform: 'uppercase',
   },
@@ -350,12 +351,12 @@ const styles = StyleSheet.create({
     color: colors.cyan.deep,
   },
   tripRowDate: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: typography.family.regular,
-    color: colors.ink[400],
+    color: colors.ink[500],
   },
   tripRowRoute: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: typography.family.medium,
     color: colors.ink[900],
   },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tripRowEarnings: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: typography.family.bold,
     color: colors.green.primary,
   },
@@ -387,32 +388,32 @@ const styles = StyleSheet.create({
     borderColor: colors.border.subtle,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     marginBottom: 4,
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.family.medium,
     color: colors.ink[500],
     marginTop: spacing[3],
   },
   errorTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: typography.family.bold,
     color: colors.ink[900],
     marginTop: spacing[3],
     marginBottom: 4,
   },
   errorText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: typography.family.regular,
     color: colors.ink[500],
     textAlign: 'center',
@@ -423,9 +424,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
     borderRadius: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 14,
     fontFamily: typography.family.bold,
   },

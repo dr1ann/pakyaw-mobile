@@ -1,6 +1,6 @@
 import { Redirect, Slot, Tabs, useSegments } from 'expo-router';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors } from '../../constants/theme';
+import { colors, typography } from '../../constants/theme';
 import { useDriverSession } from '@/features/auth/stores/driver-session.store';
 import { isDriverWorkspaceState } from '@/features/auth/services/driver-session.service';
 
@@ -10,8 +10,9 @@ export default function DriverLayout() {
   const { status } = useDriverSession();
   const segments = useSegments();
   const isWorkspace = isDriverWorkspaceState(status);
-  const isGatedRoute = segments[segments.length - 1] === 'application'
-    || segments[segments.length - 1] === 'support';
+  const isGatedRoute =
+    segments[segments.length - 1] === 'application' ||
+    segments[segments.length - 1] === 'support';
 
   // The root guard allows the application/status routes to live in this
   // group, but the operational tabs must never mount until approval is known.
@@ -25,10 +26,18 @@ export default function DriverLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.green.primary,
-        tabBarInactiveTintColor: colors.ink[400],
+        tabBarInactiveTintColor: colors.ink[500],
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontFamily: typography.family.semibold,
+          marginBottom: 4,
+        },
         tabBarStyle: {
           backgroundColor: colors.surface.card,
           borderTopColor: colors.border.subtle,
+          height: 60,
+          paddingTop: 6,
+          paddingBottom: 6,
         },
       }}
     >
@@ -36,18 +45,42 @@ export default function DriverLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <SymbolIcon name={focused ? 'car.fill' : 'car'} size={size} tintColor={color as string} />
+          tabBarIcon: ({ color, focused }) => (
+            <SymbolIcon name={focused ? 'car.fill' : 'car'} size={24} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="activity"
+        options={{
+          title: 'Activity',
+          tabBarIcon: ({ color, focused }) => (
+            <SymbolIcon name={focused ? 'clock.fill' : 'clock'} size={24} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Earnings',
+          tabBarIcon: ({ color, focused }) => (
+            <SymbolIcon name={focused ? 'banknote.fill' : 'banknote'} size={24} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color, focused }) => (
+            <SymbolIcon name={focused ? 'person.fill' : 'person'} size={24} tintColor={color as string} />
           ),
         }}
       />
       <Tabs.Screen
         name="trips"
         options={{
-          title: 'My Trips',
-          tabBarIcon: ({ color, size, focused }) => (
-            <SymbolIcon name={focused ? 'clock.fill' : 'clock'} size={size} tintColor={color as string} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -57,34 +90,19 @@ export default function DriverLayout() {
         }}
       />
       <Tabs.Screen
-        name="earnings"
-        options={{
-          title: 'Earnings',
-          tabBarIcon: ({ color, size, focused }) => (
-            <SymbolIcon name={focused ? 'banknote.fill' : 'banknote'} size={size} tintColor={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="support"
         options={{
-          title: 'Trip Reports',
-          tabBarIcon: ({ color, size, focused }) => (
-            <SymbolIcon name={focused ? 'doc.text.fill' : 'doc.text'} size={size} tintColor={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size, focused }) => (
-            <SymbolIcon name={focused ? 'person.fill' : 'person'} size={size} tintColor={color as string} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
         name="application"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
         options={{
           href: null,
         }}

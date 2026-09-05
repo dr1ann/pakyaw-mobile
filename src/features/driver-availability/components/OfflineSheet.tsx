@@ -37,15 +37,23 @@ export function OfflineSheet({
             <View style={[styles.dot, styles.dotOffline]} />
             <Text style={styles.statusLabel}>OFFLINE</Text>
           </View>
-          <Text style={styles.title}>You&apos;re offline</Text>
+
+          <Text style={styles.title}>Ready to drive?</Text>
           <Text style={styles.subtitle}>
-            Tap Go Online to start accepting rides.
+            Go online to start receiving Pakyaw and Shared requests.
           </Text>
+
+          <View style={styles.areaRow}>
+            <Text style={styles.areaLabel}>Current area</Text>
+            <Text style={styles.areaValue}>Ormoc City</Text>
+          </View>
+
           <PowerButton
             isOnline={false}
             onPress={onPressGoOnline}
             loading={goingOnline}
           />
+
           {availabilityErrorMessage ? (
             <View
               style={styles.availabilityError}
@@ -66,14 +74,12 @@ function LocationPermissionError() {
   function openSettings() {
     Linking.openSettings().catch(() => {
       // openSettings() can reject on some Android versions if no
-      // settings handler is available. Nothing meaningful to surface to the
-      // user in that case.
+      // settings handler is available.
     });
   }
 
   return (
     <View style={styles.permissionContainer} testID="location-permission-error">
-      {/* aria-hidden: the emoji is decorative; screen readers announce the title */}
       <Text style={styles.permissionIcon} accessibilityElementsHidden importantForAccessibility="no">
         📍
       </Text>
@@ -104,28 +110,48 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   dotOffline: {
     backgroundColor: colors.ink[400],
   },
   statusLabel: {
-    fontSize: typography.size.label,
-    fontWeight: typography.weight.semibold,
-    color: colors.ink[400],
-    letterSpacing: typography.letterSpacing.label,
+    fontSize: 12,
+    fontFamily: typography.family.bold,
+    color: colors.ink[500],
+    letterSpacing: 0.8,
   },
   title: {
-    fontSize: typography.size.h3,
-    fontWeight: typography.weight.bold,
+    fontSize: 22,
+    fontFamily: typography.family.bold,
     color: colors.ink[900],
   },
   subtitle: {
-    fontSize: typography.size.body,
+    fontSize: 15,
+    fontFamily: typography.family.regular,
     color: colors.ink[500],
-    lineHeight: typography.lineHeight.body,
+    lineHeight: 22,
+  },
+  areaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surface.muted,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    borderRadius: radius.md,
+  },
+  areaLabel: {
+    fontSize: 14,
+    fontFamily: typography.family.regular,
+    color: colors.ink[500],
+  },
+  areaValue: {
+    fontSize: 15,
+    fontFamily: typography.family.semibold,
+    color: colors.ink[900],
   },
   permissionContainer: {
     alignItems: 'center',
