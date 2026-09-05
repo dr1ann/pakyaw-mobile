@@ -487,6 +487,7 @@ export function DriverMatchedSheet({
 const styles = StyleSheet.create({
   scrollView: {
     maxHeight: '85%',
+    flexGrow: 0,
     flexShrink: 1,
   },
   container: {
