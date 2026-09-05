@@ -1235,6 +1235,9 @@ const styles = StyleSheet.create({
   },
   expandedScroll: {
     marginTop: spacing[1],
+    flexGrow: 0,
+    flexShrink: 1,
+    maxHeight: '45%',
   },
   sectionTitle: {
     fontSize: 11,
