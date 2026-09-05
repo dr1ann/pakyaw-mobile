@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import * as Location from 'expo-location';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
@@ -8,7 +8,13 @@ import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 import { createTripIncident, getSafetyStatus } from '../services/incident.service';
 
-export function SosButton({ tripId }: { readonly tripId: string | null }) {
+export function SosButton({
+  tripId,
+  style,
+}: {
+  readonly tripId: string | null;
+  readonly style?: StyleProp<ViewStyle>;
+}) {
   const uid = useSessionStore((state) => state.uid);
   const [pending, setPending] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -50,9 +56,17 @@ export function SosButton({ tripId }: { readonly tripId: string | null }) {
     }
   }
 
-  return <Button label="Emergency SOS" onPress={() => void trigger()} loading={pending} style={styles.button} testID="driver-sos" />;
+  return (
+    <Button
+      label="Emergency SOS"
+      onPress={() => void trigger()}
+      loading={pending}
+      style={[styles.button, style]}
+      testID="driver-sos"
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-  button: { backgroundColor: colors.danger },
+  button: { backgroundColor: colors.danger, minHeight: 44 },
 });

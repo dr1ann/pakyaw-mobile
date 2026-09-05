@@ -58,7 +58,8 @@ export function PersistentDriverTripDashboard({
   etaSeconds,
   onDismissTerminal,
 }: PersistentDriverTripDashboardProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const isSharedRideSession = sharedRide != null;
+  const [isExpanded, setIsExpanded] = useState(isSharedRideSession);
   const [showEndTripModal, setShowEndTripModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedCancelReason, setSelectedCancelReason] = useState('');
@@ -66,8 +67,6 @@ export function PersistentDriverTripDashboard({
 
   const { mutate: transition, isPending: isTransitioning } = useTripTransition();
   const { mutate: cancelTrip, isPending: isCancelling } = useCancelTrip();
-
-  const isSharedRideSession = sharedRide != null;
 
   // Active trip for action context (in Shared mode, currentStop's trip; in Solo mode, trip)
   const activeTrip: TripDoc | null = isSharedRideSession ? (currentTrip ?? trip) : trip;
@@ -412,12 +411,46 @@ export function PersistentDriverTripDashboard({
           <Text style={styles.currentStopPlace}>Awaiting next passenger stop</Text>
         </View>
       ) : (
-        /* SOLO TRIP: TARGET LOCATION BANNER */
+        /* SOLO TRIP: TARGET LOCATION & RIDER SUMMARY BANNER */
         <View style={styles.targetBanner}>
-          <Text style={styles.targetPrefix}>{targetPrefix}</Text>
+          <View style={styles.targetHeaderRow}>
+            <Text style={styles.targetPrefix}>{targetPrefix}</Text>
+            {vehiclePlate ? (
+              <View style={styles.plateTag}>
+                <Text style={styles.plateText}>{vehiclePlate}</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.targetLocation} numberOfLines={1}>
             {targetLabel}
           </Text>
+          <View style={styles.riderMetaRow}>
+            <SymbolIcon name="person.fill" size={13} tintColor={colors.ink[500]} />
+            <Text style={styles.riderMetaText} numberOfLines={1}>
+              {riderFirstName} • {seatsReserved} {seatsReserved === 1 ? 'seat' : 'seats'} • ₱{totalCollectedFare.toFixed(2)}
+            </Text>
+            {driverName ? (
+              <Text style={styles.driverA11y} accessibilityRole="text">
+                {driverName}
+              </Text>
+            ) : null}
+          </View>
+
+          {activeTrip?.bookingFor === 'other' && (
+            <View style={styles.thirdPartyIndicator}>
+              <SymbolIcon name="person.2.fill" size={12} tintColor={colors.blue.primary} />
+              <Text style={styles.thirdPartyText}>
+                {`Booked for other${activeTrip?.rider?.firstName ? `: ${activeTrip.rider.firstName}` : ''}${activeTrip?.pickupNote ? ` · "${activeTrip.pickupNote}"` : ''}`}
+              </Text>
+            </View>
+          )}
+
+          {passengerLocation && formattedDistanceToPickup && (
+            <View style={styles.liveGpsBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveGpsText}>Passenger GPS: {formattedDistanceToPickup}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -441,47 +474,6 @@ export function PersistentDriverTripDashboard({
             {nextStop.kind === 'pickup' ? `Pick up ${nextRiderFirstName}` : `Drop off ${nextRiderFirstName}`} • {nextTrip?.destination?.label || nextStop.place.label || 'Next Stop'}
           </Text>
         </View>
-      )}
-
-      {/* Driver & Vehicle Profile Header (Solo Mode) */}
-      {!isSharedRideSession && (
-        <View style={styles.driverProfileRow}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarFallback}>
-              <SymbolIcon name="person.fill" size={24} tintColor={colors.white} />
-            </View>
-            {driverPublic?.verification?.verified === true ? (
-              <View style={styles.verifiedCheck}>
-                <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.driverMeta}>
-            <Text style={styles.driverName}>
-              {driverName}
-            </Text>
-            <Text style={styles.vehicleDetails}>
-              {vehicleDetails || 'Vehicle details unavailable'}
-            </Text>
-          </View>
-
-          {vehiclePlate ? (
-            <View style={styles.plateTag}>
-              <Text style={styles.plateText}>{vehiclePlate}</Text>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {/* Passenger Pickup Presence Card (Solo Mode) */}
-      {!isSharedRideSession && status !== 'completed' && status !== 'cancelled' && status !== 'in_progress' && (
-        <PassengerPickupPresenceCard
-          trip={activeTrip}
-          formattedDistanceToPickup={formattedDistanceToPickup}
-          hasLiveLocation={!!passengerLocation}
-          isBookingForOther={isBookingForOther}
-        />
       )}
 
       {/* Cancellation Notice Banner */}
@@ -530,9 +522,9 @@ export function PersistentDriverTripDashboard({
         </View>
       )}
 
-      {/* Primary Transition Action Control & Driver Cancel */}
-      <View style={styles.actionsRow}>
-        <Animated.View style={{ flex: 1, transform: [{ scale: buttonPulseAnim }] }}>
+      {/* Primary Transition Action Control & Secondary Actions */}
+      <View style={styles.actionsContainer}>
+        <Animated.View style={{ width: '100%', transform: [{ scale: buttonPulseAnim }] }}>
           <Button
             label={isTransitioning ? (status === 'driver_arrived' ? 'Starting...' : isHeadingToDestination ? 'Completing...' : 'Updating...') : actionConfig.label}
             onPress={handlePrimaryAction}
@@ -543,24 +535,58 @@ export function PersistentDriverTripDashboard({
           />
         </Animated.View>
 
-        {canDriverCancel && (
-          <Button
-            label="Cancel Ride"
-            onPress={() => { setSelectedCancelReason(''); setShowCancelModal(true); }}
-            loading={isCancelling}
-            disabled={isCancelling || isTransitioning}
-            tone="destructive"
-            fullWidth={false}
-            style={styles.cancelRideButton}
-            testID="driver-cancel-trip-btn"
-          />
+        {(canDriverCancel || (activeTrip?.id != null && status !== 'completed' && status !== 'cancelled')) && (
+          <View style={styles.secondaryActionsRow}>
+            {canDriverCancel && (
+              <Button
+                label="Cancel Ride"
+                variant="outline"
+                tone="destructive"
+                onPress={() => { setSelectedCancelReason(''); setShowCancelModal(true); }}
+                loading={isCancelling}
+                disabled={isCancelling || isTransitioning}
+                style={styles.cancelRideButton}
+                testID="driver-cancel-trip-btn"
+              />
+            )}
+            <SosButton tripId={activeTrip?.id ?? null} style={styles.sosButton} />
+          </View>
         )}
       </View>
-      <SosButton tripId={activeTrip?.id ?? null} />
 
       {/* Expanded Content Section */}
       {isExpanded && (
         <ScrollView style={styles.expandedScroll} showsVerticalScrollIndicator={false}>
+          {/* Driver & Vehicle Profile Header (Solo Mode expanded view) */}
+          {!isSharedRideSession && (
+            <View style={styles.driverProfileRow}>
+              <View style={styles.avatarContainer}>
+                <View style={styles.avatarFallback}>
+                  <SymbolIcon name="person.fill" size={24} tintColor={colors.white} />
+                </View>
+                {driverPublic?.verification?.verified === true ? (
+                  <View style={styles.verifiedCheck}>
+                    <SymbolIcon name="checkmark" size={10} tintColor={colors.white} />
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.driverMeta}>
+                <Text style={styles.driverName}>
+                  {driverName}
+                </Text>
+                <Text style={styles.vehicleDetails}>
+                  {vehicleDetails || 'Vehicle details unavailable'}
+                </Text>
+              </View>
+
+              {vehiclePlate ? (
+                <View style={styles.plateTag}>
+                  <Text style={styles.plateText}>{vehiclePlate}</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
           {/* SHARED OPERATIONAL MEMBER LIST */}
           {isSharedRideSession && (
             <View style={styles.membersSection} testID="shared-members-list">
@@ -791,8 +817,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     paddingHorizontal: spacing[4],
     paddingTop: spacing[2],
-    paddingBottom: spacing[4],
-    maxHeight: '65%',
+    paddingBottom: spacing[3],
+    maxHeight: '55%',
   },
   containerExpanded: {
     maxHeight: '85%',
@@ -988,6 +1014,12 @@ const styles = StyleSheet.create({
     marginTop: spacing[1],
     marginBottom: spacing[1],
   },
+  targetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   targetPrefix: {
     fontSize: 10,
     fontWeight: typography.weight.bold,
@@ -1000,6 +1032,34 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     color: colors.ink[900],
     marginTop: 2,
+  },
+  riderMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    marginTop: 3,
+  },
+  riderMetaText: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    fontWeight: typography.weight.medium,
+  },
+  driverA11y: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+  liveGpsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  liveGpsText: {
+    fontSize: 11,
+    color: colors.green.primary,
+    fontWeight: typography.weight.semibold,
   },
   pickupNoteBox: {
     backgroundColor: '#FFF8EC',
@@ -1081,19 +1141,27 @@ const styles = StyleSheet.create({
     color: colors.ink[700],
     letterSpacing: 0.5,
   },
-  actionsRow: {
+  actionsContainer: {
+    marginTop: spacing[2],
+  },
+  primaryActionButton: {
+    minHeight: 48,
+    width: '100%',
+  },
+  secondaryActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    marginVertical: spacing[3],
-  },
-  primaryActionButton: {
-    minHeight: 56,
-    width: '100%',
+    marginTop: spacing[2],
   },
   cancelRideButton: {
-    minHeight: 56,
-    paddingHorizontal: spacing[3],
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: spacing[2],
+  },
+  sosButton: {
+    flex: 1,
+    minHeight: 44,
   },
   cancelledNoticeBox: {
     backgroundColor: 'rgba(235, 87, 87, 0.08)',
