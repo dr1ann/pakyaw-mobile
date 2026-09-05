@@ -6,10 +6,12 @@ export type Timestamp = {
 };
 
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
+import type { RideMode } from '@pakyaw/shared/transport/contract';
 
 export type TripHistoryItem = {
   readonly tripId: string;
   readonly status: string;
+  readonly mode?: RideMode | 'solo' | 'shared' | 'pakyaw' | string;
   readonly pickup: {
     readonly label: string;
   };
@@ -17,12 +19,18 @@ export type TripHistoryItem = {
     readonly label: string;
   };
   readonly passengerCount: number;
-  readonly requestedAt: Timestamp | null;
-  readonly completedAt: Timestamp | null;
-  readonly cancelledAt: Timestamp | null;
-  readonly driver: {
+  readonly billedSeats?: number;
+  readonly requestedAt?: Timestamp | null;
+  readonly completedAt?: Timestamp | null;
+  readonly cancelledAt?: Timestamp | null;
+  readonly driverEarnings?: number | null;
+  readonly fareTotal?: number | null;
+  readonly driver?: {
     readonly displayName: string;
     readonly plate: string;
+  } | null;
+  readonly rider?: {
+    readonly firstName: string;
   } | null;
 };
 

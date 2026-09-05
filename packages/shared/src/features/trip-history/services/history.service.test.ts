@@ -175,6 +175,76 @@ describe('history.service', () => {
     });
   });
 
+  describe('listForDriver', () => {
+    it('issues the correct query for driver history', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            id: 'trip-d1',
+            data: () => ({
+              status: 'completed',
+              mode: 'pakyaw',
+              driverId: 'drv-1',
+              pickup: { label: 'Robinsons' },
+              destination: { label: 'Ormoc City Hall' },
+              passengerCount: 2,
+              billedSeats: 4,
+              rider: { firstName: 'Juan' },
+              fareBreakdown: {
+                total: 50,
+                driverEarnings: 43,
+                serviceFee: 7,
+              },
+              requestedAt: { seconds: 5000, nanoseconds: 0 },
+            }),
+          },
+        ],
+      });
+
+      const { listForDriver } = await import('./history.service');
+      const result = await listForDriver('drv-1', { limit: 10, cursor: null });
+
+      expect(mockWhere).toHaveBeenCalledWith('driverId', '==', 'drv-1');
+      expect(mockWhere).toHaveBeenCalledWith('status', 'in', ['completed', 'cancelled']);
+      expect(mockOrderBy).toHaveBeenCalledWith('requestedAt', 'desc');
+      expect(mockLimit).toHaveBeenCalledWith(10);
+      expect(result.trips).toHaveLength(1);
+      expect(result.trips[0].tripId).toBe('trip-d1');
+      expect(result.trips[0].mode).toBe('pakyaw');
+      expect(result.trips[0].driverEarnings).toBe(43);
+      expect(result.trips[0].fareTotal).toBe(50);
+      expect(result.trips[0].rider?.firstName).toBe('Juan');
+    });
+
+    it('handles cancelled trip without inventing earnings', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            id: 'trip-cancelled',
+            data: () => ({
+              status: 'cancelled',
+              mode: 'shared',
+              driverId: 'drv-1',
+              pickup: { label: 'Terminal' },
+              destination: { label: 'Market' },
+              passengerCount: 1,
+              billedSeats: 1,
+              rider: { firstName: 'Maria' },
+              requestedAt: { seconds: 4000, nanoseconds: 0 },
+            }),
+          },
+        ],
+      });
+
+      const { listForDriver } = await import('./history.service');
+      const result = await listForDriver('drv-1', { limit: 10, cursor: null });
+
+      expect(result.trips[0].status).toBe('cancelled');
+      expect(result.trips[0].driverEarnings).toBeNull();
+      expect(result.trips[0].rider?.firstName).toBe('Maria');
+    });
+  });
+
   describe('getTrip', () => {
     it('fetches single trip details', async () => {
       mockGetDoc.mockResolvedValueOnce({

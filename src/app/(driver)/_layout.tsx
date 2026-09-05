@@ -40,19 +40,58 @@ export default function DriverLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Drive',
+          title: 'Home',
           tabBarIcon: ({ color, size, focused }) => (
             <SymbolIcon name={focused ? 'car.fill' : 'car'} size={size} tintColor={color as string} />
           ),
         }}
       />
       <Tabs.Screen
+        name="trips/index"
+        options={{
+          title: 'My Trips',
+          tabBarIcon: ({ color, size, focused }) => (
+            <SymbolIcon name={focused ? 'clock.fill' : 'clock'} size={size} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="trips/[tripId]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Earnings',
+          tabBarIcon: ({ color, size, focused }) => (
+            <SymbolIcon name={focused ? 'banknote.fill' : 'banknote'} size={size} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          title: 'Trip Reports',
+          tabBarIcon: ({ color, size, focused }) => (
+            <SymbolIcon name={focused ? 'doc.text.fill' : 'doc.text'} size={size} tintColor={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="account"
         options={{
-          title: 'Account',
+          title: 'Profile',
           tabBarIcon: ({ color, size, focused }) => (
             <SymbolIcon name={focused ? 'person.fill' : 'person'} size={size} tintColor={color as string} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="application"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
