@@ -279,15 +279,6 @@ export function SearchingSheet() {
                 : 'Cancel Request'
             }
             onPress={() => {
-              const targetId = trip?.id ?? tripId;
-              if (isTimedOut && targetId) {
-                cancel({
-                  tripId: targetId,
-                  by: 'passenger',
-                  reason: 'Search timed out',
-                });
-                return;
-              }
               setConfirmCancel(true);
             }}
             loading={isPending}
