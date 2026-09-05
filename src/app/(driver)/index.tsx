@@ -579,12 +579,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    top: 0,
     bottom: 0,
+    justifyContent: 'flex-end',
   },
   sheetCard: {
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    overflow: 'hidden',
   },
   incomingArea: {
     position: 'absolute',
