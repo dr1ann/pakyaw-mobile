@@ -937,6 +937,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheetCard: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
