@@ -12,7 +12,6 @@ vi.mock('@pakyaw/shared/components/ui/Avatar', () => ({
   Avatar: ({ name }: any) => React.createElement('div', {}, name),
 }));
 
-
 vi.mock('expo-router', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -142,11 +141,10 @@ vi.mock('@/services/firebase/firebase', () => ({
   }),
 }));
 
-import DriverLayout from './_layout';
-import DriverSettingsScreen from './settings';
-import ActivityScreen from './activity';
-import DriverAccountScreen from './account';
-
+import DriverLayout from '@/app/(driver)/_layout';
+import DriverSettingsScreen from '@/app/(driver)/settings';
+import ActivityScreen from '@/app/(driver)/activity';
+import DriverAccountScreen from '@/app/(driver)/account';
 
 describe('Driver Operational Redesign', () => {
   it('renders DriverLayout with exactly four visible tabs and hidden sub-routes', () => {
