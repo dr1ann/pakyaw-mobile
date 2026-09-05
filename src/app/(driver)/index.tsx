@@ -415,12 +415,18 @@ export default function DriveScreen() {
     !locationPermissionDenied;
   const isInPip = useUiStore((s) => s.pip.isInPip);
   const currentNavStep = driverRouteData?.steps[navStepIndex] ?? null;
+  const currentStopId = (sharedRideId && currentStop) ? currentStop.id : null;
+  const navRouteId = activeNavTrip
+    ? `${activeNavTrip.id}:${currentStopId ?? activeNavTrip.status}`
+    : null;
+
   useVoiceGuidance({
     enabled: isDriving && activeNavTrip?.status !== 'driver_arrived' && driverRouteData != null,
     currentStep: currentNavStep,
     stepIndex: navStepIndex,
-    routeFetchedAt: driverRouteData?.fetchedAt ?? null,
     distanceToManeuver: progressStats.distanceToManeuver,
+    routeId: navRouteId,
+    stopId: currentStopId,
   });
   function handleDismissTerminal() {
     useActiveTripStore.getState().clearTrip();

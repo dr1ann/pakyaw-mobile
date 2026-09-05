@@ -75,10 +75,12 @@ export function useManeuverProgress(
 
   const steps = useMemo(() => route?.steps ?? [], [route?.steps]);
 
-  // Reset step index when route changes
+  const overviewPolyline = route?.overviewPolyline;
+
+  // Reset step index only when a new route geometry is established
   useEffect(() => {
     setNavStepIndex(0);
-  }, [route?.fetchedAt, setNavStepIndex]);
+  }, [overviewPolyline, setNavStepIndex]);
 
   useEffect(() => {
     const isUnreliableSpeed =
