@@ -802,15 +802,13 @@ export default function RideScreen() {
           />
         ) : (
           <View style={styles.sheetArea} pointerEvents="box-none">
-            <View style={[styles.sheetCard, shadow.float]}>
-              <TripSheet
-                status={status}
-                onDismiss={handleDismissTerminal}
-                onViewActivity={handleViewActivity}
-                remainingDistanceMeters={progressStats.remainingDistanceMeters}
-                etaSeconds={progressStats.etaSeconds}
-              />
-            </View>
+            <TripSheet
+              status={status}
+              onDismiss={handleDismissTerminal}
+              onViewActivity={handleViewActivity}
+              remainingDistanceMeters={progressStats.remainingDistanceMeters}
+              etaSeconds={progressStats.etaSeconds}
+            />
           </View>
         )
       )}

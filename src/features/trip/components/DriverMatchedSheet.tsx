@@ -205,7 +205,7 @@ export function DriverMatchedSheet({
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
-      style={styles.scrollView}
+      style={[styles.scrollView, shadow.float]}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
       testID="driver-matched-sheet"
@@ -489,6 +489,9 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
     flexGrow: 0,
     flexShrink: 1,
+    backgroundColor: colors.surface.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
   },
   container: {
     paddingHorizontal: spacing[4],
