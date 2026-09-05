@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,11 +9,13 @@ import { Screen } from '@pakyaw/shared/components/ui/Screen';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
+import { ReportIssueModal } from '@/features/support/components/ReportIssueModal';
 
 export default function TripDetailScreen() {
   const router = useRouter();
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { data: trip, isLoading, error } = useTripDetail(tripId);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
 
   if (isLoading) {
     return (
@@ -213,26 +216,36 @@ export default function TripDetailScreen() {
         </View>
       </Card>
 
-      {/* Cancellation Details (if cancelled) */}
-      {!isCompleted && (trip.cancelledBy || trip.cancelReason) ? (
-        <Card style={[styles.card, styles.cancelledCard]}>
-          <Text style={[styles.sectionTitle, styles.cancelledTitle]}>Cancellation Info</Text>
-          {trip.cancelledBy ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Cancelled By</Text>
-              <Text style={styles.detailValue}>
-                {trip.cancelledBy === 'driver' ? 'Driver' : 'Passenger'}
-              </Text>
-            </View>
-          ) : null}
-          {trip.cancelReason ? (
-            <View style={styles.cancelReasonRow}>
-              <Text style={styles.detailLabel}>Reason</Text>
-              <Text style={styles.cancelReasonValue}>{formatCancelReason(trip.cancelReason)}</Text>
-            </View>
-          ) : null}
-        </Card>
-      ) : null}
+      {/* Report an Issue Action */}
+      <Card style={[styles.card, styles.supportCard]}>
+        <View style={styles.supportHeader}>
+          <SymbolIcon name="questionmark.circle.fill" size={20} tintColor={colors.blue.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.supportTitle}>Need help with this trip?</Text>
+            <Text style={styles.supportSubtitle}>
+              Left an item behind, have a fare question, or ride concern?
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          style={styles.reportBtn}
+          onPress={() => setReportModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Report an issue for this trip"
+          testID="report-trip-issue-btn"
+        >
+          <SymbolIcon name="exclamationmark.bubble.fill" size={16} tintColor={colors.blue.primary} />
+          <Text style={styles.reportBtnText}>Report an Issue</Text>
+        </Pressable>
+      </Card>
+
+      <ReportIssueModal
+        visible={reportModalVisible}
+        tripId={trip.id}
+        pickupLabel={trip.pickup.label}
+        destinationLabel={trip.destination.label}
+        onClose={() => setReportModalVisible(false)}
+      />
     </Screen>
   );
 }
@@ -470,5 +483,44 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: typography.weight.bold,
     fontSize: typography.size.body,
+  },
+  supportCard: {
+    borderColor: colors.blue.primary + '30',
+    backgroundColor: colors.surface.card,
+    gap: spacing[3],
+    marginTop: spacing[2],
+    marginBottom: spacing[6],
+  },
+  supportHeader: {
+    flexDirection: 'row',
+    gap: spacing[3],
+    alignItems: 'flex-start',
+  },
+  supportTitle: {
+    fontSize: typography.size.body,
+    fontWeight: typography.weight.bold,
+    color: colors.ink[900],
+  },
+  supportSubtitle: {
+    fontSize: typography.size.bodySmall,
+    color: colors.ink[500],
+    marginTop: 2,
+  },
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    backgroundColor: colors.blue.tint,
+    borderColor: colors.blue.primary + '40',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing[3],
+    minHeight: 48,
+  },
+  reportBtnText: {
+    fontSize: typography.size.bodySmall,
+    fontWeight: typography.weight.bold,
+    color: colors.blue.primary,
   },
 });

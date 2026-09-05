@@ -15,18 +15,20 @@ describe('passenger incident callable adapter', () => {
     mocks.httpsCallable.mockReturnValue(mocks.callable);
   });
 
-  it('submits the authenticated participant context to createIncident', async () => {
+  it('submits the authenticated participant context to createIncident with emergency category and note', async () => {
     mocks.callable.mockResolvedValue({ data: { incidentId: 'incident-1', status: 'active' } });
 
     await expect(createTripIncident('trip-1', 'passenger-1', {
       latitude: 11.005,
       longitude: 124.6075,
-    })).resolves.toEqual({ incidentId: 'incident-1', status: 'active' });
+    }, 'danger', 'Driver driving recklessly')).resolves.toEqual({ incidentId: 'incident-1', status: 'active' });
     expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'createIncident');
     expect(mocks.callable).toHaveBeenCalledWith({
       tripId: 'trip-1',
       triggeredBy: 'passenger-1',
       location: { latitude: 11.005, longitude: 124.6075 },
+      category: 'danger',
+      notes: 'Driver driving recklessly',
     });
   });
 

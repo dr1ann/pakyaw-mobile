@@ -68,7 +68,6 @@ function isSameCoordinate(
 }
 
 export default function RideScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const trip = useActiveTripStore((s) => s.trip);
   const tripId = useActiveTripStore((s) => s.tripId);
@@ -688,7 +687,7 @@ export default function RideScreen() {
           </View>
         ) : isPinMode ? (
           // Map Pinning Confirmation Card
-          <SafeAreaView key="pin-selection" edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+          <View key="pin-selection" style={styles.sheetArea} pointerEvents="box-none">
             <View style={[styles.pinConfirmCard, shadow.float]}>
               <View style={styles.pinHeaderRow}>
                 <SymbolIcon
@@ -750,11 +749,11 @@ export default function RideScreen() {
                 />
               </View>
             </View>
-          </SafeAreaView>
+          </View>
         ) : draft.destination ? (
           // Mount a fresh native layout when leaving the pin card. Its content-sized
           // container must not be reused for the full-height, clipped booking panel.
-          <SafeAreaView key="booking" edges={['bottom']} style={styles.bookingSheetArea} pointerEvents="box-none">
+          <View key="booking" style={styles.bookingSheetArea} pointerEvents="box-none">
             <View style={[
               styles.bookingSheetCard,
               isMinimized && styles.bookingSheetCardMinimized,
@@ -776,10 +775,10 @@ export default function RideScreen() {
                 />
               </BookingSheetErrorBoundary>
             </View>
-          </SafeAreaView>
+          </View>
         ) : (
           // Home sheet ("Where to?")
-          <SafeAreaView key="home" edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+          <View key="home" style={styles.sheetArea} pointerEvents="box-none">
             <HomeSheet
               onSearchPress={() => setSearchMode('destination')}
               onPickupPress={() => setSearchMode('pickup')}
@@ -789,7 +788,7 @@ export default function RideScreen() {
               isLocatingPickup={isLocationLoading}
               locationPermissionDenied={permissionStatus === 'denied'}
             />
-          </SafeAreaView>
+          </View>
         )
       ) : (
         // Active Trip Sheets (Status-driven)
@@ -802,7 +801,7 @@ export default function RideScreen() {
             etaSeconds={progressStats.etaSeconds}
           />
         ) : (
-          <SafeAreaView edges={['bottom']} style={styles.sheetArea} pointerEvents="box-none">
+          <View style={styles.sheetArea} pointerEvents="box-none">
             <View style={[styles.sheetCard, shadow.float]}>
               <TripSheet
                 status={status}
@@ -812,7 +811,7 @@ export default function RideScreen() {
                 etaSeconds={progressStats.etaSeconds}
               />
             </View>
-          </SafeAreaView>
+          </View>
         )
       )}
       {isLocationLoading && <LocationLoader theme="passenger" />}

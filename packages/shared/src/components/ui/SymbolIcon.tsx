@@ -58,6 +58,14 @@ const SYMBOL_MAP: Record<string, { ios: string; android: string; web: string }> 
   navigation: { ios: 'navigation', android: 'navigation', web: 'navigation' },
   mappin: { ios: 'mappin', android: 'place', web: 'place' },
   safari: { ios: 'safari', android: 'explore', web: 'explore' },
+  'doc.text': { ios: 'doc.text', android: 'description', web: 'description' },
+  'doc.text.fill': { ios: 'doc.text.fill', android: 'description', web: 'description' },
+  'exclamationmark.bubble.fill': { ios: 'exclamationmark.bubble.fill', android: 'feedback', web: 'feedback' },
+  'bag.fill': { ios: 'bag.fill', android: 'shopping_bag', web: 'shopping_bag' },
+  'creditcard.fill': { ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' },
+  'shield.fill': { ios: 'shield.fill', android: 'shield', web: 'shield' },
+  'questionmark.circle.fill': { ios: 'questionmark.circle.fill', android: 'help', web: 'help' },
+  checkmark: { ios: 'checkmark', android: 'check', web: 'check' },
 };
 
 class SymbolErrorBoundary extends React.Component<
