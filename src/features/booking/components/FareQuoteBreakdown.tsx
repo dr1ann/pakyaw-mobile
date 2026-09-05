@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
+import { formatUserFriendlyError } from '@pakyaw/shared/lib/userError';
 import { colors, radius, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import type { PassengerFareQuote } from '@/features/booking/services/quote.service';
 import type { BookingRideSelection } from '@/features/booking/types';
@@ -91,7 +92,7 @@ export function FareQuoteBreakdown({
           <Text style={styles.errorTitle}>Unable to calculate fare</Text>
         </View>
         <Text style={styles.errorMessage}>
-          {error?.message || 'Pricing is currently unavailable for this route.'}
+          {formatUserFriendlyError(error, 'Pricing is currently unavailable for this route.')}
         </Text>
         <Pressable onPress={onRetry} style={({ pressed }) => [styles.retryButton, pressed && styles.retryPressed]}>
           <SymbolIcon name="arrow.clockwise" size={14} tintColor={colors.blue.primary} />

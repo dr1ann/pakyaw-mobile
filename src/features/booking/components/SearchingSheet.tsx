@@ -1,4 +1,5 @@
 import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
+import { formatUserFriendlyError } from '@pakyaw/shared/lib/userError';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -236,7 +237,7 @@ export function SearchingSheet() {
           <View style={styles.errorBanner}>
             <SymbolIcon name="exclamationmark.triangle.fill" size={16} tintColor={colors.danger} />
             <Text style={styles.errorBannerText}>
-              {error?.message || 'Unable to cancel request. Please try again.'}
+              {formatUserFriendlyError(error, 'Unable to cancel request. Please try again.')}
             </Text>
             <Pressable onPress={() => resetCancel()} style={styles.errorRetry}>
               <Text style={styles.errorRetryText}>Dismiss</Text>
@@ -278,6 +279,15 @@ export function SearchingSheet() {
                 : 'Cancel Request'
             }
             onPress={() => {
+              const targetId = trip?.id ?? tripId;
+              if (isTimedOut && targetId) {
+                cancel({
+                  tripId: targetId,
+                  by: 'passenger',
+                  reason: 'Search timed out',
+                });
+                return;
+              }
               setConfirmCancel(true);
             }}
             loading={isPending}
