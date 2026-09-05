@@ -511,8 +511,7 @@ export default function DriveScreen() {
           onPress={cameraController.recenter}
         />
 
-        <View style={[styles.sheetCard, shadow.float]}>
-          {isOnTrip || sharedRide != null ? (
+        {isOnTrip || sharedRide != null ? (
             <PersistentDriverTripDashboard
               trip={trip}
               sharedRide={sharedRide}
@@ -527,7 +526,8 @@ export default function DriveScreen() {
               onDismissTerminal={handleDismissTerminal}
             />
           ) : isOffline ? (
-            <OfflineSheet
+            <View style={[styles.sheetCard, shadow.float]}>
+              <OfflineSheet
               onPressGoOnline={handlePressGoOnline}
               locationPermissionDenied={locationPermissionDenied}
               goingOnline={goOnlineMutation.isPending}
@@ -538,17 +538,19 @@ export default function DriveScreen() {
                     ? 'We could not update your availability. Check your connection and try again.'
                     : null
               }
-            />
+              />
+            </View>
           ) : (
-            <OnlineSheet
+            <View style={[styles.sheetCard, shadow.float]}>
+              <OnlineSheet
               availability={availability}
               onPressGoOffline={handleGoOffline}
               goingOffline={goOfflineMutation.isPending}
               lastLatitude={lastLatitude}
               lastLongitude={lastLongitude}
-            />
+              />
+            </View>
           )}
-        </View>
       </View>
       )}
 
