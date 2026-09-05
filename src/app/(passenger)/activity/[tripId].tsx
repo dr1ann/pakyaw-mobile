@@ -1,3 +1,4 @@
+import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -72,7 +73,7 @@ export default function TripDetailScreen() {
           accessibilityLabel="Back to Activity"
           testID="back-to-activity-btn"
         >
-          <Text style={styles.backLinkText}>← Back to Activity</Text>
+          <SymbolIcon name="chevron.left" size={24} tintColor={colors.blue.primary} />
         </Pressable>
         <Text style={styles.title}>Trip Details</Text>
       </View>
@@ -266,8 +267,7 @@ function formatDate(timestamp: any): string {
 
   return (
     date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       year: 'numeric',
     }) +
@@ -292,10 +292,16 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: spacing[5],
     gap: spacing[2],
   },
   backLink: {
+    width: 48,
+    alignItems: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.card,
     alignSelf: 'flex-start',
     paddingVertical: spacing[1],
     minHeight: 48,
@@ -307,6 +313,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
   },
   title: {
+    flex: 1,
     fontSize: typography.size.h1,
     fontWeight: typography.weight.extraBold,
     color: colors.ink[900],
@@ -318,6 +325,8 @@ const styles = StyleSheet.create({
     gap: spacing[3],
   },
   metaRow: {
+    flexWrap: 'wrap',
+    gap: spacing[2],
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -326,6 +335,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
   },
   dateLabel: {
+    flexShrink: 1,
     fontSize: typography.size.bodySmall,
     color: colors.ink[500],
     fontWeight: typography.weight.medium,

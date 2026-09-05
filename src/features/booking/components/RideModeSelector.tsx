@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 10,
     fontWeight: typography.weight.medium,
-    color: colors.ink[500],
+    color: colors.ink[700],
     lineHeight: 12,
     marginTop: 1,
   },

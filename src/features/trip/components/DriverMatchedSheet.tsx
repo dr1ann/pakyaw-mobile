@@ -11,7 +11,7 @@ import {
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography, shadow, motion } from '@/constants/theme';
+import { colors, radius, spacing, typography, shadow, motion, useReduceMotion } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
@@ -52,8 +52,14 @@ export function DriverMatchedSheet({
 
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(12));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
+      return;
+    }
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -68,7 +74,7 @@ export function DriverMatchedSheet({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, reduceMotion]);
 
   const status = trip?.status ?? 'accepted';
   const isPrePickup = status === 'accepted' || status === 'driver_arriving';

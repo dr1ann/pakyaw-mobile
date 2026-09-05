@@ -1,3 +1,4 @@
+import { formatCancellationReason } from '../cancellationReasons';
 /**
  * CancelledSheet — Phase 8E passenger/driver sheet.
  *
@@ -20,7 +21,7 @@ export function CancelledSheet({ onDismiss }: CancelledSheetProps) {
   const trip = useActiveTripStore((s) => s.trip);
 
   const cancelledBy = trip?.cancelledBy ?? 'unknown';
-  const reason = trip?.cancelReason ?? 'No reason provided.';
+  const reason = formatCancellationReason(trip?.cancelReason);
 
   return (
     <View style={styles.container}>

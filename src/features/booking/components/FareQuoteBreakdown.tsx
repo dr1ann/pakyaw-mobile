@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography, motion } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import type { PassengerFareQuote } from '@/features/booking/services/quote.service';
 import type { BookingRideSelection } from '@/features/booking/types';
 
@@ -31,9 +31,15 @@ export function FareQuoteBreakdown({
 }: FareQuoteBreakdownProps) {
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(8));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (quote && quote.fare) {
+      if (reduceMotion) {
+        fadeAnim.setValue(1);
+        slideAnim.setValue(0);
+        return;
+      }
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -52,7 +58,7 @@ export function FareQuoteBreakdown({
       fadeAnim.setValue(0);
       slideAnim.setValue(8);
     }
-  }, [quote, fadeAnim, slideAnim]);
+  }, [quote, fadeAnim, slideAnim, reduceMotion]);
 
   if (!hasValidRoute) {
     return (

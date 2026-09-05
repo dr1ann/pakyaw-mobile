@@ -180,4 +180,4 @@ export const typography = {
   },
 } as const;
 
-export { motion } from '@pakyaw/shared/constants/motion';
+export { motion, useReduceMotion } from '@pakyaw/shared/constants/motion';

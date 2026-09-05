@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography, motion } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import { MAX_SEATS, MIN_SEATS } from '@/lib/seatModel';
 
 export type SeatStepperProps = {
@@ -15,8 +15,10 @@ export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS 
   const canDecrement = value > min;
   const canIncrement = value < max;
   const [scaleAnim] = useState(() => new Animated.Value(1));
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
+    if (reduceMotion) return;
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 1.12,
@@ -31,7 +33,7 @@ export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS 
         useNativeDriver: true,
       }),
     ]).start();
-  }, [value, scaleAnim]);
+  }, [value, scaleAnim, reduceMotion]);
 
   return (
     <View style={styles.row}>
@@ -45,13 +47,14 @@ export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS 
         disabled={!canDecrement}
         accessibilityRole="button"
         accessibilityLabel="Decrease passengers"
+        accessibilityHint="Decreases number of booked seats"
         accessibilityState={{ disabled: !canDecrement }}
       >
         <Text style={[styles.btnLabel, !canDecrement && styles.btnLabelDisabled]}>−</Text>
       </Pressable>
 
       <Animated.View
-        style={[styles.valueWrap, { transform: [{ scale: scaleAnim }] }]}
+        style={[styles.valueWrap, { transform: [{ scale: reduceMotion ? 1 : scaleAnim }] }]}
         accessibilityRole="text"
         accessibilityLabel={`${value} passengers`}
       >
@@ -68,6 +71,7 @@ export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS 
         disabled={!canIncrement}
         accessibilityRole="button"
         accessibilityLabel="Increase passengers"
+        accessibilityHint="Increases number of booked seats"
         accessibilityState={{ disabled: !canIncrement }}
       >
         <Text style={[styles.btnLabel, !canIncrement && styles.btnLabelDisabled]}>+</Text>
@@ -83,8 +87,8 @@ const styles = StyleSheet.create({
     gap: spacing[4],
   },
   btn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
     backgroundColor: colors.blue.tint,
     alignItems: 'center',
@@ -103,10 +107,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   btnLabelDisabled: {
-    color: colors.ink[400],
+    color: colors.ink[500],
   },
   valueWrap: {
-    minWidth: 32,
+    minWidth: 36,
     alignItems: 'center',
   },
   value: {

@@ -1,4 +1,5 @@
-import { Easing } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Easing } from 'react-native';
 
 export const motion = {
   duration: {
@@ -20,3 +21,37 @@ export const motion = {
     button: { damping: 18, stiffness: 300, mass: 0.6 },
   },
 } as const;
+
+/**
+ * useReduceMotion
+ * React hook to respect system-level Reduce Motion accessibility setting.
+ * When true, apps should bypass decorative spring/scale animations and transition immediately.
+ */
+export function useReduceMotion(): boolean {
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (typeof AccessibilityInfo?.isReduceMotionEnabled === 'function') {
+      AccessibilityInfo.isReduceMotionEnabled()
+        .then((enabled) => {
+          if (isMounted) setReduceMotion(Boolean(enabled));
+        })
+        .catch(() => {});
+    }
+
+    const subscription = AccessibilityInfo?.addEventListener?.(
+      'reduceMotionChanged',
+      (enabled: boolean) => {
+        if (isMounted) setReduceMotion(Boolean(enabled));
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription?.remove?.();
+    };
+  }, []);
+
+  return reduceMotion;
+}
