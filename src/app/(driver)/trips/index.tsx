@@ -14,8 +14,31 @@ import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, spacing, typography } from '@/constants/theme';
 import { useDriverTripHistory } from '@pakyaw/shared/features/trip-history/hooks/useDriverTripHistory';
 import { formatPhp } from '@pakyaw/shared/features/trip-history/services/earnings.service';
+import {
+  NetworkError,
+  PermissionError,
+  QueryIndexError,
+  TripHistoryServiceError,
+} from '@pakyaw/shared/features/trip-history/errors';
 import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { auth } from '@/services/firebase/firebase';
+
+/**
+ * Returns a safe, user-facing message for a trip history error.
+ * Never exposes raw Firebase error messages, index URLs, or stack internals.
+ */
+function getTripHistoryErrorMessage(err: unknown): string {
+  if (err instanceof QueryIndexError || err instanceof TripHistoryServiceError) {
+    return 'Trip history is temporarily unavailable. Please try again shortly.';
+  }
+  if (err instanceof NetworkError) {
+    return 'Network error \u2014 please check your connection and try again.';
+  }
+  if (err instanceof PermissionError) {
+    return 'You do not have permission to view this history.';
+  }
+  return 'Unable to load trips. Please try again.';
+}
 
 function formatTripDateTime(ts: TripHistoryItem['completedAt'] | TripHistoryItem['requestedAt']): string {
   if (!ts) return '—';
@@ -135,7 +158,7 @@ export default function MyTripsScreen() {
           <SymbolIcon name="exclamationmark.triangle.fill" size={36} tintColor={colors.danger} />
           <Text style={styles.errorTitle}>Unable to load trips</Text>
           <Text style={styles.errorText}>
-            {error instanceof Error ? error.message : 'Please check your connection and try again.'}
+            {getTripHistoryErrorMessage(error)}
           </Text>
           <Pressable style={styles.retryButton} onPress={() => refetch()}>
             <Text style={styles.retryButtonText}>Retry</Text>

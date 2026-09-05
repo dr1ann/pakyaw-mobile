@@ -22,6 +22,20 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * Thrown when the Firestore query requires a composite index that has not yet
+ * been deployed. This translates the raw `failed-precondition` Firebase error
+ * (which leaks a console.firebase.google.com index-creation URL) into a clean,
+ * user-safe message.
+ */
+export class QueryIndexError extends Error {
+  readonly kind = 'QueryIndexError' as const;
+  constructor(message = 'Trip history is temporarily unavailable. Please try again shortly.') {
+    super(message);
+    this.name = 'QueryIndexError';
+  }
+}
+
 export class TripHistoryServiceError extends Error {
   readonly kind = 'TripHistoryServiceError' as const;
   constructor(message: string, cause?: unknown) {

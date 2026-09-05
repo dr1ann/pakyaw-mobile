@@ -19,6 +19,7 @@ import {
   NetworkError,
   NotFoundError,
   PermissionError,
+  QueryIndexError,
   TripHistoryServiceError,
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
@@ -35,6 +36,11 @@ function translateFirebaseError(err: unknown): Error {
       case 'unavailable':
       case 'deadline-exceeded':
         return new NetworkError();
+      case 'failed-precondition':
+        // A missing Firestore composite index produces a failed-precondition error
+        // whose message contains a console.firebase.google.com URL. We must never
+        // surface that raw URL to the driver UI.
+        return new QueryIndexError();
       default:
         return new TripHistoryServiceError(`Firestore operation failed: ${err.message}`, err);
     }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PermissionError, NotFoundError, NetworkError } from '../errors';
+import { PermissionError, NotFoundError, NetworkError, QueryIndexError } from '../errors';
 import { listForPassenger, getTrip } from './history.service';
 
 const mocks = vi.hoisted(() => {
@@ -242,6 +242,57 @@ describe('history.service', () => {
       expect(result.trips[0].status).toBe('cancelled');
       expect(result.trips[0].driverEarnings).toBeNull();
       expect(result.trips[0].rider?.firstName).toBe('Maria');
+    });
+
+    it('translates failed-precondition (missing index) to QueryIndexError — never leaks Firebase URL', async () => {
+      const RAW_FIREBASE_URL = 'https://console.firebase.google.com/v1/r/project/pakyaw-prod/firestore/indexes?create_composite=...';
+      mockGetDocs.mockRejectedValueOnce(
+        new MockFirebaseError(
+          'failed-precondition',
+          `The query requires an index. You can create it here: ${RAW_FIREBASE_URL}`,
+        ),
+      );
+
+      const { listForDriver } = await import('./history.service');
+
+      let caught: unknown;
+      try {
+        await listForDriver('drv-1', { limit: 10, cursor: null });
+      } catch (err) {
+        caught = err;
+      }
+
+      // Must be the sanitized QueryIndexError — not a raw FirebaseError.
+      expect(caught).toBeInstanceOf(QueryIndexError);
+
+      // The error message must not contain any Firebase URL or index creation link.
+      if (caught instanceof Error) {
+        expect(caught.message).not.toContain('console.firebase.google.com');
+        expect(caught.message).not.toContain('http');
+        expect(caught.message).not.toContain('create_composite');
+        expect(caught.message).toContain('temporarily unavailable');
+      }
+    });
+
+    it('uses canonical query shape (driverId / status in / requestedAt desc) required by composite index', async () => {
+      // Reset call history to isolate this assertion.
+      mockWhere.mockClear();
+      mockOrderBy.mockClear();
+      mockLimit.mockClear();
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+
+      const { listForDriver } = await import('./history.service');
+      await listForDriver('drv-99', { limit: 20, cursor: null });
+
+      // The composite index deployed to Firestore must match exactly:
+      // trips | driverId ASC | status ASC | requestedAt DESC
+      const whereCalls = mockWhere.mock.calls;
+      const driverIdCall = whereCalls.find((args: any[]) => args[0] === 'driverId');
+      const statusCall = whereCalls.find((args: any[]) => args[0] === 'status');
+      expect(driverIdCall).toEqual(['driverId', '==', 'drv-99']);
+      expect(statusCall).toEqual(['status', 'in', ['completed', 'cancelled']]);
+      expect(mockOrderBy).toHaveBeenCalledWith('requestedAt', 'desc');
+      expect(mockLimit).toHaveBeenCalledWith(20);
     });
   });
 

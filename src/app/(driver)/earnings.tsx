@@ -17,8 +17,31 @@ import {
   computeDriverEarningsSummary,
   formatPhp,
 } from '@pakyaw/shared/features/trip-history/services/earnings.service';
+import {
+  NetworkError,
+  PermissionError,
+  QueryIndexError,
+  TripHistoryServiceError,
+} from '@pakyaw/shared/features/trip-history/errors';
 import type { TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { auth } from '@/services/firebase/firebase';
+
+/**
+ * Returns a safe, user-facing message for an earnings load error.
+ * Never exposes raw Firebase error messages, index URLs, or stack internals.
+ */
+function getEarningsErrorMessage(err: unknown): string {
+  if (err instanceof QueryIndexError || err instanceof TripHistoryServiceError) {
+    return 'Earnings are temporarily unavailable. Please try again shortly.';
+  }
+  if (err instanceof NetworkError) {
+    return 'Network error \u2014 please check your connection and try again.';
+  }
+  if (err instanceof PermissionError) {
+    return 'You do not have permission to view earnings.';
+  }
+  return 'Unable to load earnings. Please try again.';
+}
 
 function formatTripDate(ts: any): string {
   if (!ts) return '—';
@@ -93,7 +116,7 @@ export default function EarningsScreen() {
           <SymbolIcon name="exclamationmark.triangle.fill" size={36} tintColor={colors.danger} />
           <Text style={styles.errorTitle}>Unable to load earnings</Text>
           <Text style={styles.errorText}>
-            {error instanceof Error ? error.message : 'Please check your connection and try again.'}
+            {getEarningsErrorMessage(error)}
           </Text>
           <Pressable style={styles.retryButton} onPress={() => refetch()}>
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -142,7 +165,7 @@ export default function EarningsScreen() {
               </View>
 
               {/* Notice Card */}
-              <View style={styles.noticeCard}>
+              <View style={styles.noticeBox}>
                 <SymbolIcon name="info.circle" size={18} tintColor={colors.blue.primary} />
                 <Text style={styles.noticeText}>
                   Earnings shown are based on completed trip records and are not a withdrawable account balance.
