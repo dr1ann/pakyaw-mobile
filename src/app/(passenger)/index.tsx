@@ -924,7 +924,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    top: 0,
     bottom: 0,
+    justifyContent: 'flex-end',
   },
   bookingSheetArea: {
     position: 'absolute',
@@ -938,6 +940,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
+    overflow: 'hidden',
   },
   bookingSheetCard: {
     backgroundColor: colors.surface.card,
@@ -947,7 +950,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bookingSheetCardMinimized: {
-    height: 180,
+    height: 200,
   },
   fullscreenSearchOverlay: {
     ...StyleSheet.absoluteFill,
