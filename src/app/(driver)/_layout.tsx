@@ -42,7 +42,7 @@ export default function DriverLayout() {
         }}
       />
       <Tabs.Screen
-        name="trips/index"
+        name="trips"
         options={{
           title: 'My Trips',
           tabBarIcon: ({ color, size, focused }) => (
