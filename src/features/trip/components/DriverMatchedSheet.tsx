@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -10,10 +11,11 @@ import {
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, radius, spacing, typography, shadow, motion } from '@/constants/theme';
 import { useCancelTrip } from '@pakyaw/shared/features/trip/hooks/useTripActions';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { haversineMeters } from '@pakyaw/shared/lib/geo';
+import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
 import { SosButton } from '@/features/safety/components/SosButton';
 import { DEFAULT_VEHICLE_CAPACITY } from '@pakyaw/shared/transport/contract';
 import type { Timestamp } from '@pakyaw/shared/features/trip/types';
@@ -46,6 +48,27 @@ export function DriverMatchedSheet({
   const { mutate: cancel, isPending, isError, error, reset: resetCancel } = useCancelTrip();
 
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(12));
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: motion.duration.normal,
+        easing: motion.easing.decelerate,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: motion.duration.normal,
+        easing: motion.easing.standard,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const status = trip?.status ?? 'accepted';
   const isPrePickup = status === 'accepted' || status === 'driver_arriving';
@@ -158,11 +181,12 @@ export function DriverMatchedSheet({
   });
 
   function handlePerformCancel() {
+    if (!cancelReason.trim() || isPending) return;
     if (!trip) return;
     cancel({
       tripId: trip.id,
       by: 'passenger',
-      reason: 'passenger_changed_mind',
+      reason: cancelReason.trim(),
     });
   }
 
@@ -174,11 +198,13 @@ export function DriverMatchedSheet({
 
   return (
     <ScrollView
+      keyboardShouldPersistTaps="handled"
       style={styles.scrollView}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
       testID="driver-matched-sheet"
     >
+      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       {/* Top Header Row with Mode Badge & Status Pill */}
       <View style={styles.headerRow}>
         <View style={styles.modeBadge}>
@@ -415,6 +441,7 @@ export function DriverMatchedSheet({
                 ? 'Your driver is already waiting at your pickup.'
                 : 'Your driver is already on the way to your pickup.'}
             </Text>
+            <CancellationReasonInput value={cancelReason} onChangeText={setCancelReason} disabled={isPending} />
             <View style={styles.confirmActions}>
               <Button
                 label="Keep Ride"
@@ -428,7 +455,7 @@ export function DriverMatchedSheet({
                 tone="destructive"
                 onPress={handlePerformCancel}
                 loading={isPending}
-                disabled={isPending}
+                disabled={isPending || !cancelReason.trim()}
                 style={styles.confirmBtn}
                 testID="passenger-confirm-cancel-matched"
               />
@@ -446,6 +473,7 @@ export function DriverMatchedSheet({
           />
         )
       )}
+      </Animated.View>
     </ScrollView>
   );
 }

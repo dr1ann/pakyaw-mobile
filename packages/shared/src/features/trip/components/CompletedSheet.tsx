@@ -5,12 +5,13 @@
  * successfully with authoritative route, fare, driver, and timestamp data.
  */
 
-import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
 
 import { Button } from '@pakyaw/shared/components/ui/Button';
 import { RouteConnector } from '@pakyaw/shared/components/ui/RouteConnector';
 import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion } from '@/constants/theme';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 
 type CompletedSheetProps = {
@@ -20,6 +21,25 @@ type CompletedSheetProps = {
 
 export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProps) {
   const trip = useActiveTripStore((s: any) => s.trip);
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(14));
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: motion.duration.normal,
+        easing: motion.easing.decelerate,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: motion.duration.normal,
+        easing: motion.easing.standard,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const mode = trip?.mode ?? 'solo';
   const modeLabel = mode === 'shared' ? 'Shared' : mode === 'hop' ? 'Legacy Hop' : 'Pakyaw';
@@ -41,7 +61,13 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
   const dateStr = formatCompletionTime(trip?.completedAt, trip?.requestedAt);
 
   return (
-    <View style={styles.container} testID="completed-sheet">
+    <Animated.View
+      style={[
+        styles.container,
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+      ]}
+      testID="completed-sheet"
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerBadges}>
@@ -152,7 +178,7 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
           </Pressable>
         ) : null}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

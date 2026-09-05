@@ -1,3 +1,5 @@
+import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
+import { useState } from 'react';
 /**
  * EnRouteSheet — Phase 8E passenger sheet.
  *
@@ -23,12 +25,15 @@ export function EnRouteSheet() {
   const displayEtaSeconds =
     trip?.tripProgress?.etaSeconds ?? trip?.driverRoute?.durationSeconds ?? null;
 
+  const [cancelReason, setCancelReason] = useState('');
+
   function handleCancel() {
+    if (!cancelReason.trim() || isPending) return;
     if (trip) {
       cancel({
         tripId: trip.id,
         by: 'passenger',
-        reason: 'Passenger cancelled the ride while driver was en route',
+        reason: cancelReason.trim(),
       });
     }
   }
@@ -74,11 +79,12 @@ export function EnRouteSheet() {
             : 'Your live location is temporarily shared with your assigned Driver until pickup to help them find you.'}
         </Text>
       </View>
+      <CancellationReasonInput value={cancelReason} onChangeText={setCancelReason} disabled={isPending} />
       <Button
         label="Cancel ride"
         onPress={handleCancel}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || !cancelReason.trim()}
         tone="destructive"
         testID="passenger-cancel-enroute"
       />

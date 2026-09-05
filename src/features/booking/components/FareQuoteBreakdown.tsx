@@ -1,8 +1,8 @@
-import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion } from '@/constants/theme';
 import type { PassengerFareQuote } from '@/features/booking/services/quote.service';
 import type { BookingRideSelection } from '@/features/booking/types';
 
@@ -29,6 +29,31 @@ export function FareQuoteBreakdown({
   hasValidRoute,
   riderCount = 1,
 }: FareQuoteBreakdownProps) {
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(8));
+
+  useEffect(() => {
+    if (quote && quote.fare) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: motion.duration.normal,
+          easing: motion.easing.decelerate,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: motion.duration.normal,
+          easing: motion.easing.standard,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(8);
+    }
+  }, [quote, fadeAnim, slideAnim]);
+
   if (!hasValidRoute) {
     return (
       <View style={styles.card}>
@@ -90,7 +115,16 @@ export function FareQuoteBreakdown({
     : `${billedSeats} ${billedSeats === 1 ? 'rider' : 'riders'}`;
 
   return (
-    <View style={styles.card} testID="fare-quote-breakdown">
+    <Animated.View
+      style={[
+        styles.card,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+      testID="fare-quote-breakdown"
+    >
       <Text style={styles.cardTitle}>Fare Breakdown</Text>
 
       <View style={styles.rowsContainer}>
@@ -144,7 +178,7 @@ export function FareQuoteBreakdown({
           <Text style={styles.totalValue}>{peso(fare.total)}</Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

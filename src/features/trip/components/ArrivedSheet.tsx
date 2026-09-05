@@ -1,3 +1,5 @@
+import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
+import { useState } from 'react';
 /**
  * ArrivedSheet — Phase 8E passenger sheet.
  *
@@ -18,12 +20,15 @@ export function ArrivedSheet() {
   const trip = useActiveTripStore((s) => s.trip);
   const { mutate: cancel, isPending } = useCancelTrip();
 
+  const [cancelReason, setCancelReason] = useState('');
+
   function handleCancel() {
+    if (!cancelReason.trim() || isPending) return;
     if (trip) {
       cancel({
         tripId: trip.id,
         by: 'passenger',
-        reason: 'Passenger cancelled the ride after driver arrived',
+        reason: cancelReason.trim(),
       });
     }
   }
@@ -47,11 +52,12 @@ export function ArrivedSheet() {
             : 'Your live location is temporarily shared with your assigned Driver until pickup to help them find you.'}
         </Text>
       </View>
+      <CancellationReasonInput value={cancelReason} onChangeText={setCancelReason} disabled={isPending} />
       <Button
         label="Cancel ride"
         onPress={handleCancel}
         loading={isPending}
-        disabled={isPending}
+        disabled={isPending || !cancelReason.trim()}
         tone="destructive"
         testID="passenger-cancel-arrived"
       />

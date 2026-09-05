@@ -179,3 +179,5 @@ export const typography = {
     hero: 46,
   },
 } as const;
+
+export { motion } from '@pakyaw/shared/constants/motion';

@@ -108,6 +108,7 @@ function formatCancelReason(reason: string, cancelledBy?: 'driver' | 'passenger'
   if (reason === 'unable_to_locate_passenger') return 'Could not locate';
   if (reason === 'vehicle_issue') return 'Vehicle issue';
   if (reason === 'safety_concern') return 'Safety concern';
+  if (reason.trim() && reason !== 'other') return reason;
   if (cancelledBy === 'driver') return 'Cancelled by driver';
   if (cancelledBy === 'passenger') return 'Cancelled by passenger';
   return 'Cancelled';

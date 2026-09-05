@@ -421,8 +421,8 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
     });
   });
 
-  describe('reverseGeocodePin() Google Maps-style custom pin display', () => {
-    it('keeps the pin as the title and describes the nearest specific POI with its vicinity', async () => {
+  describe('reverseGeocodePin() pickup and destination labels', () => {
+    it('uses the nearest specific landmark as the title without moving the pin', async () => {
       vi.mocked(fetch).mockImplementation(async (url) => {
         if (String(url).includes('geocode/json')) {
           return {
@@ -460,9 +460,35 @@ describe('placesService — Label Quality, No-Guessing & Nearby Enrichment', () 
 
       const pin = await reverseGeocodePin(11.002489, 124.613571);
       expect(pin).toEqual({
-        label: 'Dropped pin',
-        address: 'Near NISSAN ORMOC, Baybay–Southern Leyte, Boundary Road, Ormoc City',
+        label: 'Near NISSAN ORMOC',
+        address: '3 Cemetery Rd, Ormoc City',
         coords: { lat: 11.002489, lng: 124.613571 },
+      });
+    });
+
+    it.each([
+      ['street_address', '3 Cemetery Rd'],
+      ['point_of_interest', 'Camp Downes Elementary School'],
+    ])('uses the resolved %s when no nearby landmark is returned', async (type, label) => {
+      vi.mocked(fetch).mockImplementation(async (url) => ({
+        ok: true,
+        json: async () => String(url).includes('geocode/json')
+          ? {
+              status: 'OK',
+              results: [{
+                formatted_address: `${label}, Ormoc City, Leyte, Philippines`,
+                types: [type],
+                address_components: [],
+              }],
+            }
+          : { status: 'ZERO_RESULTS', results: [] },
+      }) as Response);
+
+      const coords = { lat: 11.002489, lng: 124.613571 };
+      expect(await reverseGeocodePin(coords.lat, coords.lng)).toEqual({
+        label,
+        address: 'Ormoc City, Leyte, Philippines',
+        coords,
       });
     });
   });

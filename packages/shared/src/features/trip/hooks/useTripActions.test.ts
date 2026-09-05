@@ -60,11 +60,26 @@ describe('useTripActions', () => {
 
   it('useCancelTrip invalidates history on success', async () => {
     const hook = useCancelTrip();
-    await hook.mutate({ tripId: 'trip-1', by: 'passenger', reason: 'change of plans' });
+    await hook.mutate({ tripId: 'trip-1', by: 'passenger', reason: 'passenger_changed_mind' });
 
     expect(tripService.cancel).toHaveBeenCalledWith('trip-1', 'passenger-123', 'passenger_changed_mind');
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['history', 'passenger-123'],
     });
   });
+  it.each(['passenger', 'driver'] as const)('submits the selected reason for %s', async (by) => {
+    await useCancelTrip().mutate({ tripId: 'trip-1', by, reason: 'safety_concern' });
+    expect(tripService.cancel).toHaveBeenCalledWith('trip-1', 'passenger-123', 'safety_concern');
+  });
+
+  it.each(['', '   ', 'I need to go', 'x'.repeat(501)])('blocks invalid cancellation text', async (reason) => {
+    await expect(useCancelTrip().mutate({ tripId: 'trip-1', by: 'passenger', reason })).rejects.toThrow();
+    expect(tripService.cancel).not.toHaveBeenCalled();
+  });
+
+  it('submits Other as the supported other code', async () => {
+    await useCancelTrip().mutate({ tripId: 'trip-1', by: 'passenger', reason: 'other' });
+    expect(tripService.cancel).toHaveBeenCalledWith('trip-1', 'passenger-123', 'other');
+  });
+
 });

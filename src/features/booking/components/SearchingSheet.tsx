@@ -1,9 +1,11 @@
+import { CancellationReasonInput } from '@pakyaw/shared/features/trip/components/CancellationReasonInput';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Easing,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -53,6 +55,7 @@ export function SearchingSheet() {
   const { mutate: cancel, isPending, isError, error, reset: resetCancel } = useCancelTrip();
 
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [pulseAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
@@ -81,13 +84,14 @@ export function SearchingSheet() {
   }, [pulseAnim]);
 
   function handlePerformCancel() {
+    if (!cancelReason.trim() || isPending) return;
     const targetId = trip?.id ?? tripId;
     if (!targetId) return;
 
     cancel({
       tripId: targetId,
       by: 'passenger',
-      reason: 'passenger_changed_mind',
+      reason: cancelReason.trim(),
     });
   }
 
@@ -108,8 +112,8 @@ export function SearchingSheet() {
   // Connecting state when tripId exists but trip document snapshot hasn't resolved yet
   if (!trip) {
     return (
-      <Sheet visible dismissOnBackdropPress={false} padded showHandle={false} modal={false}>
-        <View style={styles.content} testID="passenger-connecting-sheet">
+      <Sheet visible dismissOnBackdropPress={false} padded showHandle={false} modal={false} contentStyle={{ maxHeight: '95%' }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} testID="passenger-connecting-sheet">
           <View style={styles.connectingWrapper}>
             <ActivityIndicator size="large" color={colors.blue.primary} />
           </View>
@@ -122,16 +126,17 @@ export function SearchingSheet() {
           <Text style={styles.title}>Connecting to Ride Network</Text>
           <Text style={styles.subtitle}>Preparing your booking request...</Text>
 
+          <CancellationReasonInput value={cancelReason} onChangeText={setCancelReason} disabled={isPending} />
           <Button
             label={isPending ? 'Cancelling...' : 'Cancel Request'}
             onPress={handlePerformCancel}
             loading={isPending}
-            disabled={isPending}
+            disabled={isPending || !cancelReason.trim()}
             variant="outline"
             style={styles.cancelBtn}
             testID="passenger-cancel-request"
           />
-        </View>
+        </ScrollView>
       </Sheet>
     );
   }
@@ -140,8 +145,8 @@ export function SearchingSheet() {
   const subtitleText = isTimedOut ? config.timeoutSubtitle : config.subtitle;
 
   return (
-    <Sheet visible dismissOnBackdropPress={false} padded showHandle={false} modal={false}>
-      <View style={styles.content} testID="passenger-searching-sheet">
+    <Sheet visible dismissOnBackdropPress={false} padded showHandle={false} modal={false} contentStyle={{ maxHeight: '95%' }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} testID="passenger-searching-sheet">
         {/* Animated Status Pulse Icon */}
         <View style={styles.iconSection}>
           <Animated.View
@@ -243,6 +248,7 @@ export function SearchingSheet() {
         {confirmCancel ? (
           <View style={styles.confirmBox}>
             <Text style={styles.confirmTitle}>Cancel this ride request?</Text>
+            <CancellationReasonInput value={cancelReason} onChangeText={setCancelReason} disabled={isPending} />
             <View style={styles.confirmActions}>
               <Button
                 label="Keep Waiting"
@@ -256,7 +262,7 @@ export function SearchingSheet() {
                 tone="destructive"
                 onPress={handlePerformCancel}
                 loading={isPending}
-                disabled={isPending}
+                disabled={isPending || !cancelReason.trim()}
                 style={styles.confirmBtnHalf}
                 testID="passenger-confirm-cancel"
               />
@@ -272,11 +278,7 @@ export function SearchingSheet() {
                 : 'Cancel Request'
             }
             onPress={() => {
-              if (isTimedOut) {
-                handlePerformCancel();
-              } else {
-                setConfirmCancel(true);
-              }
+              setConfirmCancel(true);
             }}
             loading={isPending}
             disabled={isPending}
@@ -286,7 +288,7 @@ export function SearchingSheet() {
             testID="passenger-cancel-request"
           />
         )}
-      </View>
+      </ScrollView>
     </Sheet>
   );
 }

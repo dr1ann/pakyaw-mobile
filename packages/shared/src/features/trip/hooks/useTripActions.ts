@@ -1,7 +1,8 @@
+import { isCancellationReason } from '../cancellationReasons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { cancel, transition } from '../services/trip.service';
-import type { CancelReason, CancelledBy, TripStatus } from '../types';
+import type { CancelledBy, TripStatus } from '../types';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 
 export function useTripTransition() {
@@ -28,26 +29,18 @@ export function useCancelTrip() {
   return useMutation({
     mutationFn: async ({
       tripId,
-      by,
       reason,
     }: {
       tripId: string;
       by: CancelledBy;
-      reason: CancelReason | string;
+      reason: string;
     }) => {
       const uid = useSessionStore.getState().uid;
       if (!uid) throw new Error('Not signed in.');
-      const canonicalReason: CancelReason = [
-        'passenger_changed_mind',
-        'driver_unavailable',
-        'unable_to_locate_passenger',
-        'vehicle_issue',
-        'safety_concern',
-        'other',
-      ].includes(reason)
-        ? reason as CancelReason
-        : by === 'passenger' ? 'passenger_changed_mind' : 'other';
-      await cancel(tripId, uid, canonicalReason);
+      if (!isCancellationReason(reason)) {
+        throw new Error('Please select a cancellation reason.');
+      }
+      await cancel(tripId, uid, reason);
     },
     onSuccess: () => {
       const uid = useSessionStore.getState().uid;

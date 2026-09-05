@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography, motion } from '@/constants/theme';
 import { MAX_SEATS, MIN_SEATS } from '@/lib/seatModel';
 
 export type SeatStepperProps = {
@@ -13,6 +14,24 @@ export type SeatStepperProps = {
 export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS }: SeatStepperProps) {
   const canDecrement = value > min;
   const canIncrement = value < max;
+  const [scaleAnim] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.12,
+        duration: motion.duration.instant,
+        easing: motion.easing.decelerate,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1.0,
+        duration: motion.duration.fast,
+        easing: motion.easing.standard,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [value, scaleAnim]);
 
   return (
     <View style={styles.row}>
@@ -31,9 +50,13 @@ export function SeatStepper({ value, onChange, min = MIN_SEATS, max = MAX_SEATS 
         <Text style={[styles.btnLabel, !canDecrement && styles.btnLabelDisabled]}>−</Text>
       </Pressable>
 
-      <View style={styles.valueWrap} accessibilityRole="text" accessibilityLabel={`${value} passengers`}>
+      <Animated.View
+        style={[styles.valueWrap, { transform: [{ scale: scaleAnim }] }]}
+        accessibilityRole="text"
+        accessibilityLabel={`${value} passengers`}
+      >
         <Text style={styles.value}>{value}</Text>
-      </View>
+      </Animated.View>
 
       <Pressable
         style={({ pressed }) => [
