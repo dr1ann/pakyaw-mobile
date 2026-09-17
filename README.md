@@ -11,7 +11,7 @@ This repository is maintained as two role-specific mobile branches:
 
 `main`, `map-fix`, and other historical branches are not current implementation sources.
 
-The repository was intentionally split by role; see [`BRANCH_SPLIT_MANIFEST.md`](./BRANCH_SPLIT_MANIFEST.md). For current Driver architecture and backend boundaries, read [`docs/branch_architecture.md`](./docs/branch_architecture.md) before the older general architecture docs.
+The repository was intentionally split by role; see [`BRANCH_SPLIT_MANIFEST.md`](./BRANCH_SPLIT_MANIFEST.md). For current Driver architecture and backend boundaries, read [`docs/branch_architecture.md`](./docs/branch_architecture.md) before the older general architecture docs. Native identity and Firebase/EAS provisioning are documented in [`docs/app-identity.md`](./docs/app-identity.md).
 
 ## What this branch owns
 

@@ -161,7 +161,7 @@ SOS, Share-fallback, report-abuse, and rating dialogs are **deferred/out of scop
 
 ## 7. Deep links & entry
 
-- `scheme: 'pakyaw'` (app.json). MVP deep-linking is minimal: cold launch resolves auth → guards land the user on their role anchor (`ride` / `drive`) or `(auth)`.
+- `scheme: 'pakyaw-driver'` (app.json). MVP deep-linking is minimal: cold launch resolves auth → guards land the user on the Driver anchor (`drive`) or `(auth)`.
 - `index.tsx` performs the initial redirect: onboarding-not-seen → `(auth)/onboarding`; else defer to guards.
 - Push-notification deep links (e.g. "driver arrived") are **deferred** with notifications.
 

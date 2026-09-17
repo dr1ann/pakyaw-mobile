@@ -105,6 +105,13 @@ Firebase emulators from `pakyaw-admin`; do not recreate or restore mobile
 `firebase.json`, `.firebaserc`, `firestore.rules`, or `firestore.indexes.json`
 files.
 
+The Driver production binary has its own app identity: `Pakyaw Driver`,
+`pakyaw-driver`, `com.pakyaw.driver`, and the `pakyaw-driver` deep-link scheme.
+Its EAS project and Android/iOS Firebase app registrations must be separate
+from Passenger while both apps continue to use the shared `pakyaw-39434`
+Firebase project for Auth and Firestore. See
+[`app-identity.md`](./app-identity.md) for the provisioning checklist.
+
 ## 5. Driver availability and location
 
 Availability/location are Driver-owned operational signals only where allowed by the deployed security contract.

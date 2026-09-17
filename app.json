@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "pakyaw",
-    "slug": "pakyaw",
+    "name": "Pakyaw Driver",
+    "slug": "pakyaw-driver",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pakyaw",
+    "scheme": "pakyaw-driver",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.pakyaw.driver"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,8 +27,7 @@
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE"
       ],
-      "package": "com.example.pakyaw",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.pakyaw.driver"
     },
     "web": {
       "output": "static",
@@ -74,10 +74,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "40b0edd2-d2db-42ef-8600-23b61b4315b4"
-      }
+      "router": {}
     },
     "owner": "dreeeeeeeee"
   }
