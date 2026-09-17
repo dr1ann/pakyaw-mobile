@@ -20,7 +20,7 @@ type CompletedSheetProps = {
 };
 
 export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProps) {
-  const trip = useActiveTripStore((s: any) => s.trip);
+  const trip = useActiveTripStore((s) => s.trip);
   const [fadeAnim] = useState(() => new Animated.Value(0));
   const [slideAnim] = useState(() => new Animated.Value(14));
   const reduceMotion = useReduceMotion();
@@ -188,19 +188,9 @@ export function CompletedSheet({ onDismiss, onViewActivity }: CompletedSheetProp
   );
 }
 
-function formatCompletionTime(completedAt: any, requestedAt: any): string {
-  const ts = completedAt ?? requestedAt;
-  if (!ts) return '';
-  let date: Date;
-  if (ts instanceof Date) {
-    date = ts;
-  } else if (typeof ts === 'object' && ts !== null && 'toDate' in ts && typeof ts.toDate === 'function') {
-    date = ts.toDate();
-  } else if (typeof ts === 'object' && ts !== null && typeof ts.seconds === 'number') {
-    date = new Date(ts.seconds * 1000);
-  } else {
-    date = new Date(ts);
-  }
+function formatCompletionTime(completedAt: unknown, requestedAt: unknown): string {
+  const date = toDate(completedAt ?? requestedAt);
+  if (!date) return '';
   if (isNaN(date.getTime())) return '';
   return (
     date.toLocaleDateString('en-US', {
@@ -214,6 +204,25 @@ function formatCompletionTime(completedAt: any, requestedAt: any): string {
       hour12: true,
     })
   );
+}
+
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value === 'object' && value !== null) {
+    const candidate = value as { readonly seconds?: unknown; readonly toDate?: unknown };
+    if (typeof candidate.toDate === 'function') {
+      const date = candidate.toDate();
+      return date instanceof Date ? date : null;
+    }
+    if (typeof candidate.seconds === 'number') {
+      return new Date(candidate.seconds * 1000);
+    }
+    return null;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return new Date(value);
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({

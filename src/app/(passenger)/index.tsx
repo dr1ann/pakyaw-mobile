@@ -53,6 +53,7 @@ import { decodePolyline } from '@pakyaw/shared/lib/maps/decodePolyline';
 import { isInServiceArea } from '@/lib/serviceArea';
 import { useActiveTripStore } from '@pakyaw/shared/stores/activeTripStore';
 import { routeMatchesInputs, useBookingDraftStore } from '@/stores/bookingDraftStore';
+import { selectPassengerRideMapData } from '@/features/maps/lib/passengerRideMapData';
 
 function isSameCoordinate(
   a: { readonly lat?: number; readonly latitude?: number; readonly lng?: number; readonly longitude?: number } | null | undefined,
@@ -125,124 +126,29 @@ export default function RideScreen() {
   const interpolatedDriverLocation = useInterpolatedCoordinate(driverLocation);
 
   // Distance from driver to trip pickup
+  const pickupCoords = trip?.pickup?.coords;
   const driverDistanceFromPickup = useMemo(() => {
-    if (!driverLocation || !trip?.pickup?.coords) return null;
+    if (!driverLocation || !pickupCoords) return null;
     return haversineMeters(
       { lat: driverLocation.latitude, lng: driverLocation.longitude },
-      trip.pickup.coords
+      pickupCoords
     );
-  }, [driverLocation, trip?.pickup?.coords]);
+  }, [driverLocation, pickupCoords]);
 
-  // Render Selector: resolves which facts feed the map based on the phase
-  const mapData = useMemo(() => {
-    if (phase === 'booking' || phase === 'connecting') {
-      const routeIsCurrent = routeMatchesInputs({
-        pickup: draft.pickup,
-        destination: draft.destination,
-        route: draft.route,
-      });
-      return {
-        pickupLocation: draft.pickup?.coords
-          ? { latitude: draft.pickup.coords.lat, longitude: draft.pickup.coords.lng }
-          : null,
-        destinationLocation: draft.destination?.coords
-          ? { latitude: draft.destination.coords.lat, longitude: draft.destination.coords.lng }
-          : null,
-        routePolyline: routeIsCurrent ? (draft.route?.polyline ?? null) : null,
-        driverLocation: null,
-        showDriverRoute: false,
-        driverRoutePolyline: null,
-        driverRouteVariant: 'pickup' as const,
-        driverRouteProgressCoordinate: null,
-      };
-    }
+  const routeIsCurrent = useMemo(() => routeMatchesInputs({
+    pickup: draft.pickup,
+    destination: draft.destination,
+    route: draft.route,
+  }), [draft.pickup, draft.destination, draft.route]);
 
-    if (phase === 'terminal') {
-      return {
-        pickupLocation: null,
-        destinationLocation: null,
-        routePolyline: null,
-        driverLocation: null,
-        showDriverRoute: false,
-        driverRoutePolyline: null,
-        driverRouteVariant: 'pickup' as const,
-        driverRouteProgressCoordinate: null,
-      };
-    }
-
-    const tripStatus = trip?.status;
-    const isPrePickup = tripStatus === 'accepted' || tripStatus === 'driver_arriving';
-    const isArrived = tripStatus === 'driver_arrived';
-    const isInTrip = tripStatus === 'in_progress';
-
-    const pickupCoord = trip?.pickup?.coords
-      ? { latitude: trip.pickup.coords.lat, longitude: trip.pickup.coords.lng }
-      : null;
-    const destinationCoord = trip?.destination?.coords
-      ? { latitude: trip.destination.coords.lat, longitude: trip.destination.coords.lng }
-      : null;
-    const driverCoord = interpolatedDriverLocation
-      ? {
-          latitude: interpolatedDriverLocation.latitude,
-          longitude: interpolatedDriverLocation.longitude,
-        }
-      : null;
-
-    const PICKUP_FADE_DISTANCE_M = 150;
-    const shouldShowPickup =
-      isPrePickup ||
-      isArrived ||
-      (isInTrip &&
-        (driverDistanceFromPickup == null ||
-          driverDistanceFromPickup < PICKUP_FADE_DISTANCE_M));
-
-    const liveDriverRoute = trip?.driverRoute?.polyline ?? null;
-    let showDriverRoute = false;
-    let driverRoutePolyline: string | null = null;
-    let routePolyline: string | null = null;
-    let driverRouteVariant: 'pickup' | 'trip' = 'pickup';
-
-    if (isPrePickup) {
-      showDriverRoute = liveDriverRoute != null;
-      driverRoutePolyline = liveDriverRoute;
-      driverRouteVariant = 'pickup';
-      routePolyline = null;
-    } else if (isArrived) {
-      showDriverRoute = false;
-      driverRoutePolyline = null;
-      routePolyline = null;
-    } else if (isInTrip) {
-      driverRouteVariant = 'trip';
-      if (liveDriverRoute != null) {
-        showDriverRoute = true;
-        driverRoutePolyline = liveDriverRoute;
-        routePolyline = null;
-      } else {
-        showDriverRoute = false;
-        driverRoutePolyline = null;
-        routePolyline = trip?.route?.polyline ?? null;
-      }
-    }
-
-    return {
-      pickupLocation: shouldShowPickup ? pickupCoord : null,
-      destinationLocation: destinationCoord,
-      routePolyline,
-      driverLocation: driverCoord,
-      showDriverRoute,
-      driverRoutePolyline,
-      driverRouteVariant,
-      driverRouteProgressCoordinate: driverCoord,
-    };
-  }, [
+  const mapData = useMemo(() => selectPassengerRideMapData({
     phase,
-    draft.pickup,
-    draft.destination,
-    draft.route,
+    draft,
+    routeIsCurrent,
     trip,
     interpolatedDriverLocation,
     driverDistanceFromPickup,
-  ]);
+  }), [phase, draft, routeIsCurrent, trip, interpolatedDriverLocation, driverDistanceFromPickup]);
 
   const isPinMode = pinTarget !== null && pinSelection !== null;
 

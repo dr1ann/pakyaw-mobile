@@ -5,6 +5,7 @@ import {
   type CollectionReference,
   type DocumentReference,
   type FirestoreDataConverter,
+  type QueryDocumentSnapshot,
 } from '@/services/firebase/firebase';
 import type { UserDoc } from '@pakyaw/shared/features/auth/types';
 import type { DriverDoc } from '@pakyaw/shared/types/driver';
@@ -14,20 +15,27 @@ export type TripDoc = { readonly id: string; readonly data: unknown };
 type UserDocWrapper = { id: string; data: UserDoc };
 type DriverDocWrapper = { id: string; data: DriverDoc };
 
+// The native modular Firestore declarations omit the legacy parent `.doc`
+// method used by this compatibility adapter. Keep that cast at this boundary;
+// domain callers receive typed references below.
+function typedDoc<T>(parent: CollectionReference<T>, id: string): DocumentReference<T> {
+  return doc(parent as unknown, id) as unknown as DocumentReference<T>;
+}
+
 const userConverter: FirestoreDataConverter<UserDocWrapper> = {
   toFirestore: (model: UserDocWrapper) => (model.data ?? {}) as unknown as Record<string, unknown>,
-  fromFirestore: (snapshot: any) => ({ id: snapshot.id, data: snapshot.data() as UserDoc }),
+  fromFirestore: (snapshot: QueryDocumentSnapshot) => ({ id: snapshot.id, data: snapshot.data() as UserDoc }),
 };
 
 const driverConverter: FirestoreDataConverter<DriverDocWrapper> = {
   toFirestore: (model: DriverDocWrapper) => (model.data ?? {}) as unknown as Record<string, unknown>,
-  fromFirestore: (snapshot: any) => ({ id: snapshot.id, data: snapshot.data() as DriverDoc }),
+  fromFirestore: (snapshot: QueryDocumentSnapshot) => ({ id: snapshot.id, data: snapshot.data() as DriverDoc }),
 };
 
 function makeConverter<T extends { id: string; data: unknown }>(): FirestoreDataConverter<T> {
   return {
     toFirestore: (model: T) => (model.data ?? {}) as unknown as Record<string, unknown>,
-    fromFirestore: (snapshot: any) =>
+    fromFirestore: (snapshot: QueryDocumentSnapshot) =>
       ({ id: snapshot.id, data: snapshot.data() }) as T,
   };
 }
@@ -42,7 +50,7 @@ export const collections = {
   users: (): CollectionReference<UserDocWrapper> => usersCol,
   drivers: (): CollectionReference<DriverDocWrapper> => driversCol,
   trips: (): CollectionReference<TripDoc> => tripsCol,
-  userDoc: (id: string): DocumentReference<UserDocWrapper> => doc(usersCol as any, id) as DocumentReference<UserDocWrapper>,
-  driverDoc: (id: string): DocumentReference<DriverDocWrapper> => doc(driversCol as any, id) as DocumentReference<DriverDocWrapper>,
-  tripDoc: (id: string): DocumentReference<TripDoc> => doc(tripsCol as any, id) as DocumentReference<TripDoc>,
+  userDoc: (id: string): DocumentReference<UserDocWrapper> => typedDoc(usersCol, id),
+  driverDoc: (id: string): DocumentReference<DriverDocWrapper> => typedDoc(driversCol, id),
+  tripDoc: (id: string): DocumentReference<TripDoc> => typedDoc(tripsCol, id),
 };

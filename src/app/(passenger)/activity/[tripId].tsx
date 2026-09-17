@@ -252,32 +252,9 @@ export default function TripDetailScreen() {
   );
 }
 
-function formatCancelReason(reason: string): string {
-  if (reason === 'passenger_changed_mind') return 'Passenger changed mind';
-  if (reason === 'driver_unavailable') return 'Driver unavailable';
-  if (reason === 'unable_to_locate_passenger') return 'Unable to locate passenger';
-  if (reason === 'vehicle_issue') return 'Vehicle issue';
-  if (reason === 'safety_concern') return 'Safety concern';
-  return reason;
-}
-
-function formatDate(timestamp: any): string {
-  if (!timestamp) return '—';
-  let date: Date;
-  if (timestamp instanceof Date) {
-    date = timestamp;
-  } else if (
-    typeof timestamp === 'object' &&
-    timestamp !== null &&
-    'toDate' in timestamp &&
-    typeof (timestamp as { toDate: unknown }).toDate === 'function'
-  ) {
-    date = (timestamp as { toDate: () => Date }).toDate();
-  } else if (typeof timestamp === 'object' && timestamp !== null && typeof timestamp.seconds === 'number') {
-    date = new Date(timestamp.seconds * 1000);
-  } else {
-    date = new Date(timestamp as string | number);
-  }
+function formatDate(timestamp: unknown): string {
+  const date = toDate(timestamp);
+  if (!date) return '—';
   if (isNaN(date.getTime())) return '—';
 
   return (
@@ -293,6 +270,25 @@ function formatDate(timestamp: any): string {
       hour12: true,
     })
   );
+}
+
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value === 'object' && value !== null) {
+    const candidate = value as { readonly seconds?: unknown; readonly toDate?: unknown };
+    if (typeof candidate.toDate === 'function') {
+      const date = candidate.toDate();
+      return date instanceof Date ? date : null;
+    }
+    if (typeof candidate.seconds === 'number') {
+      return new Date(candidate.seconds * 1000);
+    }
+    return null;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return new Date(value);
+  }
+  return null;
 }
 
 const styles = StyleSheet.create({

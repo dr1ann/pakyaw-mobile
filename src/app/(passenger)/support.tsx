@@ -5,11 +5,18 @@ import { collection, firestore, onSnapshot, query, where } from '@/services/fire
 import { createSupportTicket } from '@/features/support/services/support-ticket.service';
 import { useSession } from '@pakyaw/shared/features/auth/hooks/useSession';
 
+type SupportTicketSnapshot = {
+  readonly docs: readonly {
+    readonly id: string;
+    data(): Record<string, unknown>;
+  }[];
+};
+
 export default function PassengerSupportScreen() {
   const { uid } = useSession();
   const [subject, setSubject] = useState(''); const [body, setBody] = useState(''); const [busy, setBusy] = useState(false); const [message, setMessage] = useState<string | null>(null);
   const [tickets, setTickets] = useState<readonly { readonly id: string; readonly subject: string; readonly status: string }[]>([]);
-  useEffect(() => { if (!uid) return; return onSnapshot(query(collection(firestore, 'supportTickets'), where('createdBy', '==', uid)), (snapshot) => setTickets(snapshot.docs.map((ticket: any) => ({ id: ticket.id, subject: String(ticket.data().subject ?? 'Support request'), status: String(ticket.data().status ?? 'open') })))); }, [uid]);
+  useEffect(() => { if (!uid) return; return onSnapshot(query(collection(firestore, 'supportTickets'), where('createdBy', '==', uid)), (snapshot: SupportTicketSnapshot) => setTickets(snapshot.docs.map((ticket) => ({ id: ticket.id, subject: String(ticket.data().subject ?? 'Support request'), status: String(ticket.data().status ?? 'open') })))); }, [uid]);
   const submit = async () => { setBusy(true); setMessage(null); try { const ticket = await createSupportTicket({ category: 'passenger', subject, body }); setSubject(''); setBody(''); setMessage(`Support ticket ${ticket.ticketId} was created.`); } catch { setMessage('Your support request could not be sent. Please try again.'); } finally { setBusy(false); } };
   return <ScrollView contentContainerStyle={styles.container}><Pressable onPress={() => router.back()}><Text style={styles.back}>← Back</Text></Pressable><Text style={styles.title}>Contact support</Text><Text style={styles.label}>SUBJECT</Text><TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="How can we help?" /><Text style={styles.label}>DETAILS</Text><TextInput style={[styles.input, styles.body]} value={body} onChangeText={setBody} multiline placeholder="Tell us what happened" /><Pressable disabled={busy || subject.trim().length === 0 || body.trim().length === 0} onPress={submit} style={styles.button}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Submit request</Text>}</Pressable>{message ? <Text style={styles.message}>{message}</Text> : null}<Text style={styles.label}>YOUR REQUESTS</Text>{tickets.map((ticket) => <Text key={ticket.id} style={styles.ticket}>{ticket.subject} — {ticket.status.replace(/_/g, ' ')}</Text>)}</ScrollView>;
 }
