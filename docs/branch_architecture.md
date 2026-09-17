@@ -104,6 +104,13 @@ Firebase emulators from `pakyaw-admin`; do not recreate or restore mobile
 `firebase.json`, `.firebaserc`, `firestore.rules`, or `firestore.indexes.json`
 files.
 
+The Passenger production binary has its own app identity: `Pakyaw Passenger`,
+`pakyaw-passenger`, `com.pakyaw.passenger`, and the `pakyaw-passenger`
+deep-link scheme. Its EAS project and Android/iOS Firebase app registrations
+must be separate from Driver while both apps continue to use the shared
+`pakyaw-39434` Firebase project for Auth and Firestore. See
+[`app-identity.md`](./app-identity.md) for the provisioning checklist.
+
 ## 5. Fare and assignment authority
 
 Displayed client values are presentation/input context only unless the backend contract explicitly marks them authoritative.

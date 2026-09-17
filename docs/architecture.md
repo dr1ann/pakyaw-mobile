@@ -75,9 +75,12 @@ src/
   hooks/                       # generic cross-feature hooks (useThrottle, useColorScheme)
 ```
 
-**Why this shape:** A passenger and a driver app share most primitives (auth, map, trip) but diverge in flows. A feature-first tree lets both route groups (`(passenger)`, `(driver)`) compose the same feature modules without duplicating logic. The two apps ship from one codebase, one Firebase project, one trip model.
+**Why this shape:** A passenger and a driver app share most primitives (auth, map, trip) but diverge in flows. A feature-first tree lets both route groups (`(passenger)`, `(driver)`) compose the same feature modules without duplicating logic. The two apps use one Firebase project and trip model, but ship as separate native binaries with role-specific identities.
 
-> **Single app, two role spaces.** This is **one** Expo binary. Role is resolved at sign-in and the router sends the user into the matching route group. There is no separate driver build for the MVP. (Driver *application/approval* is out of MVP scope — see §4.)
+> **Separate role binary.** This branch ships the Passenger Expo binary. It
+> uses the shared Firebase project and trip model, but not the Driver native
+> package, bundle identifier, deep-link scheme, or EAS project. Driver-only
+> onboarding and operational permissions are not part of this binary.
 
 ---
 
@@ -335,10 +338,10 @@ Details and cache keys in [state_management.md](./state_management.md) §5.
 ## 12. Environment configuration
 
 - **`dotenv` + Expo public env.** Config is read from `.env*` files. Client-exposed values use the `EXPO_PUBLIC_` prefix (inlined at build); anything secret stays out of the client.
-- **Keys (MVP):** Firebase web config (`EXPO_PUBLIC_FIREBASE_*`), Google Maps API key (`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`). The Google Maps key is restricted (Android package + iOS bundle + HTTP referrer in Google Cloud Console) so a leaked bundle cannot be reused elsewhere; any server-side Google Maps key and any SMS-provider secret are build/CI-only, never in the bundle.
+- **Keys (MVP):** Firebase web config (`EXPO_PUBLIC_FIREBASE_*`), Google Maps API key (`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`). The Google Maps key is restricted to the role-specific Android package (`com.pakyaw.passenger`) and iOS bundle (`com.pakyaw.passenger`) plus any required HTTP referrer in Google Cloud Console; any server-side Google Maps key and any SMS-provider secret are build/CI-only, never in the bundle.
 - **One typed accessor.** `services/env.ts` reads `process.env`, validates presence with **Zod** at startup, and exports a typed `env` object. Missing/invalid config fails fast with a clear message instead of an undefined-at-runtime crash.
 - **Environments:** `development` / `production` selected via `APP_ENV`; separate Firebase projects per environment **[ASSUMPTION]** (recommended) so test traffic never touches prod data.
-- **`app.json`** holds non-secret native config (scheme, plugins, foreground location permission strings). No background-location native config is needed for the MVP (background tracking is deferred — §7.4). Secrets are not committed; `.env.example` documents required keys.
+- **`app.json` / `app.config.js`** hold non-secret native config (the Passenger-specific scheme, package/bundle IDs, plugins, and foreground location permission strings). Passenger does not request background location or foreground-service permissions. Secrets and role-specific native Firebase files are not committed; `.env.example` documents the required build inputs.
 
 ---
 

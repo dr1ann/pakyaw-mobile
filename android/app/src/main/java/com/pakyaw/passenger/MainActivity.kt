@@ -1,4 +1,4 @@
-package com.example.pakyaw
+package com.pakyaw.passenger
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

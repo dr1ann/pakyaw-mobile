@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "pakyaw",
-    "slug": "pakyaw",
+    "name": "Pakyaw Passenger",
+    "slug": "pakyaw-passenger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pakyaw",
+    "scheme": "pakyaw-passenger",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.pakyaw.passenger"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,13 +22,9 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.POST_NOTIFICATIONS"
       ],
-      "package": "com.example.pakyaw",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.pakyaw.passenger"
     },
     "web": {
       "output": "static",
@@ -50,11 +47,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Pakyaw needs your location while the app is open to show your position to nearby passengers.",
-          "locationAlwaysAndWhenInUsePermission": "Pakyaw needs background location while you are online or on a trip so passengers can see your driver position even when the app is not open.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "locationWhenInUsePermission": "Pakyaw Passenger uses your location while the app is open to set your pickup and show your trip.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
         }
       ],
       [
@@ -70,10 +66,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "40b0edd2-d2db-42ef-8600-23b61b4315b4"
-      }
+      "router": {}
     },
     "owner": "dreeeeeeeee"
   }

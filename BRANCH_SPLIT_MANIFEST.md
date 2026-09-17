@@ -234,7 +234,9 @@ docs/figma/passenger/wallet_page.png
 
 ### 3a. Core Infrastructure — **KEEP_SHARED**
 
-Same Firebase project, same environment, same build tooling. Both branches share these identically.
+Same Firebase project and backend environment, but each shipped app has its own
+native identity and Firebase mobile registration. Build tooling and runtime
+contracts remain intentionally aligned without sharing package identifiers.
 
 ```
 src/services/env.ts                              — Zod-validated env vars (Firebase keys, Maps key, APP_ENV)
@@ -255,7 +257,7 @@ firebase.json                                     — intentionally absent; back
 firestore.rules                                   — intentionally absent; see ../pakyaw-admin/firestore.rules
 firestore.rules.bak                               — removed obsolete client-side rules backup
 firestore.indexes.json                            — intentionally absent; see ../pakyaw-admin/firestore.indexes.json
-google-services.json                              — Firebase Android config (same project)
+GOOGLE_SERVICES_JSON                               — role-specific Firebase Android config (same project)
 package.json                                      — Dependencies (shared, both branches need same packages)
 package-lock.json
 expo-env.d.ts                                     — Expo type declarations
@@ -561,10 +563,14 @@ These files could not be confidently classified. Each entry includes the reasoni
 **Issue:** Contains both:
 - `plugins: ["expo-router", "expo-location", "withAndroidPictureInPicture", "react-native-maps"]` — the PiP plugin is **driver-only**
 - `android.config.googleMaps.apiKey` — shared
-- `scheme: "pakyaw"` — both branches may want the same deep-link scheme
+- role-specific name, slug, scheme, Android package, and iOS bundle identifier
 - `expo-pip` config in `plugins` — driver-only
 
-**Recommendation:** DUPLICATE. Each branch gets its own `app.json`. Driver branch includes `withAndroidPictureInPicture` plugin; passenger branch removes it. The slug should probably differ too (e.g., `pakyaw-driver` vs `pakyaw-passenger`).
+**Recommendation:** DUPLICATE. Each branch gets its own `app.json`. Driver uses
+`pakyaw-driver` / `com.pakyaw.driver` and includes
+`withAndroidPictureInPicture`; Passenger uses `pakyaw-passenger` /
+`com.pakyaw.passenger` and removes the Driver-only plugin and background
+location permissions.
 
 ### `android/app/src/main/AndroidManifest.xml`
 
