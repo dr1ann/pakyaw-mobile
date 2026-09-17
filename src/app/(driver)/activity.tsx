@@ -60,7 +60,7 @@ function TripCard({ trip }: { readonly trip: TripHistoryItem }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => router.push(`/(driver)/trips/${trip.tripId}` as any)}
+      onPress={() => router.push({ pathname: './trips/[tripId]', params: { tripId: trip.tripId } })}
       accessibilityRole="button"
       accessibilityLabel={`Trip to ${trip.destination.label}`}
     >
@@ -134,7 +134,13 @@ type ReportItem = {
   readonly status: string;
   readonly category?: string;
   readonly body?: string;
-  readonly createdAt?: any;
+};
+
+type SupportTicketSnapshot = {
+  readonly docs: readonly {
+    readonly id: string;
+    data(): Record<string, unknown>;
+  }[];
 };
 
 function ReportCard({ report }: { readonly report: ReportItem }) {
@@ -229,16 +235,15 @@ export default function ActivityScreen() {
     }
     const unsub = onSnapshot(
       query(collection(firestore, 'supportTickets'), where('createdBy', '==', uid)),
-      (snapshot) => {
-        const items = snapshot.docs.map((d: any) => {
+      (snapshot: SupportTicketSnapshot) => {
+        const items = snapshot.docs.map((d) => {
           const docData = d.data();
           return {
             id: d.id,
             subject: String(docData.subject ?? 'Support report'),
             status: String(docData.status ?? 'open'),
-            category: docData.category,
-            body: docData.body,
-            createdAt: docData.createdAt,
+            category: typeof docData.category === 'string' ? docData.category : undefined,
+            body: typeof docData.body === 'string' ? docData.body : undefined,
           };
         });
         setReports(items);

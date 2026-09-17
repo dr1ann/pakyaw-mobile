@@ -13,10 +13,24 @@ import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
 import { formatPhp } from '@pakyaw/shared/features/trip-history/services/earnings.service';
+import type { Timestamp, TripDetail } from '@pakyaw/shared/features/trip-history/types';
 
-function formatTripDate(ts: any): string {
+type FareValue = {
+  readonly driverEarnings?: unknown;
+  readonly driverFare?: unknown;
+  readonly total?: unknown;
+  readonly techFee?: unknown;
+  readonly serviceFee?: unknown;
+};
+
+function getRawFare(trip: TripDetail): FareValue | null {
+  const candidate = trip.fareBreakdown ?? (typeof trip.fare === 'object' ? trip.fare : null);
+  return typeof candidate === 'object' && candidate !== null ? candidate : null;
+}
+
+function formatTripDate(ts: Timestamp | null | undefined): string {
   if (!ts) return '—';
-  const date = ts.toDate?.() ?? (ts.seconds ? new Date(ts.seconds * 1000) : null);
+  const date = ts.toDate?.() ?? (typeof ts.seconds === 'number' ? new Date(ts.seconds * 1000) : null);
   if (!date) return '—';
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -44,7 +58,7 @@ export default function DriverTripDetailsScreen() {
 
   const driverEarnings = useMemo(() => {
     if (!trip) return null;
-    const rawFare = (trip.fareBreakdown ?? (typeof trip.fare === 'object' ? trip.fare : null)) as any;
+    const rawFare = getRawFare(trip);
     if (typeof rawFare?.driverEarnings === 'number') {
       return rawFare.driverEarnings;
     }
@@ -56,7 +70,7 @@ export default function DriverTripDetailsScreen() {
 
   const passengerTotal = useMemo(() => {
     if (!trip) return null;
-    const rawFare = (trip.fareBreakdown ?? (typeof trip.fare === 'object' ? trip.fare : null)) as any;
+    const rawFare = getRawFare(trip);
     if (typeof rawFare?.total === 'number') {
       return rawFare.total;
     }
@@ -68,7 +82,7 @@ export default function DriverTripDetailsScreen() {
 
   const serviceFee = useMemo(() => {
     if (!trip) return null;
-    const rawFare = (trip.fareBreakdown ?? (typeof trip.fare === 'object' ? trip.fare : null)) as any;
+    const rawFare = getRawFare(trip);
     if (typeof rawFare?.techFee === 'number') {
       return rawFare.techFee;
     }
@@ -84,7 +98,7 @@ export default function DriverTripDetailsScreen() {
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() => (typeof router.canGoBack === 'function' && router.canGoBack() ? router.back() : router.replace('/(driver)/activity'))}
+          onPress={() => (typeof router.canGoBack === 'function' && router.canGoBack() ? router.back() : router.replace('./activity'))}
           accessibilityRole="button"
           accessibilityLabel="Back to Activity"
         >

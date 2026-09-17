@@ -134,16 +134,19 @@ export default function DriveScreen() {
   } = useSharedRideSession();
 
   const [boardingToastVisible, setBoardingToastVisible] = useState(false);
-  const [lastPassengerCount, setLastPassengerCount] = useState(0);
+  const previousPassengerCount = useRef(0);
   const sharedRidePassengers = sharedRide?.passengers;
   const passengerCount = sharedRidePassengers?.length ?? 0;
 
-  if (passengerCount !== lastPassengerCount) {
-    if (passengerCount > lastPassengerCount && lastPassengerCount > 0) {
-      setBoardingToastVisible(true);
+  useEffect(() => {
+    const previousCount = previousPassengerCount.current;
+    previousPassengerCount.current = passengerCount;
+    if (passengerCount > previousCount && previousCount > 0) {
+      const timer = setTimeout(() => setBoardingToastVisible(true), 0);
+      return () => clearTimeout(timer);
     }
-    setLastPassengerCount(passengerCount);
-  }
+    return undefined;
+  }, [passengerCount]);
 
   const operationalStops = sharedRide?.operational?.stops;
   const passengerStops = useMemo<MapPassengerStop[]>(() => {

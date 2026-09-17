@@ -61,7 +61,7 @@ function TripCard({ trip }: { readonly trip: TripHistoryItem }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={() => router.push(`/(driver)/trips/${trip.tripId}` as any)}
+      onPress={() => router.push({ pathname: './trips/[tripId]', params: { tripId: trip.tripId } })}
       accessibilityRole="button"
       accessibilityLabel={`Trip to ${trip.destination.label}`}
     >

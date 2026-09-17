@@ -5,6 +5,7 @@ import {
   type CollectionReference,
   type DocumentReference,
   type FirestoreDataConverter,
+  type QueryDocumentSnapshot,
 } from '@/services/firebase/firebase';
 import type { UserDoc } from '@pakyaw/shared/features/auth/types';
 import type { DriverDoc } from '@pakyaw/shared/types/driver';
@@ -16,18 +17,18 @@ type DriverDocWrapper = { id: string; data: DriverDoc };
 
 const userConverter: FirestoreDataConverter<UserDocWrapper> = {
   toFirestore: (model: UserDocWrapper) => (model.data ?? {}) as unknown as Record<string, unknown>,
-  fromFirestore: (snapshot: any) => ({ id: snapshot.id, data: snapshot.data() as UserDoc }),
+  fromFirestore: (snapshot: QueryDocumentSnapshot) => ({ id: snapshot.id, data: snapshot.data() as UserDoc }),
 };
 
 const driverConverter: FirestoreDataConverter<DriverDocWrapper> = {
   toFirestore: (model: DriverDocWrapper) => (model.data ?? {}) as unknown as Record<string, unknown>,
-  fromFirestore: (snapshot: any) => ({ id: snapshot.id, data: snapshot.data() as DriverDoc }),
+  fromFirestore: (snapshot: QueryDocumentSnapshot) => ({ id: snapshot.id, data: snapshot.data() as DriverDoc }),
 };
 
 function makeConverter<T extends { id: string; data: unknown }>(): FirestoreDataConverter<T> {
   return {
     toFirestore: (model: T) => (model.data ?? {}) as unknown as Record<string, unknown>,
-    fromFirestore: (snapshot: any) =>
+    fromFirestore: (snapshot: QueryDocumentSnapshot) =>
       ({ id: snapshot.id, data: snapshot.data() }) as T,
   };
 }

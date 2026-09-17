@@ -42,9 +42,9 @@ function getEarningsErrorMessage(err: unknown): string {
   return 'Unable to load earnings. Please try again.';
 }
 
-function formatTripDate(ts: any): string {
+function formatTripDate(ts: TripHistoryItem['completedAt'] | TripHistoryItem['requestedAt']): string {
   if (!ts) return '—';
-  const date = ts.toDate?.() ?? (ts.seconds ? new Date(ts.seconds * 1000) : null);
+  const date = ts.toDate?.() ?? (typeof ts.seconds === 'number' ? new Date(ts.seconds * 1000) : null);
   if (!date) return '—';
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -63,7 +63,7 @@ function RecentTripRow({ trip }: { readonly trip: TripHistoryItem }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.tripRow, pressed && styles.tripRowPressed]}
-      onPress={() => router.push(`/(driver)/trips/${trip.tripId}` as any)}
+      onPress={() => router.push({ pathname: './trips/[tripId]', params: { tripId: trip.tripId } })}
       accessibilityRole="button"
       accessibilityLabel={`Trip to ${trip.destination.label}`}
     >

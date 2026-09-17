@@ -134,7 +134,7 @@ export default function DriverAccountScreen() {
 
               <Pressable
                 style={styles.navRow}
-                onPress={() => router.push('/(driver)/settings')}
+                onPress={() => router.push('./settings')}
                 accessibilityRole="button"
                 accessibilityLabel="Driver settings"
               >
