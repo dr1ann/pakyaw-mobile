@@ -3,14 +3,19 @@
 # dependencies
 node_modules/
 
+# IDE metadata
+.idea/
+
 # Expo
 .expo/
 dist/
+**/build/
 web-build/
 expo-env.d.ts
 
 # Native
 .kotlin/
+**/.gradle/
 *.orig.*
 *.jks
 *.p8
@@ -25,17 +30,29 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*-debug.log
+*.log
+debug/
+dumps/
+*.dump
+*.tmp
+tmp/
+temp/
 
 # macOS
 .DS_Store
 *.pem
 
 # local env files
-.env*.local
-.env
+.env*
+!.env.example
+*service-account*.json
+*firebase-adminsdk*.json
 
 # typescript
 *.tsbuildinfo
+tsc_output*.txt
+tsc-output*.txt
 
 example
 
