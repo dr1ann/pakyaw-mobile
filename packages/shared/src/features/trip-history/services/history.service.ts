@@ -12,35 +12,20 @@ import {
   where,
   FirebaseError,
   type DocumentData,
-  type Timestamp as TimestampType,
 } from '@/services/firebase/firebase';
 
 import {
   NetworkError,
   NotFoundError,
   PermissionError,
+  QueryIndexError,
   TripHistoryServiceError,
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
+import { parseTripDocument } from '@pakyaw/shared/features/trip/read';
 import { logger } from '@pakyaw/shared/lib/logger';
-import {
-  isDriverPublicSnapshot,
-  isFareBreakdown,
-  isLegacyFareBreakdown,
-  isRideMode,
-  type HistoricalRideMode,
-  type FareBreakdownView,
-} from '@pakyaw/shared/transport/contract';
 
-/** Historical trip reads may encounter documents written before Phase 1. */
-function historicalRideMode(value: unknown): HistoricalRideMode {
-  return value === 'hop' || value === 'pakyaw' ? value : isRideMode(value) ? value : 'solo';
-}
-
-function readFareBreakdown(value: unknown): FareBreakdownView | undefined {
-  if (isFareBreakdown(value) || isLegacyFareBreakdown(value)) return value;
-  return undefined;
-}
+type RawTripSnapshot = { readonly id: string; data(): DocumentData };
 
 function translateFirebaseError(err: unknown): Error {
   if (err instanceof FirebaseError) {
@@ -52,60 +37,56 @@ function translateFirebaseError(err: unknown): Error {
       case 'unavailable':
       case 'deadline-exceeded':
         return new NetworkError();
+      case 'failed-precondition':
+        return new QueryIndexError();
       default:
-        return new TripHistoryServiceError(`Firestore operation failed: ${err.message}`, err);
+        return new TripHistoryServiceError('Trip history is temporarily unavailable.', err);
     }
   }
-  if (err instanceof Error) {
-    return err;
-  }
+  if (err instanceof Error) return err;
   return new TripHistoryServiceError('An unexpected error occurred.', err);
 }
 
-function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryItem {
-  const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
-  const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
-  const driver = driverPublic
-    ? { displayName: driverPublic.displayName, plate: driverPublic.vehicle.plateNumber }
-    : historicalDriver && (typeof historicalDriver.displayName === 'string' || typeof historicalDriver.plate === 'string')
-      ? {
-          displayName: typeof historicalDriver.displayName === 'string'
-            ? historicalDriver.displayName
-            : 'Driver details unavailable',
-          plate: typeof historicalDriver.plate === 'string' ? historicalDriver.plate : 'Plate unavailable',
-        }
-      : null;
+function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryItem | null {
+  const parsed = parseTripDocument(id, data);
+  if (!parsed) {
+    logger.warn('[trip-history] rejected malformed trip document', { tripId: id });
+    return null;
+  }
 
-  const fareBreakdown = readFareBreakdown(data.fareBreakdown) ?? readFareBreakdown(data.fare);
-  const fare = typeof data.fare === 'number' ? data.fare : fareBreakdown?.total ?? null;
-
-  const distanceMeters =
-    data.route && typeof data.route.distanceMeters === 'number'
-      ? data.route.distanceMeters
-      : null;
-
+  const { trip, historyMode, driver } = parsed;
   return {
     tripId: id,
-    status: data.status as string,
-    mode: historicalRideMode(data.mode),
-    fare,
-    distanceMeters,
-    pickup: {
-      label: data.pickup?.label ?? data.pickup?.address ?? 'Unknown Pickup',
-    },
-    destination: {
-      label: data.destination?.label ?? data.destination?.address ?? 'Unknown Destination',
-    },
-    passengerCount: (data.passengerCount as number) ?? 1,
-    requestedAt: (data.requestedAt as TimestampType) ?? null,
-    completedAt: (data.completedAt as TimestampType) ?? null,
-    cancelledAt: (data.cancelledAt as TimestampType) ?? null,
+    status: trip.status,
+    mode: historyMode,
+    fare: typeof trip.fare === 'number' ? trip.fare : null,
+    distanceMeters: trip.route?.distanceMeters ?? null,
+    pickup: { label: trip.pickup.label },
+    destination: { label: trip.destination.label },
+    passengerCount: trip.passengerCount,
+    requestedAt: trip.requestedAt,
+    completedAt: trip.completedAt,
+    cancelledAt: trip.cancelledAt,
     driver,
-    bookingFor: data.bookingFor ?? null,
-    rider: data.rider && typeof data.rider.firstName === 'string' ? { firstName: data.rider.firstName } : null,
-    cancelledBy: data.cancelledBy ?? null,
-    cancelReason: data.cancelReason ?? null,
+    bookingFor: trip.bookingFor,
+    rider: trip.rider,
+    cancelledBy: trip.cancelledBy,
+    cancelReason: trip.cancelReason,
   };
+}
+
+function mapHistoryDocs(docs: readonly RawTripSnapshot[]): TripHistoryItem[] {
+  return docs.flatMap((snapshot) => {
+    const mapped = mapDocToTripHistoryItem(snapshot.id, snapshot.data());
+    return mapped ? [mapped] : [];
+  });
+}
+
+function cursorFromItem(item: TripHistoryItem | undefined): HistoryCursor | null {
+  const timestamp = item?.requestedAt;
+  return timestamp
+    ? { seconds: timestamp.seconds, nanoseconds: timestamp.nanoseconds }
+    : null;
 }
 
 export async function listForPassenger(
@@ -120,25 +101,17 @@ export async function listForPassenger(
       orderBy('requestedAt', 'desc'),
       fsLimit(options.limit),
     );
-
     if (options.cursor) {
-      const ts = new Timestamp(options.cursor.seconds, options.cursor.nanoseconds);
-      q = query(q, startAfter(ts));
+      q = query(q, startAfter(new Timestamp(options.cursor.seconds, options.cursor.nanoseconds)));
     }
 
     const snap = await getDocs(q);
-    const trips = snap.docs.map((d: any) => mapDocToTripHistoryItem(d.id, d.data()));
-
+    const trips = mapHistoryDocs(snap.docs as readonly RawTripSnapshot[]);
     const lastTrip = trips[trips.length - 1];
-    const nextCursor =
-      snap.docs.length === options.limit && lastTrip && lastTrip.requestedAt
-        ? {
-            seconds: lastTrip.requestedAt.seconds,
-            nanoseconds: lastTrip.requestedAt.nanoseconds,
-          }
-        : null;
-
-    return { trips, nextCursor };
+    return {
+      trips,
+      nextCursor: snap.docs.length === options.limit ? cursorFromItem(lastTrip) : null,
+    };
   } catch (err) {
     logger.error('[trip-history] listForPassenger failed', { err, uid });
     throw translateFirebaseError(err);
@@ -148,63 +121,19 @@ export async function listForPassenger(
 export async function getTrip(tripId: string): Promise<TripDetail> {
   try {
     const snap = await getDoc(doc(firestore, 'trips', tripId));
-    if (!snap.exists()) {
-      throw new NotFoundError();
+    if (!snap.exists()) throw new NotFoundError();
+
+    const parsed = parseTripDocument(snap.id, snap.data());
+    if (!parsed) {
+      logger.error('[trip-history] rejected malformed trip document', { tripId });
+      throw new TripHistoryServiceError('The requested trip data is unavailable.');
     }
-    const data = snap.data();
-    const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
-    const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
-    const fareBreakdown = readFareBreakdown(data.fareBreakdown) ?? readFareBreakdown(data.fare);
-    const fare =
-      typeof data.fare === 'number'
-        ? data.fare
-        : fareBreakdown?.total;
 
     return {
-      id: snap.id,
-      mode: historicalRideMode(data.mode),
-      status: data.status,
-      passengerId: data.passengerId,
-      driverId: data.driverId ?? null,
-      pickup: data.pickup,
-      destination: data.destination,
-      passengerCount: data.passengerCount,
-      billedSeats: data.billedSeats,
-      geohash: data.geohash,
-      requestedAt: (data.requestedAt as TimestampType) ?? null,
-      acceptedAt: (data.acceptedAt as TimestampType) ?? null,
-      completedAt: (data.completedAt as TimestampType) ?? null,
-      cancelledAt: (data.cancelledAt as TimestampType) ?? null,
-      cancelledBy: data.cancelledBy ?? null,
-      cancelReason: data.cancelReason ?? null,
-      fare,
-      fareBreakdown,
-      route: data.route ?? null,
-      driverRoute: data.driverRoute ?? null,
-      tripProgress: data.tripProgress ?? null,
-      bookingFor: data.bookingFor ?? null,
-      rider: data.rider ?? null,
-      pickupNote: data.pickupNote ?? null,
-      driverPublic,
-      driver: driverPublic
-        ? {
-            displayName: driverPublic.displayName,
-            plate: driverPublic.vehicle.plateNumber,
-          }
-        : historicalDriver && (typeof historicalDriver.displayName === 'string' || typeof historicalDriver.plate === 'string')
-          ? {
-              displayName: typeof historicalDriver.displayName === 'string'
-                ? historicalDriver.displayName
-                : 'Driver details unavailable',
-              plate: typeof historicalDriver.plate === 'string' ? historicalDriver.plate : 'Plate unavailable',
-            }
-          : null,
-      passenger: data.passenger
-        ? {
-            displayName: data.passenger.displayName ?? 'Passenger',
-            phone: data.passenger.phone ?? '',
-          }
-        : null,
+      ...parsed.trip,
+      mode: parsed.historyMode,
+      driver: parsed.driver,
+      passenger: null,
     };
   } catch (err) {
     logger.error('[trip-history] getTrip failed', { err, tripId });

@@ -22,6 +22,14 @@ export class NetworkError extends Error {
   }
 }
 
+export class QueryIndexError extends Error {
+  readonly kind = 'QueryIndexError' as const;
+  constructor(message = 'Trip history is temporarily unavailable. Please try again shortly.') {
+    super(message);
+    this.name = 'QueryIndexError';
+  }
+}
+
 export class TripHistoryServiceError extends Error {
   readonly kind = 'TripHistoryServiceError' as const;
   constructor(message: string, cause?: unknown) {

@@ -202,6 +202,7 @@ describe('auth.service — error translation', () => {
     }
 
     function mockDocs(
+      uid: string,
       userDoc: object | null,
       driverDoc: object | null,
     ) {
@@ -209,7 +210,15 @@ describe('auth.service — error translation', () => {
       mockGetDoc
         .mockResolvedValueOnce({
           exists: () => userDoc !== null,
-          data: () => userDoc,
+          data: () => userDoc && {
+            uid,
+            name: 'Test Driver',
+            mobile: '+639171234567',
+            accountStatus: 'active',
+            createdAt: { seconds: 1, nanoseconds: 0 },
+            updatedAt: { seconds: 1, nanoseconds: 0 },
+            ...userDoc,
+          },
         } as never)
         .mockResolvedValueOnce({
           exists: () => driverDoc !== null,
@@ -229,7 +238,7 @@ describe('auth.service — error translation', () => {
 
     it('throws NotFoundError when users doc does not exist', async () => {
       mockSignIn('uid-1');
-      mockDocs(null, null);
+      mockDocs('uid-1', null, null);
       mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
@@ -239,7 +248,7 @@ describe('auth.service — error translation', () => {
 
     it('throws AuthError when role is not driver', async () => {
       mockSignIn('uid-2');
-      mockDocs({ role: 'passenger' }, null);
+      mockDocs('uid-2', { role: 'passenger' }, null);
       mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
@@ -249,7 +258,7 @@ describe('auth.service — error translation', () => {
 
     it('throws NotFoundError when drivers doc does not exist', async () => {
       mockSignIn('uid-3');
-      mockDocs({ role: 'driver' }, null);
+      mockDocs('uid-3', { role: 'driver' }, null);
       mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
@@ -259,7 +268,7 @@ describe('auth.service — error translation', () => {
 
     it('throws AuthError when driver is not approved', async () => {
       mockSignIn('uid-4');
-      mockDocs({ role: 'driver' }, { approved: false });
+      mockDocs('uid-4', { role: 'driver' }, { approved: false });
       mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(
@@ -269,7 +278,7 @@ describe('auth.service — error translation', () => {
 
     it('returns uid and role on success', async () => {
       mockSignIn('uid-6');
-      mockDocs({ role: 'driver' }, { approved: true });
+      mockDocs('uid-6', { role: 'driver' }, { approved: true });
 
       const result = await signInDriver('driver@test.com', 'pass');
       expect(result).toEqual({ uid: 'uid-6', role: 'driver' });
@@ -277,7 +286,7 @@ describe('auth.service — error translation', () => {
 
     it('calls signOut after any post-auth Firestore failure', async () => {
       mockSignIn('uid-7');
-      mockDocs(null, null);
+      mockDocs('uid-7', null, null);
       mockSignOut.mockResolvedValueOnce(undefined);
 
       await expect(

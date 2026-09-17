@@ -20,6 +20,7 @@ import {
   ValidationError,
 } from '@pakyaw/shared/features/auth/errors';
 import type { LegacyUserDocInput, UserDoc, UserDocInput, UserRole } from '@pakyaw/shared/features/auth/types';
+import { parseUserDoc } from '@pakyaw/shared/features/auth/validation/runtime';
 
 // ---------------------------------------------------------------------------
 // Error translation
@@ -133,7 +134,10 @@ export async function signInDriver(
         'No account found for this email. Contact your fleet manager.',
       );
     }
-    const userData = userSnap.data() as UserDoc;
+    const userData = parseUserDoc(uid, userSnap.data());
+    if (!userData) {
+      throw new AuthError('Your account profile is incomplete. Contact support for help.');
+    }
     if (userData.role !== 'driver') {
       throw new AuthError(
         'This account is not registered as a driver. Use passenger sign-in.',
@@ -154,7 +158,7 @@ export async function signInDriver(
 
     return { uid, role: 'driver' };
   } catch (err) {
-    await signOut(auth).catch(() => undefined);
+    await Promise.resolve(signOut(auth)).catch(() => undefined);
     if (
       err instanceof AuthError ||
       err instanceof NotFoundError ||
@@ -232,7 +236,7 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
   try {
     const snap = await getDoc(doc(firestore, 'users', uid));
     if (!snap.exists()) return null;
-    return snap.data() as UserDoc;
+    return parseUserDoc(uid, snap.data());
   } catch (err) {
     throw translateFirebaseError(err);
   }
