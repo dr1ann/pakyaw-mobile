@@ -24,7 +24,23 @@ import {
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isDriverPublicSnapshot } from '@pakyaw/shared/transport/contract';
+import {
+  isDriverPublicSnapshot,
+  isFareBreakdown,
+  isLegacyFareBreakdown,
+  isRideMode,
+  type FareBreakdownView,
+  type HistoricalRideMode,
+} from '@pakyaw/shared/transport/contract';
+
+function historicalRideMode(value: unknown): HistoricalRideMode {
+  return value === 'hop' || value === 'pakyaw' ? value : isRideMode(value) ? value : 'solo';
+}
+
+function readFareBreakdown(value: unknown): FareBreakdownView | undefined {
+  if (isFareBreakdown(value) || isLegacyFareBreakdown(value)) return value;
+  return undefined;
+}
 
 function translateFirebaseError(err: unknown): Error {
   if (err instanceof FirebaseError) {
@@ -85,7 +101,7 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
   return {
     tripId: id,
     status: data.status as string,
-    mode: data.mode === 'shared' ? 'shared' : data.mode === 'pakyaw' ? 'pakyaw' : (data.mode ?? 'solo'),
+    mode: historicalRideMode(data.mode),
     pickup: {
       label: data.pickup?.label ?? data.pickup?.address ?? 'Unknown Pickup',
     },
@@ -188,11 +204,11 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
     const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
     const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
     const rawFare = data.fareBreakdown ?? data.fare;
-    const fareBreakdown = typeof rawFare === 'object' && rawFare !== null ? rawFare : undefined;
+    const fareBreakdown = readFareBreakdown(rawFare);
 
     return {
       id: snap.id,
-      mode: data.mode ?? 'solo',
+      mode: isRideMode(data.mode) ? data.mode : 'solo',
       status: data.status,
       passengerId: data.passengerId,
       driverId: data.driverId ?? null,

@@ -49,7 +49,6 @@ function mapOperational(raw: unknown): SharedRideOperational | null {
       place: {
         latitude: place.latitude,
         longitude: place.longitude,
-        label: typeof place.label === 'string' ? place.label : undefined,
       },
       status: (stop.status === 'completed' || stop.status === 'cancelled') ? stop.status : 'pending',
     }];

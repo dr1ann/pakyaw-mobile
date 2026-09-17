@@ -18,7 +18,7 @@ export type Timestamp = {
 import type { Place } from '@pakyaw/shared/types/place';
 import type {
   DriverPublicSnapshot,
-  FareBreakdown,
+  FareBreakdownView,
   RideMode,
   SharedRideMember,
   SharedRideMemberStatus,
@@ -68,7 +68,7 @@ export type TripDoc = {
   } | null;
   /** Derived total projection for existing UI; fareBreakdown is authoritative. */
   readonly fare?: number;
-  readonly fareBreakdown?: FareBreakdown & {
+  readonly fareBreakdown?: FareBreakdownView & {
     readonly paymentStatus?: 'paid' | 'pending';
   };
 
@@ -120,7 +120,7 @@ export type SharedRidePassenger = {
   readonly status: 'active' | 'dropped_off';
   readonly isHop?: boolean;
   readonly fare?: number;
-  readonly fareBreakdown?: FareBreakdown & {
+  readonly fareBreakdown?: FareBreakdownView & {
     readonly paymentStatus?: 'paid' | 'pending';
   };
 };

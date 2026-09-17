@@ -290,8 +290,11 @@ export function PersistentDriverTripDashboard({
 
   // Active destination context depending on state
   const isHeadingToDestination = status === 'in_progress';
+  const currentMember = currentStop && sharedRide?.members?.find((member) => member.tripId === currentStop.tripId);
   const targetLabel = isSharedRideSession
-    ? (currentStop?.place?.label || (currentStop?.kind === 'dropoff' ? activeTrip?.destination?.label : activeTrip?.pickup?.label) || 'Location')
+    ? ((currentStop?.kind === 'dropoff'
+      ? currentMember?.destination.label || activeTrip?.destination?.label
+      : currentMember?.pickup.label || activeTrip?.pickup?.label) || 'Location')
     : isHeadingToDestination
       ? (activeTrip?.destination?.label || 'Destination')
       : (activeTrip?.pickup?.label || 'Pickup Location');
@@ -471,7 +474,7 @@ export function PersistentDriverTripDashboard({
         <View style={styles.nextStopBar} testID="shared-next-stop-context">
           <Text style={styles.nextStopPrefix}>NEXT STOP</Text>
           <Text style={styles.nextStopLabel} numberOfLines={1}>
-            {nextStop.kind === 'pickup' ? `Pick up ${nextRiderFirstName}` : `Drop off ${nextRiderFirstName}`} • {nextTrip?.destination?.label || nextStop.place.label || 'Next Stop'}
+            {nextStop.kind === 'pickup' ? `Pick up ${nextRiderFirstName}` : `Drop off ${nextRiderFirstName}`} • {(nextStop.kind === 'dropoff' ? nextTrip?.destination?.label : nextTrip?.pickup?.label) || 'Next Stop'}
           </Text>
         </View>
       )}

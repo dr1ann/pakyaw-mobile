@@ -6,12 +6,12 @@ export type Timestamp = {
 };
 
 import type { TripDoc } from '@pakyaw/shared/features/trip/types';
-import type { RideMode } from '@pakyaw/shared/transport/contract';
+import type { HistoricalRideMode } from '@pakyaw/shared/transport/contract';
 
 export type TripHistoryItem = {
   readonly tripId: string;
   readonly status: string;
-  readonly mode?: RideMode | 'solo' | 'shared' | 'pakyaw' | string;
+  readonly mode?: HistoricalRideMode;
   readonly pickup: {
     readonly label: string;
   };
