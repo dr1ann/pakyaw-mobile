@@ -44,36 +44,47 @@ export const DEFAULT_VEHICLE_CAPACITY = 6;
 export const DEFAULT_SOLO_MIN_BILLED_SEATS = 4;
 export const DEFAULT_SHARED_MAX_SEATS_PER_BOOKING = 3;
 
+/** Public, non-pricing transport settings returned to mobile clients. */
 export type PublicTransportConfig = {
-  vehicleCapacity: number;
-  modes: {
-    solo: {
-      minPassengers: number;
-      maxPassengers: number;
-      minimumBilledSeats: number;
+  readonly schemaVersion: number;
+  readonly vehicleCapacity: number;
+  readonly modes: {
+    readonly solo: {
+      readonly enabled: boolean;
+      readonly minPassengers: number;
+      readonly maxPassengers: number;
+      readonly minimumBilledSeats: number;
+      readonly buyoutSeats: number;
     };
-    shared: {
-      minPassengers: number;
-      maxPassengers: number;
-      maxSeatsPerBooking: number;
+    readonly shared: {
+      readonly enabled: boolean;
+      readonly maxSeatsPerBooking: number;
+      readonly maxSeats: number;
     };
+  };
+  readonly pricing: {
+    readonly currency: 'PHP';
   };
 };
 
 export const DEFAULT_PUBLIC_TRANSPORT_CONFIG: PublicTransportConfig = {
+  schemaVersion: 2,
   vehicleCapacity: DEFAULT_VEHICLE_CAPACITY,
   modes: {
     solo: {
+      enabled: true,
       minPassengers: 1,
       maxPassengers: DEFAULT_VEHICLE_CAPACITY,
       minimumBilledSeats: DEFAULT_SOLO_MIN_BILLED_SEATS,
+      buyoutSeats: DEFAULT_SOLO_MIN_BILLED_SEATS,
     },
     shared: {
-      minPassengers: 1,
-      maxPassengers: DEFAULT_VEHICLE_CAPACITY,
+      enabled: true,
       maxSeatsPerBooking: DEFAULT_SHARED_MAX_SEATS_PER_BOOKING,
+      maxSeats: DEFAULT_VEHICLE_CAPACITY,
     },
   },
+  pricing: { currency: 'PHP' },
 };
 
 export type LatLng = {
@@ -92,13 +103,50 @@ export type RouteSnapshot = {
 };
 
 export type FareBreakdown = {
+  /** Immutable explanatory fare snapshot. `total` and `techFee` remain compatibility aliases. */
+  perSeat: {
+    baseFare: number;
+    succeedingKmCharge: number;
+    distanceFare: number;
+    surchargeTotal: number;
+    transportFare: number;
+  };
+  billedSeats: number;
+  transportFare: number;
+  surcharges: {
+    items: Array<{ code: 'night'; amount: number; application: 'per_trip' }>;
+    total: number;
+  };
+  serviceFee: {
+    configuredAmount: number;
+    passengerPaid: number;
+    driverContribution: number;
+    driverBonus: number;
+    platformReceivable: number;
+  };
+  feeTreatment: { scheme: FareTreatmentScheme };
+  passengerTotal: number;
+  platformReceivable: number;
+  configSchemaVersion: 1 | 2;
+  /** Compatibility fields for existing Trip readers. */
   baseFare: number;
-  succeedingKmCharge?: number;
+  succeedingKmCharge: number;
   distanceFare: number;
-  surcharges: number;
   techFee: number;
   total: number;
+  driverEarnings: number;
+};
+
+/** Historical scalar fare shape accepted only by compatibility readers. */
+export type LegacyFareBreakdown = {
+  baseFare?: number;
+  succeedingKmCharge?: number;
+  distanceFare?: number;
+  surcharges?: number;
+  techFee?: number;
+  total: number;
   driverEarnings?: number;
+  serviceFee?: number;
   perSeat?: {
     baseFare: number;
     succeedingKmCharge: number;
@@ -107,6 +155,71 @@ export type FareBreakdown = {
     transportFare: number;
   };
 };
+
+export type FareBreakdownView = FareBreakdown | LegacyFareBreakdown;
+
+export type FareTreatmentScheme =
+  | 'full_pass_on'
+  | 'driver_subsidized'
+  | 'split_fee'
+  | 'driver_commission'
+  | 'distance_tier_fee';
+
+function finiteNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+/** Validate the backend-generated structured fare snapshot at a read boundary. */
+export function isFareBreakdown(value: unknown): value is FareBreakdown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const fare = value as Record<string, unknown>;
+  const perSeat = fare.perSeat;
+  const surcharges = fare.surcharges;
+  const serviceFee = fare.serviceFee;
+  const feeTreatment = fare.feeTreatment;
+  if (perSeat === null || typeof perSeat !== 'object' || Array.isArray(perSeat)
+    || surcharges === null || typeof surcharges !== 'object' || Array.isArray(surcharges)
+    || serviceFee === null || typeof serviceFee !== 'object' || Array.isArray(serviceFee)
+    || feeTreatment === null || typeof feeTreatment !== 'object' || Array.isArray(feeTreatment)) return false;
+  const seat = perSeat as Record<string, unknown>;
+  const surcharge = surcharges as Record<string, unknown>;
+  const fee = serviceFee as Record<string, unknown>;
+  const treatment = feeTreatment as Record<string, unknown>;
+  const items = surcharge.items;
+  return Array.isArray(items)
+    && [
+      seat.baseFare, seat.succeedingKmCharge, seat.distanceFare, seat.surchargeTotal,
+      seat.transportFare, fare.billedSeats, fare.transportFare, surcharge.total,
+      fee.configuredAmount, fee.passengerPaid, fee.driverContribution, fee.driverBonus,
+      fee.platformReceivable, fare.passengerTotal, fare.platformReceivable,
+      fare.baseFare, fare.succeedingKmCharge, fare.distanceFare, fare.techFee,
+      fare.total, fare.driverEarnings,
+    ].every(finiteNonNegative)
+    && Number.isInteger(fare.billedSeats)
+    && (fare.billedSeats as number) >= 1
+    && items.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item)
+      && (item as Record<string, unknown>).code === 'night'
+      && finiteNonNegative((item as Record<string, unknown>).amount)
+      && (item as Record<string, unknown>).application === 'per_trip')
+    && typeof treatment.scheme === 'string'
+    && ['full_pass_on', 'driver_subsidized', 'split_fee', 'driver_commission', 'distance_tier_fee'].includes(treatment.scheme)
+    && (fare.configSchemaVersion === 1 || fare.configSchemaVersion === 2);
+}
+
+/** Validate only the scalar fare shape used by historical compatibility readers. */
+export function isLegacyFareBreakdown(value: unknown): value is LegacyFareBreakdown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const fare = value as Record<string, unknown>;
+  return finiteNonNegative(fare.total)
+    && [fare.baseFare, fare.succeedingKmCharge, fare.distanceFare, fare.surcharges,
+      fare.techFee, fare.driverEarnings, fare.serviceFee].every(
+      (field) => field === undefined || finiteNonNegative(field),
+    );
+}
+
+export function getFareSurchargeTotal(fare: FareBreakdownView): number {
+  return typeof fare.surcharges === 'number' ? fare.surcharges : fare.surcharges?.total ?? 0;
+}
 
 export type TripOfferFare = {
   total: number;
@@ -158,13 +271,16 @@ export function isDriverPublicSnapshot(value: unknown): value is DriverPublicSna
 }
 
 export type LegacyRideMode = 'hop';
-export type AnyRideMode = RideMode | LegacyRideMode;
+export type LegacyHistoryRideMode = LegacyRideMode | 'pakyaw';
+export type HistoricalRideMode = RideMode | LegacyHistoryRideMode;
+/** @deprecated Use RideMode for current transport documents or HistoricalRideMode for readers. */
+export type AnyRideMode = HistoricalRideMode;
 
 export type Trip = {
   passengerId: string;
   driverId: string | null;
 
-  mode: AnyRideMode;
+  mode: RideMode;
   status: TripStatus;
 
   pickup: Place;
@@ -237,20 +353,24 @@ export type QuoteTripResult = {
   readonly fare: FareBreakdown;
 };
 
+export type PassengerCountLimits = {
+  readonly vehicleCapacity?: number;
+  readonly maxSeatsPerBooking?: number;
+};
+
 export function isPassengerCountAllowed(
   mode: RideMode,
   passengerCount: number,
-  limits?: { vehicleCapacity?: number; maxSeatsPerBooking?: number }
+  limits?: PassengerCountLimits,
 ): boolean {
-  if (!Number.isInteger(passengerCount) || passengerCount < 1) {
-    return false;
-  }
-  if (mode === 'shared') {
-    const max = limits?.maxSeatsPerBooking ?? DEFAULT_SHARED_MAX_SEATS_PER_BOOKING;
-    return passengerCount <= max;
-  }
-  const max = limits?.vehicleCapacity ?? DEFAULT_VEHICLE_CAPACITY;
-  return passengerCount <= max;
+  const max = mode === 'shared'
+    ? limits?.maxSeatsPerBooking ?? MAX_PASSENGER_COUNT
+    : limits?.vehicleCapacity ?? MAX_PASSENGER_COUNT;
+  return Number.isInteger(passengerCount)
+    && passengerCount >= 1
+    && Number.isInteger(max)
+    && max >= 1
+    && passengerCount <= max;
 }
 
 export type SharedRideStatus = 'forming' | 'active' | 'completed' | 'cancelled';
@@ -278,9 +398,29 @@ export type SharedRideSummary = {
   passengerGroups: number;
 };
 
+export type SharedRideOperationalStopKind = 'pickup' | 'dropoff';
+export type SharedRideOperationalStopStatus = 'pending' | 'completed' | 'cancelled';
+
+/** Backend-owned stop projection; it contains no passenger identity or notes. */
+export type SharedRideOperationalStop = {
+  id: string;
+  tripId: string;
+  kind: SharedRideOperationalStopKind;
+  place: LatLng;
+  status: SharedRideOperationalStopStatus;
+};
+
+export type SharedRideOperational = {
+  stopOrder: string[];
+  currentStopId: string | null;
+  nextStopId: string | null;
+  stops: SharedRideOperationalStop[];
+};
+
 export type SharedRide = {
   driverId: string;
   originMode?: 'shared';
+  driverLocationGeohash?: string;
   status: SharedRideStatus;
 
   maxSeats: number;
@@ -288,6 +428,7 @@ export type SharedRide = {
 
   tripIds: string[];
   members: SharedRideMember[];
+  operational?: SharedRideOperational;
 
   route: RouteSnapshot;
 

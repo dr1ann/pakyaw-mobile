@@ -105,23 +105,6 @@ describe('CompletedSheet component — Phase 8 Passenger Completion & Receipt', 
     expect(trip?.fare).toBe(35.0);
   });
 
-  it('renders historical Hop completed trip with Legacy Hop mode label', () => {
-    useActiveTripStore.getState().setTrip({
-      ...baseCompletedTrip,
-      mode: 'hop',
-      passengerCount: 1,
-      billedSeats: 1,
-      fare: 25.0,
-    });
-
-    const element = <CompletedSheet onDismiss={vi.fn()} />;
-    expect(element).toBeDefined();
-
-    const trip = useActiveTripStore.getState().trip;
-    expect(trip?.mode).toBe('hop');
-    expect(trip?.fare).toBe(25.0);
-  });
-
   it('renders third-party booking recipient info when bookingFor is other', () => {
     useActiveTripStore.getState().setTrip({
       ...baseCompletedTrip,

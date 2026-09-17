@@ -14,6 +14,36 @@ vi.mock('@pakyaw/shared/lib/logger', () => ({ logger: { error: vi.fn() } }));
 import { quoteTrip } from './quote.service';
 
 describe('quote.service — server-authoritative quote boundary', () => {
+  const canonicalFare = (baseFare: number, total: number, driverEarnings: number, billedSeats: number) => ({
+    perSeat: {
+      baseFare: baseFare / billedSeats,
+      succeedingKmCharge: 0,
+      distanceFare: 0,
+      surchargeTotal: 0,
+      transportFare: baseFare / billedSeats,
+    },
+    billedSeats,
+    transportFare: baseFare,
+    surcharges: { items: [], total: 0 },
+    serviceFee: {
+      configuredAmount: 15,
+      passengerPaid: 15,
+      driverContribution: 0,
+      driverBonus: 0,
+      platformReceivable: 15,
+    },
+    feeTreatment: { scheme: 'full_pass_on' as const },
+    passengerTotal: total,
+    platformReceivable: 15,
+    configSchemaVersion: 2 as const,
+    baseFare,
+    succeedingKmCharge: 0,
+    distanceFare: 0,
+    techFee: 15,
+    total,
+    driverEarnings,
+  });
+
   const input = {
     mode: 'solo' as const,
     pickup: { label: 'Pickup', coords: { lat: 11.005, lng: 124.6075 } },
@@ -30,15 +60,7 @@ describe('quote.service — server-authoritative quote boundary', () => {
         mode: 'solo',
         passengerCount: 1,
         billedSeats: 4,
-        fare: {
-          baseFare: 220,
-          succeedingKmCharge: 0,
-          distanceFare: 0,
-          surcharges: 0,
-          techFee: 15,
-          total: 235,
-          driverEarnings: 220,
-        },
+        fare: canonicalFare(220, 235, 220, 4),
       },
     });
   });
@@ -82,15 +104,7 @@ describe('quote.service — server-authoritative quote boundary', () => {
         mode: 'shared',
         passengerCount: 2,
         billedSeats: 2,
-        fare: {
-          baseFare: 110,
-          succeedingKmCharge: 0,
-          distanceFare: 0,
-          surcharges: 0,
-          techFee: 15,
-          total: 125,
-          driverEarnings: 110,
-        },
+        fare: canonicalFare(110, 125, 110, 2),
       },
     });
 

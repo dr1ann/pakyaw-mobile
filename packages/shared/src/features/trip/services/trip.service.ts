@@ -36,7 +36,16 @@ import {
   type TripStatus,
 } from '@pakyaw/shared/features/trip/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isDriverPublicSnapshot, isRideMode, isTripStatus, type FareBreakdown, type SharedRideSummary } from '@pakyaw/shared/transport/contract';
+import {
+  isDriverPublicSnapshot,
+  isFareBreakdown,
+  isLegacyFareBreakdown,
+  isRideMode,
+  isTripStatus,
+  type FareBreakdown,
+  type FareBreakdownView,
+  type SharedRideSummary,
+} from '@pakyaw/shared/transport/contract';
 
 type CallableResult = { readonly result: 'ok' | 'invalid_transition' | 'cannot_cancel' };
 
@@ -95,16 +104,9 @@ function isCanonicalRoute(value: unknown): value is CanonicalTripData['route'] {
     && (route.polyline === undefined || typeof route.polyline === 'string');
 }
 
-function isCanonicalFareBreakdown(value: unknown): value is FareBreakdown {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  const fare = value as Record<string, unknown>;
-  const hasValidSurcharges =
-    (typeof fare.surcharges === 'number' && Number.isFinite(fare.surcharges) && fare.surcharges >= 0) ||
-    (fare.surcharges !== null && typeof fare.surcharges === 'object' && typeof (fare.surcharges as any).total === 'number');
-  return ['baseFare', 'distanceFare', 'techFee', 'total'].every((field) => (
-    typeof fare[field] === 'number' && Number.isFinite(fare[field]) && (fare[field] as number) >= 0
-  )) && hasValidSurcharges && (fare.driverEarnings === undefined
-    || (typeof fare.driverEarnings === 'number' && Number.isFinite(fare.driverEarnings) && fare.driverEarnings >= 0));
+function readFareBreakdown(value: unknown): FareBreakdownView | undefined {
+  if (isFareBreakdown(value) || isLegacyFareBreakdown(value)) return value;
+  return undefined;
 }
 
 function isSharedRideSummary(value: unknown): value is SharedRideSummary {
@@ -133,7 +135,7 @@ function isCanonicalTripData(data: DocumentData): data is CanonicalTripData {
     && data.passengerCount >= 1
     && Number.isInteger(data.billedSeats)
     && data.billedSeats >= 1
-    && isCanonicalFareBreakdown(data.fare)
+    && isFareBreakdown(data.fare)
     && isCanonicalRoute(data.route);
 }
 
@@ -172,12 +174,7 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
       : typeof data.fare === 'number' && Number.isFinite(data.fare)
         ? data.fare
         : 0,
-    fareBreakdown: {
-      ...data.fare,
-      surcharges: typeof (data.fare as any).surcharges === 'number'
-        ? (data.fare as any).surcharges
-        : ((data.fare as any).surcharges?.total ?? 0),
-    },
+    fareBreakdown: data.fare,
     route: {
       distanceMeters: data.route.distanceMeters,
       durationSeconds: data.route.durationSeconds,
@@ -210,6 +207,7 @@ function mapCanonicalTripDoc(id: string, data: CanonicalTripData): TripDoc {
  */
 function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
   const passengerCount = typeof data.passengerCount === 'number' ? data.passengerCount : 1;
+  const fareBreakdown = readFareBreakdown(data.fare) ?? readFareBreakdown(data.fareBreakdown);
   return {
     id,
     mode: isRideMode(data.mode) ? data.mode : 'solo',
@@ -239,26 +237,8 @@ function mapLegacyTripDoc(id: string, data: DocumentData): TripDoc {
       : null,
     fare: typeof data.fare === 'number' && Number.isFinite(data.fare)
       ? data.fare
-      : typeof (data.fare as any)?.total === 'number' && Number.isFinite((data.fare as any).total)
-        ? (data.fare as any).total
-        : typeof (data.fareBreakdown as any)?.total === 'number' && Number.isFinite((data.fareBreakdown as any).total)
-          ? (data.fareBreakdown as any).total
-          : undefined,
-    fareBreakdown: isCanonicalFareBreakdown(data.fare)
-      ? {
-          ...data.fare,
-          surcharges: typeof (data.fare as any).surcharges === 'number'
-            ? (data.fare as any).surcharges
-            : ((data.fare as any).surcharges?.total ?? 0),
-        }
-      : isCanonicalFareBreakdown(data.fareBreakdown)
-        ? {
-            ...data.fareBreakdown,
-            surcharges: typeof (data.fareBreakdown as any).surcharges === 'number'
-              ? (data.fareBreakdown as any).surcharges
-              : ((data.fareBreakdown as any).surcharges?.total ?? 0),
-          }
-        : undefined,
+      : fareBreakdown?.total,
+    fareBreakdown,
     route: data.route
       ? {
         distanceMeters: data.route.distanceMeters as number,

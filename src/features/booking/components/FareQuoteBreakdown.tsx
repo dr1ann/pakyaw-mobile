@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from '
 
 import { SymbolIcon } from '@pakyaw/shared/components/ui/SymbolIcon';
 import { formatUserFriendlyError } from '@pakyaw/shared/lib/userError';
+import { getFareSurchargeTotal } from '@pakyaw/shared/transport/contract';
 import { colors, radius, spacing, typography, motion, useReduceMotion } from '@/constants/theme';
 import type { PassengerFareQuote } from '@/features/booking/services/quote.service';
 import type { BookingRideSelection } from '@/features/booking/types';
@@ -105,16 +106,12 @@ export function FareQuoteBreakdown({
   if (!quote || !quote.fare) return null;
 
   const { fare, billedSeats } = quote;
-  const baseFare = fare.perSeat?.baseFare ?? fare.baseFare;
+  const baseFare = fare.perSeat?.baseFare ?? fare.baseFare ?? 0;
   const succeedingKm = fare.perSeat?.succeedingKmCharge ?? fare.succeedingKmCharge ?? fare.distanceFare ?? 0;
   const perSeatRate = baseFare + succeedingKm;
 
   const techFee = fare.techFee ?? 0;
-  const surchargeTotal = typeof fare.surcharges === 'number'
-    ? fare.surcharges
-    : typeof (fare.surcharges as any)?.total === 'number'
-      ? (fare.surcharges as any).total
-      : 0;
+  const surchargeTotal = getFareSurchargeTotal(fare);
 
   // Format multiplier label in plain English
   const multiplierLabel = mode === 'private'

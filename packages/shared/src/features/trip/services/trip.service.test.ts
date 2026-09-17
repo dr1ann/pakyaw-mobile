@@ -55,11 +55,20 @@ describe('Day 3 callable trip actions', () => {
           billedSeats: 3,
           fare: {
             baseFare: 50,
+            succeedingKmCharge: 0,
             distanceFare: 0,
-            surcharges: 0,
             techFee: 5,
             total: 55,
             driverEarnings: 50,
+            perSeat: { baseFare: 50, succeedingKmCharge: 0, distanceFare: 0, surchargeTotal: 0, transportFare: 50 },
+            billedSeats: 3,
+            transportFare: 50,
+            surcharges: { items: [], total: 0 },
+            serviceFee: { configuredAmount: 5, passengerPaid: 5, driverContribution: 0, driverBonus: 0, platformReceivable: 5 },
+            feeTreatment: { scheme: 'full_pass_on' },
+            passengerTotal: 55,
+            platformReceivable: 5,
+            configSchemaVersion: 2,
           },
           driverPublic: {
             driverId: 'driver-1',
@@ -92,6 +101,7 @@ describe('Day 3 callable trip actions', () => {
         vehicle: expect.objectContaining({ plateNumber: 'ABC-1234' }),
       }),
     }));
+    expect(onSnap.mock.calls[0][0].fareBreakdown.surcharges).toEqual({ items: [], total: 0 });
   });
 
   it('drops malformed or legacy Driver identity data instead of presenting it', () => {

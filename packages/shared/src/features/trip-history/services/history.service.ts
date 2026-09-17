@@ -23,11 +23,23 @@ import {
 } from '@pakyaw/shared/features/trip-history/errors';
 import type { HistoryCursor, TripDetail, TripHistoryItem } from '@pakyaw/shared/features/trip-history/types';
 import { logger } from '@pakyaw/shared/lib/logger';
-import { isDriverPublicSnapshot, isRideMode } from '@pakyaw/shared/transport/contract';
+import {
+  isDriverPublicSnapshot,
+  isFareBreakdown,
+  isLegacyFareBreakdown,
+  isRideMode,
+  type HistoricalRideMode,
+  type FareBreakdownView,
+} from '@pakyaw/shared/transport/contract';
 
 /** Historical trip reads may encounter documents written before Phase 1. */
-function historicalRideMode(value: unknown): TripDetail['mode'] {
-  return value === 'hop' ? 'hop' : isRideMode(value) ? value : 'solo';
+function historicalRideMode(value: unknown): HistoricalRideMode {
+  return value === 'hop' || value === 'pakyaw' ? value : isRideMode(value) ? value : 'solo';
+}
+
+function readFareBreakdown(value: unknown): FareBreakdownView | undefined {
+  if (isFareBreakdown(value) || isLegacyFareBreakdown(value)) return value;
+  return undefined;
 }
 
 function translateFirebaseError(err: unknown): Error {
@@ -64,12 +76,8 @@ function mapDocToTripHistoryItem(id: string, data: DocumentData): TripHistoryIte
         }
       : null;
 
-  const fare =
-    typeof data.fare === 'number'
-      ? data.fare
-      : data.fareBreakdown && typeof data.fareBreakdown.total === 'number'
-        ? data.fareBreakdown.total
-        : null;
+  const fareBreakdown = readFareBreakdown(data.fareBreakdown) ?? readFareBreakdown(data.fare);
+  const fare = typeof data.fare === 'number' ? data.fare : fareBreakdown?.total ?? null;
 
   const distanceMeters =
     data.route && typeof data.route.distanceMeters === 'number'
@@ -146,12 +154,11 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
     const data = snap.data();
     const driverPublic = isDriverPublicSnapshot(data.driverPublic) ? data.driverPublic : null;
     const historicalDriver = data.driver && typeof data.driver === 'object' ? data.driver : null;
+    const fareBreakdown = readFareBreakdown(data.fareBreakdown) ?? readFareBreakdown(data.fare);
     const fare =
       typeof data.fare === 'number'
         ? data.fare
-        : data.fareBreakdown && typeof data.fareBreakdown.total === 'number'
-          ? data.fareBreakdown.total
-          : undefined;
+        : fareBreakdown?.total;
 
     return {
       id: snap.id,
@@ -171,7 +178,7 @@ export async function getTrip(tripId: string): Promise<TripDetail> {
       cancelledBy: data.cancelledBy ?? null,
       cancelReason: data.cancelReason ?? null,
       fare,
-      fareBreakdown: data.fareBreakdown ?? undefined,
+      fareBreakdown,
       route: data.route ?? null,
       driverRoute: data.driverRoute ?? null,
       tripProgress: data.tripProgress ?? null,

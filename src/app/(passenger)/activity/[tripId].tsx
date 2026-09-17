@@ -10,6 +10,7 @@ import { StatusPill } from '@pakyaw/shared/components/ui/StatusPill';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useTripDetail } from '@pakyaw/shared/features/trip-history/hooks/useTripDetail';
 import { ReportIssueModal } from '@/features/support/components/ReportIssueModal';
+import { getFareSurchargeTotal } from '@pakyaw/shared/transport/contract';
 
 export default function TripDetailScreen() {
   const router = useRouter();
@@ -60,6 +61,7 @@ export default function TripDetailScreen() {
     : typeof trip.fareBreakdown?.total === 'number'
       ? trip.fareBreakdown.total
       : null;
+  const surchargeTotal = trip.fareBreakdown ? getFareSurchargeTotal(trip.fareBreakdown) : 0;
 
   const roadDistanceKm = trip.route && typeof trip.route.distanceMeters === 'number' && trip.route.distanceMeters > 0
     ? `${(trip.route.distanceMeters / 1000).toFixed(1)} km`
@@ -133,21 +135,21 @@ export default function TripDetailScreen() {
               <View style={styles.divider} />
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Base Fare</Text>
-                <Text style={styles.detailValue}>₱{trip.fareBreakdown.baseFare.toFixed(2)}</Text>
+                <Text style={styles.detailValue}>₱{(trip.fareBreakdown.baseFare ?? 0).toFixed(2)}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Distance Fare</Text>
-                <Text style={styles.detailValue}>₱{trip.fareBreakdown.distanceFare.toFixed(2)}</Text>
+                <Text style={styles.detailValue}>₱{(trip.fareBreakdown.distanceFare ?? 0).toFixed(2)}</Text>
               </View>
-              {trip.fareBreakdown.surcharges > 0 ? (
+              {surchargeTotal > 0 ? (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Surcharges</Text>
-                  <Text style={styles.detailValue}>₱{trip.fareBreakdown.surcharges.toFixed(2)}</Text>
+                  <Text style={styles.detailValue}>₱{surchargeTotal.toFixed(2)}</Text>
                 </View>
               ) : null}
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Service & Tech Fee</Text>
-                <Text style={styles.detailValue}>₱{trip.fareBreakdown.techFee.toFixed(2)}</Text>
+                <Text style={styles.detailValue}>₱{(trip.fareBreakdown.techFee ?? 0).toFixed(2)}</Text>
               </View>
             </View>
           ) : null}

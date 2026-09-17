@@ -16,7 +16,6 @@ describe('FareQuoteBreakdown component', () => {
       baseFare: 40,
       succeedingKmCharge: 3,
       distanceFare: 3,
-      surcharges: 5,
       techFee: 15,
       total: 63,
       driverEarnings: 43,
@@ -27,6 +26,20 @@ describe('FareQuoteBreakdown component', () => {
         surchargeTotal: 0,
         transportFare: 10.75,
       },
+      billedSeats: 4,
+      transportFare: 43,
+      surcharges: { items: [], total: 5 },
+      serviceFee: {
+        configuredAmount: 15,
+        passengerPaid: 15,
+        driverContribution: 0,
+        driverBonus: 0,
+        platformReceivable: 15,
+      },
+      feeTreatment: { scheme: 'full_pass_on' as const },
+      passengerTotal: 63,
+      platformReceivable: 15,
+      configSchemaVersion: 2 as const,
     },
   };
 

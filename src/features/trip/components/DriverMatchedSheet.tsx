@@ -145,7 +145,6 @@ export function DriverMatchedSheet({
 
   const mode = trip?.mode ?? 'solo';
   const isShared = mode === 'shared';
-  const isSharedOrHop = mode === 'shared' || mode === 'hop';
 
   const driverPublic = trip?.driverPublic;
   const driverName = driverPublic?.displayName || 'Driver Assigned';
@@ -196,11 +195,7 @@ export function DriverMatchedSheet({
     });
   }
 
-  const modeBadgeText = isShared
-    ? 'Shared'
-    : mode === 'hop'
-    ? 'Legacy Hop'
-    : 'Pakyaw';
+  const modeBadgeText = isShared ? 'Shared' : 'Pakyaw';
 
   return (
     <ScrollView
@@ -297,7 +292,7 @@ export function DriverMatchedSheet({
         </View>
 
         {/* Shared Occupancy / Private Reservation Section */}
-        {isSharedOrHop ? (
+        {isShared ? (
           <View style={styles.occupancySection}>
             <View style={styles.occupancyHeader}>
               <Text style={styles.occupancyTitle}>SEAT OCCUPANCY</Text>
