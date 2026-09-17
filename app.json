@@ -53,13 +53,7 @@
           "isAndroidForegroundServiceEnabled": false
         }
       ],
-      [
-        "react-native-maps",
-        {
-          "iosGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE",
-          "androidGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE"
-        }
-      ]
+      "react-native-maps"
     ],
     "experiments": {
       "typedRoutes": true,
