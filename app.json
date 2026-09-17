@@ -56,13 +56,7 @@
         }
       ],
       "./plugins/withAndroidPictureInPicture",
-      [
-        "react-native-maps",
-        {
-          "iosGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE",
-          "androidGoogleMapsApiKey": "AIzaSyBzF91snLDCakZZ77EwkUDh-qe0omhheoE"
-        }
-      ],
+      "react-native-maps",
       "@react-native-community/datetimepicker",
       "expo-image",
       "expo-web-browser",
