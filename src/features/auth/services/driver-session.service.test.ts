@@ -30,8 +30,8 @@ const activeDriver = {
   mobile: '+639171234567',
   role: 'driver',
   accountStatus: 'active',
-  createdAt: {} as never,
-  updatedAt: {} as never,
+  createdAt: { seconds: 1, nanoseconds: 0 } as never,
+  updatedAt: { seconds: 1, nanoseconds: 0 } as never,
 } satisfies UserDoc;
 
 describe('Driver session state resolver', () => {
@@ -112,7 +112,7 @@ describe('Driver session state resolver', () => {
 
     (getDoc as any).mockResolvedValueOnce({
       exists: () => true,
-      data: () => ({ ...activeDriver, role: 'passenger' }),
+      data: () => ({ ...activeDriver, uid: 'passenger-uid', role: 'passenger' }),
     });
 
     useSessionStore.getState().setSession('passenger-uid', 'driver');

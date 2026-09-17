@@ -23,6 +23,9 @@ export const TRIP_STATUSES = [
 ] as const;
 export type TripStatus = (typeof TRIP_STATUSES)[number];
 
+/** Stored-trip marker used to keep malformed current records fail-closed. */
+export const TRIP_SCHEMA_VERSION = 1 as const;
+
 export function isTripStatus(value: unknown): value is TripStatus {
   return typeof value === 'string' && (TRIP_STATUSES as readonly string[]).includes(value);
 }

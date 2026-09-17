@@ -19,6 +19,7 @@ import {
   ValidationError,
 } from '@pakyaw/shared/features/auth/errors';
 import type { UserDoc, UserDocInput, UserRole } from '@pakyaw/shared/features/auth/types';
+import { parseUserDoc } from '@pakyaw/shared/features/auth/validation/runtime';
 
 // ---------------------------------------------------------------------------
 // Error translation
@@ -185,7 +186,7 @@ export async function getUserDoc(uid: string): Promise<UserDoc | null> {
   try {
     const snap = await getDoc(doc(firestore, 'users', uid));
     if (!snap.exists()) return null;
-    return snap.data() as UserDoc;
+    return parseUserDoc(uid, snap.data());
   } catch (err) {
     throw translateFirebaseError(err);
   }

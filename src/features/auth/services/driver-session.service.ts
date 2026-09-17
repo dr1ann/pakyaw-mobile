@@ -1,4 +1,5 @@
 import type { UserDoc, UserRole } from '@pakyaw/shared/features/auth/types';
+import { parseUserDoc } from '@pakyaw/shared/features/auth/validation/runtime';
 import { useSessionStore } from '@pakyaw/shared/stores/sessionStore';
 import type { ApplicationStatus } from '@pakyaw/shared/onboarding';
 import { doc, firestore, getDoc } from '@/services/firebase/firebase';
@@ -26,9 +27,13 @@ export type DriverSessionResolution = {
   readonly userDoc?: UserDoc;
 };
 
-type ApplicationRecord = {
-  readonly status?: unknown;
-};
+type ApplicationRecord = { readonly status?: unknown };
+
+function parseApplicationRecord(value: unknown): ApplicationRecord | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const status = (value as Record<string, unknown>).status;
+  return { status };
+}
 
 export function applicationStatusToSessionStatus(
   applicationStatus: unknown,
@@ -93,7 +98,10 @@ export async function resolveDriverSession(uid: string): Promise<DriverSessionRe
     };
   }
 
-  const userDoc = userSnapshot.data() as UserDoc;
+  const userDoc = parseUserDoc(uid, userSnapshot.data());
+  if (!userDoc) {
+    return { status: 'driver_session_error', uid, role: null };
+  }
   const accountStatus = deriveDriverSessionStatus(userDoc, null);
   if (
     accountStatus === 'authenticated_role_mismatch' ||
@@ -106,7 +114,7 @@ export async function resolveDriverSession(uid: string): Promise<DriverSessionRe
 
   const applicationSnapshot = await getDoc(doc(firestore, 'driverApplications', uid));
   const application = applicationSnapshot.exists()
-    ? (applicationSnapshot.data() as ApplicationRecord)
+    ? parseApplicationRecord(applicationSnapshot.data()) ?? { status: undefined }
     : null;
   const derivedStatus = deriveDriverSessionStatus(userDoc, application);
   const status: Exclude<DriverSessionStatus, 'loading' | 'unauthenticated'> =

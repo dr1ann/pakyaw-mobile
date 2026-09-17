@@ -93,6 +93,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
           data: () => ({
             status: 'completed',
             mode: 'pakyaw',
+            passengerId: 'p-100',
             driverId: 'd-100',
             pickup: { label: 'Robinsons Place Ormoc' },
             destination: { label: 'Ormoc City Hall' },
@@ -120,6 +121,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
           data: () => ({
             status: 'cancelled',
             mode: 'pakyaw',
+            passengerId: 'p-100',
             driverId: 'd-100',
             pickup: { label: 'Robinsons Place' },
             destination: { label: 'Port' },
@@ -144,6 +146,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
           data: () => ({
             status: 'completed',
             mode: 'pakyaw',
+            passengerId: 'p-100',
             pickup: { label: 'A' },
             destination: { label: 'B' },
           }),
@@ -164,6 +167,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
           data: () => ({
             status: 'completed',
             mode: 'shared',
+            passengerId: 'p-100',
             pickup: { label: 'A' },
             destination: { label: 'B' },
           }),
@@ -184,6 +188,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
           data: () => ({
             status: 'completed',
             mode: 'shared',
+            passengerId: 'p-100',
             billedSeats: 3,
             passengerCount: 3,
             rider: { firstName: 'Elena' },
@@ -255,6 +260,7 @@ describe('Driver Trip History, Details & Earnings - 16 Point Contract Verificati
       data: () => ({
         mode: 'pakyaw',
         status: 'completed',
+        passengerId: 'p-100',
         fareBreakdown: {
           total: 60.0,
           driverEarnings: 52.0,

@@ -155,6 +155,7 @@ describe('history.service', () => {
             id: 'trip-1',
             data: () => ({
               status: 'completed',
+              passengerId: 'p-1',
               requestedAt: { seconds: 2000, nanoseconds: 10 },
             }),
           },
@@ -162,6 +163,7 @@ describe('history.service', () => {
             id: 'trip-2',
             data: () => ({
               status: 'cancelled',
+              passengerId: 'p-1',
               requestedAt: { seconds: 1000, nanoseconds: 20 },
             }),
           },
@@ -184,6 +186,7 @@ describe('history.service', () => {
             data: () => ({
               status: 'completed',
               mode: 'pakyaw',
+              passengerId: 'passenger-1',
               driverId: 'drv-1',
               pickup: { label: 'Robinsons' },
               destination: { label: 'Ormoc City Hall' },
@@ -224,6 +227,7 @@ describe('history.service', () => {
             data: () => ({
               status: 'cancelled',
               mode: 'shared',
+              passengerId: 'passenger-1',
               driverId: 'drv-1',
               pickup: { label: 'Terminal' },
               destination: { label: 'Market' },
