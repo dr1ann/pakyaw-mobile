@@ -220,7 +220,7 @@ export function ReportIssueModal({
                   <TextInput
                     value={itemName}
                     onChangeText={setItemName}
-                    placeholder="e.g. Umbrella, Wallet, Backpack"
+                    placeholder="e.g. Umbrella, Keys, Backpack"
                     placeholderTextColor={colors.ink[400]}
                     maxLength={80}
                     style={styles.textInput}
