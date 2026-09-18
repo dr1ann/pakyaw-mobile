@@ -340,6 +340,12 @@ export function IncomingRequestCard({ request }: IncomingRequestCardProps) {
               <Text style={styles.infoLabel}>Estimated duration</Text>
               <Text style={styles.infoValue}>{tripDurationText}</Text>
             </View>
+            {!isShared && (
+              <View style={styles.infoRow} testID="pakyaw-buyout-row">
+                <Text style={styles.infoLabel}>Pakyaw buyout</Text>
+                <Text style={styles.infoValue}>{`${request.billedSeats} seats`}</Text>
+              </View>
+            )}
             <View style={[styles.infoRow, styles.fareRow]}>
               <Text style={styles.fareLabel}>Authoritative Fare</Text>
               <Text style={styles.fareValue} testID="authoritative-fare">

@@ -52,13 +52,13 @@ describe('transport contract', () => {
 
   it('keeps the public defaults and fare snapshot shape aligned with Functions', () => {
     expect(DEFAULT_VEHICLE_CAPACITY).toBe(6);
-    expect(DEFAULT_SOLO_MIN_BILLED_SEATS).toBe(4);
+    expect(DEFAULT_SOLO_MIN_BILLED_SEATS).toBe(6);
     expect(DEFAULT_SHARED_MAX_SEATS_PER_BOOKING).toBe(3);
     expect(DEFAULT_PUBLIC_TRANSPORT_CONFIG).toEqual({
       schemaVersion: 2,
       vehicleCapacity: 6,
       modes: {
-        solo: { enabled: true, minPassengers: 1, maxPassengers: 6, minimumBilledSeats: 4, buyoutSeats: 4 },
+        solo: { enabled: true, minPassengers: 1, maxPassengers: 6, minimumBilledSeats: 6, buyoutSeats: 6 },
         shared: { enabled: true, maxSeatsPerBooking: 3, maxSeats: 6 },
       },
       pricing: { currency: 'PHP' },

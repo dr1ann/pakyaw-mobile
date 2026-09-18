@@ -1,5 +1,10 @@
 # Pakyaw — User Flows
 
+> **Historical / superseded source note:** older four-seat Solo and carpool
+> wording in this archive is retained for traceability only. Current Pakyaw
+> accepts 1–6 actual passengers and bills six seats; Shared Ride behavior is
+> governed by the canonical backend configuration.
+
 Derived from the Figma screens (`docs/figma/`) and the Blueprint operational logic. Each flow lists the screens involved (file names in `docs/figma/<role>/`), decision points, and system actions. **[ASSUMPTION]** / **[GAP]** mark inferred or missing steps.
 
 Three apps:

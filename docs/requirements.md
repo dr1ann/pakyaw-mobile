@@ -1,5 +1,11 @@
 # Pakyaw Platform — Requirements
 
+> **Historical / superseded source note:** this requirements archive contains
+> older four-seat Solo examples from the pre-canonical MVP. For current
+> implementation, use `docs/branch_architecture.md` and the backend transport
+> contract: Pakyaw/Solo accepts 1–6 actual passengers and always bills six
+> seats. Historical Trip snapshots remain unchanged.
+
 **Sources:** `docs/Corporate-Fare-Strategy-Technical-Realignment-and-Local-Operational-Blueprint-for-the-Pakyaw-Platform.pdf` (the "Blueprint") and `docs/figma/` screenshots (passenger, driver, fleet_owner).
 
 **Scope note:** The Blueprint is primarily a business/investment and operations document. The Figma screens show three client apps: **Passenger**, **Driver**, and **Fleet Owner (Operator Console)**. Where the document and the designs disagree or one is silent, this is flagged.

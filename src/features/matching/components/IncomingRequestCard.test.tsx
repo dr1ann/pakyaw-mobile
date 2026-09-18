@@ -96,7 +96,7 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
       coords: { lat: 11.055, lng: 124.655 },
     },
     passengerCount: 2,
-    billedSeats: 4,
+    billedSeats: 6,
     status: 'pending',
     route: {
       distanceMeters: 4800,
@@ -125,6 +125,8 @@ describe('IncomingRequestCard — Phase 11 Driver Incoming Request UI', () => {
     expect(json).toContain('Robinsons Place Ormoc');
     expect(json).toContain('Ormoc Airport');
     expect(json).toContain('₱180.00');
+    expect(json).toContain('Pakyaw buyout');
+    expect(json).toContain('6 seats');
   });
 
   it('displays authoritative road-trip distance (4.8 km) and does NOT display ambiguous Haversine distance', () => {

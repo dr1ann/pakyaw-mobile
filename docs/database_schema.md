@@ -1,5 +1,10 @@
 # Pakyaw — Database Schema (MVP)
 
+> **Historical / superseded source note:** this MVP schema archive contains
+> older four-seat Solo examples. The maintained backend contract now accepts
+> 1–6 actual Solo passengers and stores `billedSeats = 6` for new valid Solo
+> Trips. Existing Trip snapshots are immutable.
+
 Cloud Firestore schema for the **MVP Pakyaw SOLO ride system** only. Scope, principles, and the trip state machine are defined in [architecture.md](./architecture.md). Source of truth: [requirements.md](./requirements.md).
 
 **Excluded from this schema (deferred):** any fare/price/commission/discount amount, wallet/balance, payments, Share/carpool, fleet/operator, earnings, ratings/receipts, trust/fraud, notifications. **No monetary field exists anywhere in the MVP schema** — pricing is deferred and must not appear (FR-1.2 deferred; §0 scope).
