@@ -1,5 +1,10 @@
 # Pakyaw MVP — Implementation Plan (Solo Ride)
 
+> **Historical / superseded planning note:** this phased MVP archive contains
+> older four-seat Solo assumptions. The maintained implementation follows the
+> current backend transport contract: Pakyaw accepts 1–6 actual passengers and
+> always bills six seats. See `docs/branch_architecture.md`.
+
 Phased build plan for the **MVP Solo Ride** scope only. Source of truth: [requirements.md](./docs/requirements.md), [architecture.md](./docs/architecture.md), [database_schema.md](./docs/database_schema.md), [navigation.md](./docs/navigation.md), [state_management.md](./docs/state_management.md), [api_contracts.md](./docs/api_contracts.md), [design_system.md](./docs/design_system.md), [component_inventory.md](./docs/component_inventory.md).
 
 **Stack (frozen — no new patterns):** Expo SDK 56 · Expo Router ~56.2 · React Native 0.85 · React 19 · Firebase Auth + Firestore · Zustand · TanStack Query · React Hook Form + Zod · `expo-location`.

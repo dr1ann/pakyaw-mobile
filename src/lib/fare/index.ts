@@ -1,5 +1,9 @@
 import type { FareInput, FareOutput, FareConfig } from './types';
 import { SurchargeType } from './types';
+import {
+  DEFAULT_SOLO_MIN_BILLED_SEATS,
+  DEFAULT_VEHICLE_CAPACITY,
+} from '@pakyaw/shared/transport/contract';
 
 export function computeFare(
   input: FareInput,
@@ -14,7 +18,11 @@ export function computeFare(
     perSeatBase = perSeatBase * 0.80;
   }
   
-  const actualSeats = Math.max(4, Math.min(6, billedSeats));
+  // Legacy display helper only; quoteTrip/requestTrip remain backend-authoritative.
+  const actualSeats = Math.max(
+    DEFAULT_SOLO_MIN_BILLED_SEATS,
+    Math.min(DEFAULT_VEHICLE_CAPACITY, billedSeats),
+  );
   const baseBuyout = perSeatBase * actualSeats;
   
   let distanceSurchargePerSeat = 0;
@@ -134,7 +142,7 @@ export function computeSharedFare(
     perSeatBase = perSeatBase * 0.80;
   }
   
-  // No minimum 4 seat buyout for shared rides. 
+  // Shared rides have no Solo buyout minimum.
   // Passenger pays exactly for the seats they cover (1-3).
   const actualSeats = billedSeats;
   const baseBuyout = perSeatBase * actualSeats;

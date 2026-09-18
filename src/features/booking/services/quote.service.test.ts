@@ -59,8 +59,8 @@ describe('quote.service — server-authoritative quote boundary', () => {
       data: {
         mode: 'solo',
         passengerCount: 1,
-        billedSeats: 4,
-        fare: canonicalFare(220, 235, 220, 4),
+        billedSeats: 6,
+        fare: canonicalFare(330, 345, 330, 6),
       },
     });
   });
@@ -70,8 +70,8 @@ describe('quote.service — server-authoritative quote boundary', () => {
     expect(quote).toMatchObject({
       mode: 'solo',
       passengerCount: 1,
-      billedSeats: 4,
-      fare: { total: 235, baseFare: 220, techFee: 15 },
+      billedSeats: 6,
+      fare: { total: 345, baseFare: 330, techFee: 15 },
     });
     expect(mocks.httpsCallable).toHaveBeenCalledWith(expect.anything(), 'quoteTrip');
     expect(mocks.callable).toHaveBeenCalledWith({
@@ -91,11 +91,11 @@ describe('quote.service — server-authoritative quote boundary', () => {
     expect(sentPayload).not.toHaveProperty('surcharges');
   });
 
-  it('returns 4-seat buyout for Solo even when 1 passenger is boarding', async () => {
+  it('returns a six-seat buyout for Solo even when 1 passenger is boarding', async () => {
     const quote = await quoteTrip({ ...input, passengerCount: 1 });
     expect(quote.passengerCount).toBe(1);
-    expect(quote.billedSeats).toBe(4);
-    expect(quote.fare.total).toBe(235);
+    expect(quote.billedSeats).toBe(6);
+    expect(quote.fare.total).toBe(345);
   });
 
   it('accepts a canonical Shared quote with reserved seats', async () => {

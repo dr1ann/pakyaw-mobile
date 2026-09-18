@@ -44,7 +44,7 @@ export const INITIAL_PASSENGER_COUNT = 1;
 export const INITIAL_BILLED_SEATS = 1;
 export const MAX_PASSENGER_COUNT = 6;
 export const DEFAULT_VEHICLE_CAPACITY = 6;
-export const DEFAULT_SOLO_MIN_BILLED_SEATS = 4;
+export const DEFAULT_SOLO_MIN_BILLED_SEATS = 6;
 export const DEFAULT_SHARED_MAX_SEATS_PER_BOOKING = 3;
 
 /** Public, non-pricing transport settings returned to mobile clients. */

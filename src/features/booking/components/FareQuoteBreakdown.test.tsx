@@ -11,14 +11,14 @@ describe('FareQuoteBreakdown component', () => {
   const baseQuote = {
     mode: 'solo' as const,
     passengerCount: 1,
-    billedSeats: 4,
+    billedSeats: 6,
     fare: {
-      baseFare: 40,
+      baseFare: 60,
       succeedingKmCharge: 3,
       distanceFare: 3,
       techFee: 15,
-      total: 63,
-      driverEarnings: 43,
+      total: 79.5,
+      driverEarnings: 64.5,
       perSeat: {
         baseFare: 10,
         succeedingKmCharge: 0.75,
@@ -26,8 +26,8 @@ describe('FareQuoteBreakdown component', () => {
         surchargeTotal: 0,
         transportFare: 10.75,
       },
-      billedSeats: 4,
-      transportFare: 43,
+      billedSeats: 6,
+      transportFare: 64.5,
       surcharges: { items: [], total: 5 },
       serviceFee: {
         configuredAmount: 15,
@@ -37,13 +37,13 @@ describe('FareQuoteBreakdown component', () => {
         platformReceivable: 15,
       },
       feeTreatment: { scheme: 'full_pass_on' as const },
-      passengerTotal: 63,
+      passengerTotal: 79.5,
       platformReceivable: 15,
       configSchemaVersion: 2 as const,
     },
   };
 
-  it('renders correctly as a JSX element for Solo 1-4 riders (4 buyout seats)', () => {
+  it('renders correctly as a JSX element for Solo riders with a six-seat buyout', () => {
     const element = (
       <FareQuoteBreakdown
         quote={baseQuote}
@@ -57,16 +57,16 @@ describe('FareQuoteBreakdown component', () => {
       />
     );
     expect(element).toBeDefined();
-    expect(element.props.quote.billedSeats).toBe(4);
-    expect(element.props.quote.fare.total).toBe(63);
+    expect(element.props.quote.billedSeats).toBe(6);
+    expect(element.props.quote.fare.total).toBe(79.5);
   });
 
-  it('renders correctly for Solo 5 riders (5 charged seats)', () => {
+  it('keeps the six-seat buyout when six actual riders are selected', () => {
     const quote5 = {
       ...baseQuote,
-      passengerCount: 5,
-      billedSeats: 5,
-      fare: { ...baseQuote.fare, total: 73.75 },
+      passengerCount: 6,
+      billedSeats: 6,
+      fare: { ...baseQuote.fare, total: 79.5 },
     };
     const element = (
       <FareQuoteBreakdown
@@ -77,11 +77,11 @@ describe('FareQuoteBreakdown component', () => {
         onRetry={vi.fn()}
         mode="private"
         hasValidRoute={true}
-        riderCount={5}
+        riderCount={6}
       />
     );
-    expect(element.props.quote.billedSeats).toBe(5);
-    expect(element.props.quote.fare.total).toBe(73.75);
+    expect(element.props.quote.billedSeats).toBe(6);
+    expect(element.props.quote.fare.total).toBe(79.5);
   });
 
   it('renders loading state when quote is calculating and no quote exists', () => {

@@ -58,8 +58,8 @@ describe('useQuote hook', () => {
       data: {
         mode: 'solo',
         passengerCount: 1,
-        billedSeats: 4,
-        fare: { total: 235, baseFare: 220, techFee: 15 },
+        billedSeats: 6,
+        fare: { total: 345, baseFare: 330, techFee: 15 },
       },
       isLoading: false,
       isFetching: false,
@@ -72,7 +72,7 @@ describe('useQuote hook', () => {
   it('enables query with correct key and payload when route is valid', async () => {
     const result = useQuote();
     expect(result.canQuote).toBe(true);
-    expect(result.quote).toMatchObject({ billedSeats: 4, fare: { total: 235 } });
+    expect(result.quote).toMatchObject({ billedSeats: 6, fare: { total: 345 } });
 
     expect(mocks.useQuery).toHaveBeenCalledWith(
       expect.objectContaining({

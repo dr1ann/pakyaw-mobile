@@ -18,7 +18,7 @@ export function OnboardingModal({ mode, isVisible, onClose, config = DEFAULT_PUB
   if (!isVisible) return null;
 
   const soloMax = config.modes.solo.maxPassengers || config.vehicleCapacity || 6;
-  const soloMinBilled = config.modes.solo.minimumBilledSeats || 4;
+  const soloMinBilled = config.modes.solo.minimumBilledSeats || 6;
   const sharedMax = config.modes.shared.maxSeatsPerBooking || 3;
 
   const modeContent = {
@@ -31,7 +31,7 @@ export function OnboardingModal({ mode, isVisible, onClose, config = DEFAULT_PUB
       points: [
         'Private ride for you and your companions.',
         'Direct route with no extra passenger pickups.',
-        `Covers up to ${soloMinBilled} riders, with up to ${soloMax} riders supported.`,
+        `Reserves all ${soloMinBilled} vehicle seats; choose 1–${soloMax} actual riders.`,
       ],
     },
     shared: {

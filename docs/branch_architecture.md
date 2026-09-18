@@ -148,6 +148,15 @@ are only `solo`, `shared`, and `hop`; `sharedRides` is the canonical SharedRide
 collection and `shared_rides` is legacy. The Admin contract document is the
 cross-repository reference for ownership and the deferred migration path.
 
+### Current Pakyaw / Solo policy
+
+Pakyaw/Solo accepts 1–6 actual passengers and exclusively reserves the complete
+six-seat vehicle. The backend derives `billedSeats = 6` for every valid Solo
+quote/request; a request for 7 or more passengers is rejected. The Passenger
+selects the actual count and sends intent only; authoritative billed seats and
+fare come from the backend. Existing Trip fare and billed-seat snapshots are
+historical and are never recomputed after a policy change.
+
 Phase 6 identity and safety details are documented in
 [`phase6-identity-safety.md`](./phase6-identity-safety.md). Passenger ride
 screens consume the backend-generated historical `Trip.driverPublic` snapshot

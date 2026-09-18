@@ -1,5 +1,9 @@
 # Pakyaw — UI Behavior
 
+> **Historical / superseded source note:** older four-seat Solo wording in this
+> archive is not current UI behavior. The maintained app shows 1–6 actual
+> passengers while the backend-provided Pakyaw buyout is always six seats.
+
 Interactive behavior, states, transitions, and validation rules inferred from the Figma screens and Blueprint logic. Behaviors visible in the mockups are stated as fact; behaviors inferred from convention or the Blueprint are marked **[ASSUMPTION]**; unknowns are **[GAP]**.
 
 ---

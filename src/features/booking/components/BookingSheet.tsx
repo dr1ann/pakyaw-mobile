@@ -64,7 +64,7 @@ export function BookingSheet({
   const { config: transportConfig } = useTransportConfig();
   const sharedMaxSeats = transportConfig.modes.shared.maxSeatsPerBooking || 3;
   const soloMaxSeats = transportConfig.modes.solo.maxPassengers || transportConfig.vehicleCapacity || 6;
-  const soloMinBilledSeats = transportConfig.modes.solo.minimumBilledSeats || 4;
+  const soloMinBilledSeats = transportConfig.modes.solo.minimumBilledSeats || 6;
 
   const [showInfoModal, setShowInfoModal] = useState(false);
 
@@ -334,7 +334,7 @@ export function BookingSheet({
                 </Text>
                 <Text style={styles.rowSubtitle}>
                   {draft.rideMode === 'private'
-                    ? `Standard fare covers up to ${soloMinBilledSeats} riders. Up to ${soloMaxSeats} supported.`
+                    ? `Reserves all ${soloMinBilledSeats} vehicle seats. Choose 1–${soloMaxSeats} actual riders.`
                     : `Cover 1 to ${sharedMaxSeats} seats on this route.`}
                 </Text>
               </View>
